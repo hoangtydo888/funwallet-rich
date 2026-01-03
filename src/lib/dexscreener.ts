@@ -88,10 +88,28 @@ export const fetchTokenFromDexScreener = async (
       return null;
     }
 
-    // Get the pair with highest liquidity
-    const bestPair = pairs.reduce((best, current) => 
-      (current.liquidity?.usd || 0) > (best.liquidity?.usd || 0) ? current : best
-    );
+    // Prefer pairs with stablecoin quotes (USDT, USDC, BUSD) for accurate pricing
+    const stableQuotes = ["USDT", "USDC", "BUSD", "DAI"];
+    
+    const bestPair = pairs.reduce((best, current) => {
+      const currentQuote = current.quoteToken?.symbol?.toUpperCase() || "";
+      const bestQuote = best.quoteToken?.symbol?.toUpperCase() || "";
+      const currentIsStable = stableQuotes.includes(currentQuote);
+      const bestIsStable = stableQuotes.includes(bestQuote);
+      const currentLiquidity = current.liquidity?.usd || 0;
+      const bestLiquidity = best.liquidity?.usd || 0;
+      
+      // If current is stable pair and best is not, prefer current (with min liquidity check)
+      if (currentIsStable && !bestIsStable && currentLiquidity > 10000) {
+        return current;
+      }
+      // If best is stable and current is not, keep best
+      if (bestIsStable && !currentIsStable && bestLiquidity > 10000) {
+        return best;
+      }
+      // Otherwise, choose by highest liquidity
+      return currentLiquidity > bestLiquidity ? current : best;
+    });
 
     return {
       symbol: bestPair.baseToken.symbol,
