@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChain } from "@/contexts/ChainContext";
 import { useWallet } from "@/hooks/useWallet";
 import { useNFT } from "@/hooks/useNFT";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,9 @@ import {
   Bell,
   Globe,
   Shield,
-  Layers
+  Layers,
+  Settings,
+  Link2
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -46,9 +49,12 @@ import { StakingDialog } from "@/components/staking/StakingDialog";
 import { PriceAlertsDialog } from "@/components/price/PriceAlertsDialog";
 import { DAppBrowserDialog } from "@/components/dapp/DAppBrowserDialog";
 import { BackupRestoreDialog } from "@/components/backup/BackupRestoreDialog";
+import { ChainSelector } from "@/components/chain/ChainSelector";
+import { WalletConnectDialog } from "@/components/walletconnect/WalletConnectDialog";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
+  const { currentChain } = useChain();
   const navigate = useNavigate();
   
   const {
@@ -83,6 +89,7 @@ const Dashboard = () => {
   const [priceAlertsOpen, setPriceAlertsOpen] = useState(false);
   const [dappBrowserOpen, setDappBrowserOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
+  const [walletConnectOpen, setWalletConnectOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
 
   useEffect(() => {
@@ -147,10 +154,11 @@ const Dashboard = () => {
           <Link to="/" className="font-heading text-xl font-bold gradient-text">
             FUN Wallet
           </Link>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {user.email}
-            </span>
+          <div className="flex items-center gap-2">
+            <ChainSelector compact />
+            <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
+              <Settings className="h-5 w-5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={handleSignOut}>
               <LogOut className="h-5 w-5" />
             </Button>
@@ -175,7 +183,9 @@ const Dashboard = () => {
               <h2 className="font-heading text-4xl font-bold">
                 ${formatBalance(totalBalance.toFixed(2), 2)}
               </h2>
-              <p className="text-sm text-success mt-1">BNB Chain</p>
+              <p className="text-sm text-success mt-1 flex items-center gap-1">
+                {currentChain.logo} {currentChain.shortName}
+              </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
               <Wallet className="h-6 w-6 text-primary-foreground" />
@@ -186,7 +196,7 @@ const Dashboard = () => {
           <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 mb-6">
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">
-                {hasWallet ? activeWallet.name : "Địa chỉ ví BNB Chain"}
+                {hasWallet ? activeWallet.name : `Địa chỉ ví ${currentChain.shortName}`}
               </p>
               <p className="text-sm font-mono">
                 {hasWallet 
@@ -201,7 +211,7 @@ const Dashboard = () => {
                 </Button>
                 <Button variant="ghost" size="icon" asChild>
                   <a
-                    href={`${BSC_MAINNET.explorer}/address/${activeWallet.address}`}
+                    href={`${currentChain.explorer}/address/${activeWallet.address}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -265,16 +275,16 @@ const Dashboard = () => {
               disabled={!hasWallet}
             />
             <QuickAction 
+              icon={<Link2 />} 
+              label="WC" 
+              onClick={() => setWalletConnectOpen(true)}
+              disabled={!hasWallet}
+            />
+            <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
               disabled={!hasWallet || balanceLoading}
-            />
-            <QuickAction 
-              icon={<TrendingUp />} 
-              label="More" 
-              onClick={() => setActiveTab("portfolio")}
-              disabled={!hasWallet}
             />
           </div>
         </div>
@@ -374,11 +384,11 @@ const Dashboard = () => {
         ) : (
           /* Feature cards for new users */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            <FeatureCard
-              icon={<Wallet />}
-              title="Tạo Ví Mới"
-              description="Tạo ví Web3 mới trên BNB Chain"
-              action="Tạo ví"
+          <FeatureCard
+            icon={<Wallet />}
+            title="Tạo Ví Mới"
+            description={`Tạo ví Web3 mới trên ${currentChain.name}`}
+            action="Tạo ví"
               gradient="from-primary to-secondary"
               onClick={() => setCreateWalletOpen(true)}
             />
@@ -477,6 +487,12 @@ const Dashboard = () => {
               localStorage.setItem(`pk_${address.toLowerCase()}`, privateKey);
               // The wallet will be added via the normal flow
             }}
+          />
+
+          <WalletConnectDialog
+            open={walletConnectOpen}
+            onOpenChange={setWalletConnectOpen}
+            walletAddress={activeWallet.address}
           />
         </>
       )}
