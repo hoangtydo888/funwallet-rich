@@ -1,3 +1,7 @@
+import { ethers } from "ethers";
+import { getProvider } from "./wallet";
+import { PANCAKE_ROUTER, PANCAKE_ROUTER_ABI, WBNB_ADDRESS } from "./swap";
+
 // Token price data interface
 export interface TokenPrice {
   symbol: string;
@@ -22,12 +26,12 @@ export interface PriceAlert {
   triggered: boolean;
 }
 
-// CoinGecko IDs for 19 BSC tokens
+// CoinGecko IDs for BSC tokens
 const COINGECKO_IDS: Record<string, string | null> = {
   BNB: "binancecoin",
   USDT: "tether",
   USDC: "usd-coin",
-  CAMLY: null, // Custom token - no CoinGecko ID
+  CAMLY: null, // Custom token - fetch from DEX
   BTCB: "bitcoin",
   ETH: "ethereum",
   CAKE: "pancakeswap-token",
@@ -45,55 +49,116 @@ const COINGECKO_IDS: Record<string, string | null> = {
   BTT: "bittorrent",
 };
 
-// Fetch real-time prices from CoinGecko
+// Token addresses for DEX price fetching
+const DEX_TOKEN_ADDRESSES: Record<string, { address: string; decimals: number; name: string }> = {
+  CAMLY: { address: "0x0910320181889fefde0bb1ca63962b0a8882e413", decimals: 18, name: "CAMLY COIN" },
+};
+
+const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
+
+// Fetch price from PancakeSwap DEX
+export const fetchDEXPrice = async (symbol: string): Promise<TokenPrice | null> => {
+  const tokenInfo = DEX_TOKEN_ADDRESSES[symbol.toUpperCase()];
+  if (!tokenInfo) return null;
+
+  try {
+    const provider = getProvider();
+    const router = new ethers.Contract(PANCAKE_ROUTER, PANCAKE_ROUTER_ABI, provider);
+    
+    // Path: Token → WBNB → USDT to get price in USDT
+    const path = [tokenInfo.address, WBNB_ADDRESS, USDT_ADDRESS];
+    const amountIn = ethers.parseUnits("1", tokenInfo.decimals);
+    
+    const amounts = await router.getAmountsOut(amountIn, path);
+    const priceInUSDT = parseFloat(ethers.formatUnits(amounts[amounts.length - 1], 18));
+    
+    return {
+      symbol: symbol.toUpperCase(),
+      name: tokenInfo.name,
+      price: priceInUSDT,
+      change24h: 0, // DEX doesn't provide 24h change
+      high24h: priceInUSDT * 1.05,
+      low24h: priceInUSDT * 0.95,
+      volume24h: 0,
+      marketCap: 0,
+      lastUpdated: Date.now(),
+    };
+  } catch (error) {
+    console.error(`Error fetching DEX price for ${symbol}:`, error);
+    return null;
+  }
+};
+
+// Fetch real-time prices from CoinGecko and DEX
 export const fetchTokenPrices = async (
   symbols: string[]
 ): Promise<TokenPrice[]> => {
   try {
-    // Tách tokens có CoinGecko ID và không có
-    const tokensWithIds = symbols.filter(s => COINGECKO_IDS[s.toUpperCase()] !== null && COINGECKO_IDS[s.toUpperCase()] !== undefined);
-    const tokensWithoutIds = symbols.filter(s => COINGECKO_IDS[s.toUpperCase()] === null);
+    // Separate tokens by price source
+    const tokensFromCoinGecko = symbols.filter(s => 
+      COINGECKO_IDS[s.toUpperCase()] !== null && COINGECKO_IDS[s.toUpperCase()] !== undefined
+    );
+    const tokensFromDEX = symbols.filter(s => DEX_TOKEN_ADDRESSES[s.toUpperCase()]);
     
     let coinGeckoPrices: TokenPrice[] = [];
+    let dexPrices: TokenPrice[] = [];
     
-    // Fetch từ CoinGecko cho tokens có ID
-    if (tokensWithIds.length > 0) {
-      const ids = tokensWithIds
+    // Fetch from CoinGecko for tokens with ID
+    if (tokensFromCoinGecko.length > 0) {
+      const ids = tokensFromCoinGecko
         .map(s => COINGECKO_IDS[s.toUpperCase()])
         .filter(Boolean);
 
       if (ids.length > 0) {
-        const response = await fetch(
-          `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
-        );
+        try {
+          const response = await fetch(
+            `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
+          );
 
-        if (response.ok) {
-          const data = await response.json();
-          
-          coinGeckoPrices = data.map((coin: any) => ({
-            symbol: Object.keys(COINGECKO_IDS).find(
-              key => COINGECKO_IDS[key] === coin.id
-            ) || coin.symbol.toUpperCase(),
-            name: coin.name,
-            price: coin.current_price ?? 0,
-            change24h: coin.price_change_percentage_24h ?? 0,
-            high24h: coin.high_24h ?? 0,
-            low24h: coin.low_24h ?? 0,
-            volume24h: coin.total_volume ?? 0,
-            marketCap: coin.market_cap ?? 0,
-            lastUpdated: Date.now(),
-          }));
+          if (response.ok) {
+            const data = await response.json();
+            
+            coinGeckoPrices = data.map((coin: any) => ({
+              symbol: Object.keys(COINGECKO_IDS).find(
+                key => COINGECKO_IDS[key] === coin.id
+              ) || coin.symbol.toUpperCase(),
+              name: coin.name,
+              price: coin.current_price ?? 0,
+              change24h: coin.price_change_percentage_24h ?? 0,
+              high24h: coin.high_24h ?? 0,
+              low24h: coin.low_24h ?? 0,
+              volume24h: coin.total_volume ?? 0,
+              marketCap: coin.market_cap ?? 0,
+              lastUpdated: Date.now(),
+            }));
+          }
+        } catch (error) {
+          console.error("CoinGecko fetch error:", error);
         }
       }
     }
     
-    // Tạo mock prices cho tokens không có CoinGecko ID (như CAMLY)
-    const mockPrices = tokensWithoutIds.length > 0 ? generateMockPrices(tokensWithoutIds) : [];
+    // Fetch from DEX (PancakeSwap) for tokens like CAMLY
+    for (const symbol of tokensFromDEX) {
+      const dexPrice = await fetchDEXPrice(symbol);
+      if (dexPrice) {
+        dexPrices.push(dexPrice);
+      }
+    }
     
-    // Kết hợp cả hai
-    const allPrices = [...coinGeckoPrices, ...mockPrices];
+    // Combine all prices
+    const allPrices = [...coinGeckoPrices, ...dexPrices];
     
-    // Nếu không có kết quả nào, fallback toàn bộ sang mock
+    // For symbols that didn't get prices, use mock prices
+    const fetchedSymbols = allPrices.map(p => p.symbol.toUpperCase());
+    const missingSymbols = symbols.filter(s => !fetchedSymbols.includes(s.toUpperCase()));
+    
+    if (missingSymbols.length > 0) {
+      const mockPrices = generateMockPrices(missingSymbols);
+      allPrices.push(...mockPrices);
+    }
+    
+    // Fallback if no results
     if (allPrices.length === 0) {
       return generateMockPrices(symbols);
     }
@@ -111,7 +176,7 @@ const generateMockPrices = (symbols: string[]): TokenPrice[] => {
     BNB: 615.42,
     USDT: 1.0,
     USDC: 1.0,
-    CAMLY: 0.0001, // Custom token mock price
+    CAMLY: 0.0025,
     BTCB: 97234.56,
     ETH: 3456.78,
     CAKE: 2.45,
@@ -131,14 +196,14 @@ const generateMockPrices = (symbols: string[]): TokenPrice[] => {
 
   return symbols.map(symbol => {
     const basePrice = basePrices[symbol.toUpperCase()] || Math.random() * 100;
-    const variation = (Math.random() - 0.5) * 0.1; // ±5% variation
+    const variation = (Math.random() - 0.5) * 0.1;
     const price = basePrice * (1 + variation);
     
     return {
       symbol: symbol.toUpperCase(),
       name: symbol,
       price,
-      change24h: (Math.random() - 0.5) * 10, // ±5% change
+      change24h: (Math.random() - 0.5) * 10,
       high24h: price * 1.05,
       low24h: price * 0.95,
       volume24h: Math.random() * 1000000000,
