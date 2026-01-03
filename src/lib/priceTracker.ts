@@ -74,12 +74,12 @@ export const fetchTokenPrices = async (
         key => COINGECKO_IDS[key] === coin.id
       ) || coin.symbol.toUpperCase(),
       name: coin.name,
-      price: coin.current_price,
-      change24h: coin.price_change_percentage_24h || 0,
-      high24h: coin.high_24h,
-      low24h: coin.low_24h,
-      volume24h: coin.total_volume,
-      marketCap: coin.market_cap,
+      price: coin.current_price ?? 0,
+      change24h: coin.price_change_percentage_24h ?? 0,
+      high24h: coin.high_24h ?? 0,
+      low24h: coin.low_24h ?? 0,
+      volume24h: coin.total_volume ?? 0,
+      marketCap: coin.market_cap ?? 0,
       lastUpdated: Date.now(),
     }));
   } catch (error) {
@@ -163,7 +163,10 @@ export const checkAlerts = (
 };
 
 // Format price for display
-export const formatPrice = (price: number): string => {
+export const formatPrice = (price: number | null | undefined): string => {
+  if (price === null || price === undefined || isNaN(price)) {
+    return "$0.00";
+  }
   if (price >= 1000) {
     return price.toLocaleString("en-US", {
       style: "currency",
@@ -189,13 +192,19 @@ export const formatPrice = (price: number): string => {
 };
 
 // Format percentage change
-export const formatChange = (change: number): string => {
+export const formatChange = (change: number | null | undefined): string => {
+  if (change === null || change === undefined || isNaN(change)) {
+    return "+0.00%";
+  }
   const prefix = change >= 0 ? "+" : "";
   return `${prefix}${change.toFixed(2)}%`;
 };
 
 // Format market cap / volume
-export const formatMarketCap = (value: number): string => {
+export const formatMarketCap = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return "$0";
+  }
   if (value >= 1e12) {
     return `$${(value / 1e12).toFixed(2)}T`;
   } else if (value >= 1e9) {

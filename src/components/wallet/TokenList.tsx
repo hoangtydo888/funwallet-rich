@@ -75,11 +75,12 @@ export const TokenList = ({ balances, loading }: TokenListProps) => {
     }
   });
 
-  // Calculate total USD value
+  // Calculate total USD value with null checks
   const totalUsdValue = balances.reduce((sum, token) => {
     const price = getPrice(token.symbol);
-    const balance = parseFloat(token.balance);
-    return sum + (price ? balance * price.price : 0);
+    const balance = parseFloat(token.balance) || 0;
+    const priceValue = price?.price ?? 0;
+    return sum + (balance * priceValue);
   }, 0);
 
   if (loading) {
