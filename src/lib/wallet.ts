@@ -45,13 +45,15 @@ export const COMMON_TOKENS = [
   { symbol: "BTT", name: "BitTorrent", address: "0x352Cb5E19b12FC216548a2677bD0fce83BaE434B", decimals: 18, logo: "/tokens/btt.svg" },
 ];
 
-// ERC-20 ABI for balance and transfer
+// ERC-20 ABI for balance, transfer, and swap
 export const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
   "function name() view returns (string)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
 ];
 
 // Create provider for BSC
