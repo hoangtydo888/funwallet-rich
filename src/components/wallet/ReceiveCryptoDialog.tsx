@@ -69,6 +69,16 @@ export const ReceiveCryptoDialog = ({
     img.src = "data:image/svg+xml;base64," + btoa(svgData);
   };
 
+  // Token logos to display
+  const supportedTokens = [
+    { symbol: "BNB", logo: "/tokens/bnb.svg" },
+    { symbol: "USDT", logo: "/tokens/usdt.svg" },
+    { symbol: "USDC", logo: "/tokens/usdc.svg" },
+    { symbol: "BTC", logo: "/tokens/btc.svg" },
+    { symbol: "ETH", logo: "/tokens/eth.svg" },
+    { symbol: "CAMLY", logo: "/tokens/camly.svg" },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -80,6 +90,26 @@ export const ReceiveCryptoDialog = ({
         </DialogHeader>
 
         <div className="space-y-6 pt-4">
+          {/* Supported tokens display */}
+          <div className="flex justify-center gap-2">
+            {supportedTokens.map((token) => (
+              <div 
+                key={token.symbol}
+                className="w-8 h-8 rounded-full overflow-hidden bg-muted/50 p-0.5"
+                title={token.symbol}
+              >
+                <img 
+                  src={token.logo} 
+                  alt={token.symbol}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ))}
+            <div className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center text-xs text-muted-foreground">
+              +13
+            </div>
+          </div>
+
           {/* QR Code */}
           <div className="flex justify-center">
             <div className="p-4 bg-white rounded-2xl">

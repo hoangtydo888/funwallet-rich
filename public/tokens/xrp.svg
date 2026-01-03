@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="xrp-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#23292F"/>
+      <stop offset="100%" stop-color="#1A1F24"/>
+    </linearGradient>
+  </defs>
+  <circle cx="16" cy="16" r="16" fill="url(#xrp-grad)"/>
+  <path fill="#fff" d="M22 9h-2.5l-3.5 3.7L12.5 9H10l5 5.2v.1L10 19.5h2.5l3.5-3.7 3.5 3.7H22l-5-5.2v-.1L22 9z"/>
+  <path fill="#fff" d="M10 23h12v-2H10z"/>
+</svg>
