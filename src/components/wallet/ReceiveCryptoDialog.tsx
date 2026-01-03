@@ -69,14 +69,14 @@ export const ReceiveCryptoDialog = ({
     img.src = "data:image/svg+xml;base64," + btoa(svgData);
   };
 
-  // Token logos to display
+  // Token logos to display - thứ tự ưu tiên: CAMLY, BTCB, USDT, BNB
   const supportedTokens = [
-    { symbol: "BNB", logo: "/tokens/bnb.svg" },
+    { symbol: "CAMLY", logo: "/tokens/camly.png" },
+    { symbol: "BTCB", logo: "/tokens/btc.svg" },
     { symbol: "USDT", logo: "/tokens/usdt.svg" },
+    { symbol: "BNB", logo: "/tokens/bnb.png" },
     { symbol: "USDC", logo: "/tokens/usdc.svg" },
-    { symbol: "BTC", logo: "/tokens/btc.svg" },
     { symbol: "ETH", logo: "/tokens/eth.svg" },
-    { symbol: "CAMLY", logo: "/tokens/camly.svg" },
   ];
 
   return (
