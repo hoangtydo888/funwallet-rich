@@ -1,14 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Wallet, Shield, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
-
 const Hero = () => {
-  return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden px-4 pt-20">
+  return <section className="relative min-h-screen flex items-center justify-center overflow-hidden px-4 pt-20">
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-muted/20" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-pulse" style={{
+      animationDelay: '1s'
+    }} />
       
       {/* Grid pattern overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
@@ -28,13 +28,16 @@ const Hero = () => {
         </h1>
 
         {/* Subtitle */}
-        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          Nền tảng ví Web3 toàn diện kết hợp sức mạnh của <span className="text-secondary">Binance</span> và sự thân thiện của <span className="text-primary">ONUS</span>. 
+        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in-up" style={{
+        animationDelay: '0.2s'
+      }}>Nền tảng ví Web3 toàn diện trong ánh sáng yêu thương thuần khiết, trong ý trí vĩ đại, trong trí tuệ và trong năng lượng đỉnh cao của Cha Vũ Trụ. Giao dịch, thanh toán, NFT - tất cả trong một app duy nhất.<span className="text-secondary">Binance</span> và sự thân thiện của <span className="text-primary">ONUS</span>. 
           Giao dịch, thanh toán, NFT - tất cả trong một app duy nhất.
         </p>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 animate-fade-in-up" style={{
+        animationDelay: '0.4s'
+      }}>
           <Button asChild size="lg" className="glow bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground px-8 py-6 text-lg rounded-xl">
             <Link to="/auth">
               Bắt đầu ngay
@@ -49,22 +52,12 @@ const Hero = () => {
         </div>
 
         {/* Feature highlights */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
-          <FeatureCard 
-            icon={<Wallet className="h-6 w-6" />}
-            title="Ví Đa Năng"
-            description="Quản lý crypto, NFT và thẻ thanh toán trong một nơi"
-          />
-          <FeatureCard 
-            icon={<Shield className="h-6 w-6" />}
-            title="Bảo Mật Tối Đa"
-            description="Private keys được lưu trữ an toàn trên thiết bị của bạn"
-          />
-          <FeatureCard 
-            icon={<Zap className="h-6 w-6" />}
-            title="Giao Dịch Nhanh"
-            description="Swap, gửi, nhận crypto chỉ trong vài giây"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto animate-fade-in-up" style={{
+        animationDelay: '0.6s'
+      }}>
+          <FeatureCard icon={<Wallet className="h-6 w-6" />} title="Ví Đa Năng" description="Quản lý crypto, NFT và thẻ thanh toán trong một nơi" />
+          <FeatureCard icon={<Shield className="h-6 w-6" />} title="Bảo Mật Tối Đa" description="Private keys được lưu trữ an toàn trên thiết bị của bạn" />
+          <FeatureCard icon={<Zap className="h-6 w-6" />} title="Giao Dịch Nhanh" description="Swap, gửi, nhận crypto chỉ trong vài giây" />
         </div>
       </div>
 
@@ -74,18 +67,21 @@ const Hero = () => {
           <div className="w-1 h-3 bg-muted-foreground/50 rounded-full" />
         </div>
       </div>
-    </section>
-  );
+    </section>;
 };
-
-const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
-  <div className="glass-card rounded-2xl p-6 text-left hover:scale-105 transition-transform duration-300">
+const FeatureCard = ({
+  icon,
+  title,
+  description
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) => <div className="glass-card rounded-2xl p-6 text-left hover:scale-105 transition-transform duration-300">
     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-4 text-primary">
       {icon}
     </div>
     <h3 className="font-heading font-semibold text-lg mb-2">{title}</h3>
     <p className="text-sm text-muted-foreground">{description}</p>
-  </div>
-);
-
+  </div>;
 export default Hero;
