@@ -18,7 +18,11 @@ import {
   Copy,
   ExternalLink,
   Sparkles,
-  Loader2
+  Loader2,
+  ArrowDownUp,
+  History,
+  PieChart,
+  Download
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -30,6 +34,10 @@ import { ReceiveCryptoDialog } from "@/components/wallet/ReceiveCryptoDialog";
 import { TokenList } from "@/components/wallet/TokenList";
 import { NFTGallery } from "@/components/nft/NFTGallery";
 import { MintBadgeDialog } from "@/components/nft/MintBadgeDialog";
+import { SwapDialog } from "@/components/swap/SwapDialog";
+import { TransactionHistory } from "@/components/transactions/TransactionHistory";
+import { PortfolioCharts } from "@/components/portfolio/PortfolioCharts";
+import { ImportNFTDialog } from "@/components/nft/ImportNFTDialog";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -53,6 +61,7 @@ const Dashboard = () => {
     nfts,
     loading: nftLoading,
     mintFunBadge,
+    importNFT,
   } = useNFT(activeWallet?.address, activeWallet?.id);
 
   // Dialog states
@@ -60,6 +69,8 @@ const Dashboard = () => {
   const [sendOpen, setSendOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [mintBadgeOpen, setMintBadgeOpen] = useState(false);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [importNFTOpen, setImportNFTOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
 
   useEffect(() => {
@@ -190,7 +201,7 @@ const Dashboard = () => {
           </div>
 
           {/* Quick actions */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-5 gap-2 sm:gap-3">
             <QuickAction 
               icon={<ArrowUpRight />} 
               label="Gửi" 
@@ -204,6 +215,12 @@ const Dashboard = () => {
               disabled={!hasWallet}
             />
             <QuickAction 
+              icon={<ArrowDownUp />} 
+              label="Swap" 
+              onClick={() => setSwapOpen(true)}
+              disabled={!hasWallet}
+            />
+            <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
@@ -211,18 +228,32 @@ const Dashboard = () => {
             />
             <QuickAction 
               icon={<Plus />} 
-              label={hasWallet ? "Thêm ví" : "Tạo ví"}
+              label={hasWallet ? "Thêm" : "Tạo ví"}
               onClick={() => setCreateWalletOpen(true)}
             />
           </div>
         </div>
 
-        {/* Tabs: Tokens / NFTs */}
+        {/* Tabs: Tokens / NFTs / History / Portfolio */}
         {hasWallet ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-            <TabsList className="grid w-full max-w-xs grid-cols-2">
-              <TabsTrigger value="tokens">Tokens</TabsTrigger>
-              <TabsTrigger value="nfts">NFTs</TabsTrigger>
+            <TabsList className="grid w-full max-w-md grid-cols-4">
+              <TabsTrigger value="tokens" className="gap-1">
+                <Wallet className="h-4 w-4 hidden sm:block" />
+                Tokens
+              </TabsTrigger>
+              <TabsTrigger value="nfts" className="gap-1">
+                <Image className="h-4 w-4 hidden sm:block" />
+                NFTs
+              </TabsTrigger>
+              <TabsTrigger value="history" className="gap-1">
+                <History className="h-4 w-4 hidden sm:block" />
+                Lịch sử
+              </TabsTrigger>
+              <TabsTrigger value="portfolio" className="gap-1">
+                <PieChart className="h-4 w-4 hidden sm:block" />
+                Portfolio
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="tokens" className="mt-6">
@@ -250,20 +281,48 @@ const Dashboard = () => {
               <div className="glass-card rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-heading font-semibold text-lg">NFT Collection</h3>
-                  <Button 
-                    size="sm" 
-                    onClick={() => setMintBadgeOpen(true)}
-                    className="bg-gradient-to-r from-primary to-secondary"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Mint Badge
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      size="sm" 
+                      onClick={() => setImportNFTOpen(true)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Import
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      onClick={() => setMintBadgeOpen(true)}
+                      className="bg-gradient-to-r from-primary to-secondary"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Mint Badge
+                    </Button>
+                  </div>
                 </div>
                 <NFTGallery 
                   nfts={nfts} 
                   loading={nftLoading} 
                   onMintClick={() => setMintBadgeOpen(true)}
                 />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-6">
+              <div className="glass-card rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-heading font-semibold text-lg">Lịch sử giao dịch</h3>
+                </div>
+                <TransactionHistory walletAddress={activeWallet.address} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="portfolio" className="mt-6">
+              <div className="glass-card rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-heading font-semibold text-lg">Portfolio Analytics</h3>
+                </div>
+                <PortfolioCharts balances={balances} totalBalance={totalBalance} />
               </div>
             </TabsContent>
           </Tabs>
@@ -296,22 +355,6 @@ const Dashboard = () => {
             />
           </div>
         )}
-
-        {/* Recent transactions */}
-        <div className="glass-card rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading font-semibold text-lg">Giao dịch gần đây</h3>
-            <Button variant="ghost" size="sm">
-              Xem tất cả
-            </Button>
-          </div>
-          
-          <div className="text-center py-12 text-muted-foreground">
-            <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Chưa có giao dịch nào</p>
-            <p className="text-sm">Giao dịch của bạn sẽ hiển thị ở đây</p>
-          </div>
-        </div>
       </main>
 
       {/* Dialogs */}
@@ -345,6 +388,21 @@ const Dashboard = () => {
             onOpenChange={setMintBadgeOpen}
             onMint={handleMintBadge}
           />
+
+          <SwapDialog
+            open={swapOpen}
+            onOpenChange={setSwapOpen}
+            walletAddress={activeWallet.address}
+            getPrivateKey={getPrivateKey}
+            onSuccess={refreshBalances}
+          />
+
+          <ImportNFTDialog
+            open={importNFTOpen}
+            onOpenChange={setImportNFTOpen}
+            onImport={importNFT}
+            walletAddress={activeWallet.address}
+          />
         </>
       )}
     </div>
@@ -365,12 +423,12 @@ const QuickAction = ({
   <button 
     onClick={onClick}
     disabled={disabled}
-    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
   >
-    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary">
+    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary">
       {icon}
     </div>
-    <span className="text-sm font-medium">{label}</span>
+    <span className="text-xs sm:text-sm font-medium">{label}</span>
   </button>
 );
 
