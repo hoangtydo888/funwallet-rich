@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
-import { getProvider, COMMON_TOKENS, ERC20_ABI } from "./wallet";
+import { getProvider, ERC20_ABI } from "./wallet";
+import { fetchTokenFromDexScreener, TOKEN_ADDRESSES } from "./dexscreener";
 
 // PancakeSwap Router V2 on BSC
 export const PANCAKE_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
@@ -13,8 +14,27 @@ export const PANCAKE_ROUTER_ABI = [
   "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline) returns (uint[] amounts)",
 ];
 
+// Swap token type
+export interface SwapToken {
+  symbol: string;
+  name: string;
+  address: string;
+  decimals: number;
+  isNative?: boolean;
+  logo: string;
+}
+
+// Quote result type
+export interface QuoteResult {
+  amountOut: string;
+  path: string[];
+  priceImpact: string;
+  source: "PancakeSwap" | "DexScreener" | "Estimated";
+  isEstimate?: boolean;
+}
+
 // Swap tokens available (19 tokens)
-export const SWAP_TOKENS = [
+export const SWAP_TOKENS: SwapToken[] = [
   { symbol: "BNB", name: "BNB", address: WBNB_ADDRESS, decimals: 18, isNative: true, logo: "/tokens/bnb.png" },
   { symbol: "USDT", name: "Tether USD", address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18, logo: "/tokens/usdt.svg" },
   { symbol: "USDC", name: "USD Coin", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18, logo: "/tokens/usdc.svg" },
@@ -36,11 +56,11 @@ export const SWAP_TOKENS = [
   { symbol: "BTT", name: "BitTorrent", address: "0x352Cb5E19b12FC216548a2677bD0fce83BaE434B", decimals: 18, logo: "/tokens/btt.svg" },
 ];
 
-// Get quote for swap
-export const getSwapQuote = async (
+// Get quote from PancakeSwap Router directly
+const getPancakeQuote = async (
   amountIn: string,
-  tokenIn: typeof SWAP_TOKENS[0],
-  tokenOut: typeof SWAP_TOKENS[0]
+  tokenIn: SwapToken,
+  tokenOut: SwapToken
 ): Promise<{ amountOut: string; path: string[]; priceImpact: string } | null> => {
   try {
     const provider = getProvider();
@@ -56,14 +76,86 @@ export const getSwapQuote = async (
     const amounts = await router.getAmountsOut(amountInWei, path);
     const amountOut = ethers.formatUnits(amounts[amounts.length - 1], tokenOut.decimals);
 
-    // Calculate simple price impact (mock for demo)
+    // Calculate simple price impact
     const priceImpact = parseFloat(amountIn) > 100 ? "0.5" : "0.1";
 
     return { amountOut, path, priceImpact };
   } catch (error) {
-    console.error("Error getting swap quote:", error);
+    console.error("PancakeSwap quote error:", error);
     return null;
   }
+};
+
+// Get estimated quote from DexScreener prices (fallback for low liquidity tokens)
+const getEstimatedQuote = async (
+  amountIn: string,
+  tokenIn: SwapToken,
+  tokenOut: SwapToken
+): Promise<{ amountOut: string; path: string[]; priceImpact: string } | null> => {
+  try {
+    // Get prices from DexScreener
+    const priceInData = await fetchTokenFromDexScreener(tokenIn.address);
+    const priceOutData = await fetchTokenFromDexScreener(tokenOut.address);
+
+    if (!priceInData?.priceUsd || !priceOutData?.priceUsd) {
+      return null;
+    }
+
+    // Calculate estimated output based on USD values
+    const valueInUsd = parseFloat(amountIn) * priceInData.priceUsd;
+    const estimatedOut = valueInUsd / priceOutData.priceUsd;
+
+    // Apply estimated slippage for low liquidity
+    const liquidity = priceOutData.liquidity || 0;
+    let slippageEstimate = 1; // 1% default
+    if (liquidity < 10000) slippageEstimate = 5;
+    else if (liquidity < 50000) slippageEstimate = 3;
+    else if (liquidity < 100000) slippageEstimate = 2;
+
+    const amountOut = (estimatedOut * (1 - slippageEstimate / 100)).toFixed(6);
+
+    return {
+      amountOut,
+      path: [tokenIn.address, tokenOut.address],
+      priceImpact: slippageEstimate.toString(),
+    };
+  } catch (error) {
+    console.error("DexScreener estimate error:", error);
+    return null;
+  }
+};
+
+// Get quote for swap - tries multiple sources
+export const getSwapQuote = async (
+  amountIn: string,
+  tokenIn: SwapToken,
+  tokenOut: SwapToken
+): Promise<QuoteResult | null> => {
+  try {
+    // 1. Try PancakeSwap Router first (most reliable for major tokens)
+    const pancakeQuote = await getPancakeQuote(amountIn, tokenIn, tokenOut);
+    if (pancakeQuote) {
+      return {
+        ...pancakeQuote,
+        source: "PancakeSwap",
+        isEstimate: false,
+      };
+    }
+  } catch (error) {
+    console.error("PancakeSwap failed, trying DexScreener:", error);
+  }
+
+  // 2. Fallback: Estimate from DexScreener prices
+  const estimatedQuote = await getEstimatedQuote(amountIn, tokenIn, tokenOut);
+  if (estimatedQuote) {
+    return {
+      ...estimatedQuote,
+      source: "DexScreener",
+      isEstimate: true,
+    };
+  }
+
+  return null;
 };
 
 // Execute swap
@@ -71,8 +163,8 @@ export const executeSwap = async (
   privateKey: string,
   amountIn: string,
   amountOutMin: string,
-  tokenIn: typeof SWAP_TOKENS[0],
-  tokenOut: typeof SWAP_TOKENS[0],
+  tokenIn: SwapToken,
+  tokenOut: SwapToken,
   slippage: number = 0.5
 ): Promise<{ hash: string } | { error: string }> => {
   try {
@@ -141,4 +233,9 @@ export const executeSwap = async (
     const errorMessage = error instanceof Error ? error.message : "Swap failed";
     return { error: errorMessage };
   }
+};
+
+// Generate PancakeSwap URL for direct swap
+export const getPancakeSwapUrl = (tokenIn: SwapToken, tokenOut: SwapToken): string => {
+  return `https://pancakeswap.finance/swap?inputCurrency=${tokenIn.address}&outputCurrency=${tokenOut.address}`;
 };
