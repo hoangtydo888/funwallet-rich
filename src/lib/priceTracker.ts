@@ -47,75 +47,28 @@ const COINGECKO_IDS: Record<string, string | null> = {
   BTT: "bittorrent",
 };
 
-// Stablecoins that should always be ~$1.00
-const STABLECOINS = ["USDT", "USDC", "BUSD", "DAI"];
-
-// Validate stablecoin price - fallback to $1.00 if API returns incorrect value
-const validateStablecoinPrice = (symbol: string, price: number): number => {
-  if (STABLECOINS.includes(symbol.toUpperCase())) {
-    // If price deviates more than 5% from $1, use $1.00
-    if (price < 0.95 || price > 1.05 || !price || isNaN(price)) {
-      return 1.0;
-    }
-  }
-  return price;
-};
-
 // Fetch price from DexScreener API
 export const fetchDEXPrice = async (symbol: string): Promise<TokenPrice | null> => {
-  const upperSymbol = symbol.toUpperCase();
-  const tokenAddress = TOKEN_ADDRESSES[upperSymbol];
+  const tokenAddress = TOKEN_ADDRESSES[symbol.toUpperCase()];
   if (!tokenAddress) return null;
 
   try {
     const tokenInfo = await fetchTokenFromDexScreener(tokenAddress);
-    if (!tokenInfo) {
-      // Fallback for stablecoins
-      if (STABLECOINS.includes(upperSymbol)) {
-        return {
-          symbol: upperSymbol,
-          name: upperSymbol,
-          price: 1.0,
-          change24h: 0,
-          high24h: 1.0,
-          low24h: 1.0,
-          volume24h: 0,
-          marketCap: 0,
-          lastUpdated: Date.now(),
-        };
-      }
-      return null;
-    }
-
-    const validatedPrice = validateStablecoinPrice(upperSymbol, tokenInfo.priceUsd);
+    if (!tokenInfo) return null;
 
     return {
-      symbol: upperSymbol,
+      symbol: symbol.toUpperCase(),
       name: tokenInfo.name,
-      price: validatedPrice,
-      change24h: STABLECOINS.includes(upperSymbol) ? 0 : tokenInfo.priceChange24h,
-      high24h: validatedPrice * 1.05,
-      low24h: validatedPrice * 0.95,
+      price: tokenInfo.priceUsd,
+      change24h: tokenInfo.priceChange24h,
+      high24h: tokenInfo.priceUsd * 1.05,
+      low24h: tokenInfo.priceUsd * 0.95,
       volume24h: tokenInfo.volume24h,
       marketCap: tokenInfo.marketCap,
       lastUpdated: Date.now(),
     };
   } catch (error) {
     console.error(`Error fetching DEX price for ${symbol}:`, error);
-    // Fallback for stablecoins on error
-    if (STABLECOINS.includes(upperSymbol)) {
-      return {
-        symbol: upperSymbol,
-        name: upperSymbol,
-        price: 1.0,
-        change24h: 0,
-        high24h: 1.0,
-        low24h: 1.0,
-        volume24h: 0,
-        marketCap: 0,
-        lastUpdated: Date.now(),
-      };
-    }
     return null;
   }
 };

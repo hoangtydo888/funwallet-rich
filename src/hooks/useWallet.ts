@@ -11,7 +11,6 @@ import {
 } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import { loadCustomTokens, type CustomToken } from "@/components/wallet/ImportTokenDialog";
-import { fetchTokenPrices, type TokenPrice } from "@/lib/priceTracker";
 
 export interface WalletData {
   id: string;
@@ -39,8 +38,6 @@ export const useWallet = () => {
   const [balances, setBalances] = useState<TokenBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [balanceLoading, setBalanceLoading] = useState(false);
-  const [tokenPrices, setTokenPrices] = useState<TokenPrice[]>([]);
-  const [totalUsdValue, setTotalUsdValue] = useState<number>(0);
 
   // Fetch wallets from database
   const fetchWallets = useCallback(async () => {
@@ -374,37 +371,16 @@ export const useWallet = () => {
     }
   };
 
-  // Fetch realtime prices and calculate total USD value
-  const fetchPrices = useCallback(async () => {
-    if (balances.length === 0) {
-      setTotalUsdValue(0);
-      return;
-    }
-    
-    try {
-      const symbols = balances.map(b => b.symbol);
-      const prices = await fetchTokenPrices(symbols);
-      setTokenPrices(prices);
-      
-      // Calculate total USD value using realtime prices
-      const total = balances.reduce((sum, token) => {
-        const price = prices.find(p => 
-          p.symbol.toUpperCase() === token.symbol.toUpperCase()
-        );
-        const balance = parseFloat(token.balance) || 0;
-        const priceValue = price?.price ?? 0;
-        return sum + (balance * priceValue);
-      }, 0);
-      
-      setTotalUsdValue(total);
-    } catch (error) {
-      console.error("Error fetching prices:", error);
-    }
-  }, [balances]);
-
-  // Calculate total USD value - use realtime prices
+  // Calculate total USD value
   const getTotalBalance = (): number => {
-    return totalUsdValue;
+    // Simple calculation - in production use real prices
+    const bnbPrice = 600; // Example price
+    const bnbBalance = balances.find((b) => b.symbol === "BNB");
+    const stableBalance = balances
+      .filter((b) => ["USDT", "USDC", "BUSD"].includes(b.symbol))
+      .reduce((sum, b) => sum + parseFloat(b.balance), 0);
+
+    return (parseFloat(bnbBalance?.balance || "0") * bnbPrice) + stableBalance;
   };
 
   useEffect(() => {
@@ -415,13 +391,6 @@ export const useWallet = () => {
     fetchBalances();
   }, [fetchBalances]);
 
-  // Fetch prices when balances change and set up auto-refresh
-  useEffect(() => {
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, [fetchPrices]);
-
   return {
     wallets,
     activeWallet,
@@ -429,8 +398,6 @@ export const useWallet = () => {
     balances,
     loading,
     balanceLoading,
-    tokenPrices,
-    totalUsdValue,
     createWallet,
     importFromMnemonic,
     importFromPrivateKey,
@@ -440,6 +407,5 @@ export const useWallet = () => {
     renameWallet,
     getTotalBalance,
     refreshBalances: fetchBalances,
-    refreshPrices: fetchPrices,
   };
 };
