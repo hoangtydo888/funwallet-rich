@@ -15,7 +15,7 @@ export const PANCAKE_ROUTER_ABI = [
 
 // Swap tokens available (19 tokens)
 export const SWAP_TOKENS = [
-  { symbol: "BNB", name: "BNB", address: WBNB_ADDRESS, decimals: 18, isNative: true, logo: "/tokens/bnb.svg" },
+  { symbol: "BNB", name: "BNB", address: WBNB_ADDRESS, decimals: 18, isNative: true, logo: "/tokens/bnb.png" },
   { symbol: "USDT", name: "Tether USD", address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18, logo: "/tokens/usdt.svg" },
   { symbol: "USDC", name: "USD Coin", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18, logo: "/tokens/usdc.svg" },
   { symbol: "CAMLY", name: "CAMLY COIN", address: "0x0910320181889fefde0bb1ca63962b0a8882e413", decimals: 18, logo: "/tokens/camly.svg" },

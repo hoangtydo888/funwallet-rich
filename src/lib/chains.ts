@@ -21,7 +21,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
     rpcUrl: "https://bsc-dataseed.binance.org/",
     symbol: "BNB",
     explorer: "https://bscscan.com",
-    logo: "🔶",
+    logo: "/tokens/bnb.png",
     color: "#F3BA2F",
     isTestnet: false,
   },
@@ -134,7 +134,7 @@ export const getNativeBalance = async (address: string, chain: Chain): Promise<s
 export const CHAIN_TOKENS: Record<number, { symbol: string; name: string; address: string | null; decimals: number; logo: string }[]> = {
   // BSC
   56: [
-    { symbol: "BNB", name: "BNB", address: null, decimals: 18, logo: "🔶" },
+    { symbol: "BNB", name: "BNB", address: null, decimals: 18, logo: "/tokens/bnb.png" },
     { symbol: "USDT", name: "Tether USD", address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18, logo: "💵" },
     { symbol: "USDC", name: "USD Coin", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18, logo: "💲" },
     { symbol: "BUSD", name: "Binance USD", address: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", decimals: 18, logo: "🟡" },

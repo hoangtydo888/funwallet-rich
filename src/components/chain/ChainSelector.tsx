@@ -34,7 +34,11 @@ export const ChainSelector = ({ compact = false }: ChainSelectorProps) => {
           compact ? "px-2 h-8" : ""
         )}
       >
-        <span className="text-lg">{currentChain.logo}</span>
+        {currentChain.logo.startsWith("/") ? (
+          <img src={currentChain.logo} alt={currentChain.shortName} className="w-5 h-5 rounded-full" />
+        ) : (
+          <span className="text-lg">{currentChain.logo}</span>
+        )}
         {!compact && (
           <>
             <span className="hidden sm:inline">{currentChain.shortName}</span>
@@ -68,7 +72,11 @@ export const ChainSelector = ({ compact = false }: ChainSelectorProps) => {
                   className="w-10 h-10 rounded-full flex items-center justify-center text-xl"
                   style={{ backgroundColor: `${chain.color}20` }}
                 >
-                  {chain.logo}
+                  {chain.logo.startsWith("/") ? (
+                    <img src={chain.logo} alt={chain.shortName} className="w-6 h-6 rounded-full" />
+                  ) : (
+                    chain.logo
+                  )}
                 </div>
                 <div className="flex-1">
                   <p className="font-medium">{chain.name}</p>
