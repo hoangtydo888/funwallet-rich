@@ -6,9 +6,11 @@ import {
   importWalletFromMnemonic,
   importWalletFromPrivateKey,
   getAllBalances,
+  getTokenBalance,
   COMMON_TOKENS,
 } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
+import { loadCustomTokens, type CustomToken } from "@/components/wallet/ImportTokenDialog";
 
 export interface WalletData {
   id: string;
@@ -78,8 +80,23 @@ export const useWallet = () => {
 
     setBalanceLoading(true);
     try {
+      // Get balances for common tokens
       const tokenBalances = await getAllBalances(activeWallet.address);
-      setBalances(tokenBalances);
+      
+      // Get balances for custom tokens
+      const customTokens = loadCustomTokens();
+      const customBalances = await Promise.all(
+        customTokens.map(async (token: CustomToken) => {
+          const balance = await getTokenBalance(token.address, activeWallet.address);
+          return {
+            ...token,
+            balance,
+          };
+        })
+      );
+
+      // Combine and set balances
+      setBalances([...tokenBalances, ...customBalances]);
     } catch (error) {
       console.error("Error fetching balances:", error);
       // Set default empty balances

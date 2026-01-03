@@ -51,6 +51,7 @@ import { DAppBrowserDialog } from "@/components/dapp/DAppBrowserDialog";
 import { BackupRestoreDialog } from "@/components/backup/BackupRestoreDialog";
 import { ChainSelector } from "@/components/chain/ChainSelector";
 import { WalletConnectDialog } from "@/components/walletconnect/WalletConnectDialog";
+import { ImportTokenDialog, type CustomToken } from "@/components/wallet/ImportTokenDialog";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -90,6 +91,7 @@ const Dashboard = () => {
   const [dappBrowserOpen, setDappBrowserOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const [walletConnectOpen, setWalletConnectOpen] = useState(false);
+  const [importTokenOpen, setImportTokenOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
 
   useEffect(() => {
@@ -315,18 +317,28 @@ const Dashboard = () => {
               <div className="glass-card rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-heading font-semibold text-lg">Số dư tài sản</h3>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={refreshBalances}
-                    disabled={balanceLoading}
-                  >
-                    {balanceLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      size="sm" 
+                      onClick={() => setImportTokenOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Import Token
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={refreshBalances}
+                      disabled={balanceLoading}
+                    >
+                      {balanceLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <TokenList balances={balances} loading={balanceLoading} />
               </div>
@@ -493,6 +505,15 @@ const Dashboard = () => {
             open={walletConnectOpen}
             onOpenChange={setWalletConnectOpen}
             walletAddress={activeWallet.address}
+          />
+
+          <ImportTokenDialog
+            open={importTokenOpen}
+            onOpenChange={setImportTokenOpen}
+            onImport={(token: CustomToken) => {
+              // Refresh balances to include the new token
+              refreshBalances();
+            }}
           />
         </>
       )}
