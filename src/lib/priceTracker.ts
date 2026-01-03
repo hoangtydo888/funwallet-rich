@@ -1,6 +1,4 @@
-import { ethers } from "ethers";
-import { getProvider } from "./wallet";
-import { PANCAKE_ROUTER, PANCAKE_ROUTER_ABI, WBNB_ADDRESS } from "./swap";
+import { fetchTokenFromDexScreener, TOKEN_ADDRESSES } from "./dexscreener";
 
 // Token price data interface
 export interface TokenPrice {
@@ -49,80 +47,62 @@ const COINGECKO_IDS: Record<string, string | null> = {
   BTT: "bittorrent",
 };
 
-// Token addresses for DEX price fetching
-const DEX_TOKEN_ADDRESSES: Record<string, { address: string; decimals: number; name: string }> = {
-  CAMLY: { address: "0x0910320181889fefde0bb1ca63962b0a8882e413", decimals: 18, name: "CAMLY COIN" },
-};
-
-const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
-
-// Fetch price from PancakeSwap DEX
+// Fetch price from DexScreener API
 export const fetchDEXPrice = async (symbol: string): Promise<TokenPrice | null> => {
-  const tokenInfo = DEX_TOKEN_ADDRESSES[symbol.toUpperCase()];
-  if (!tokenInfo) return null;
+  const tokenAddress = TOKEN_ADDRESSES[symbol.toUpperCase()];
+  if (!tokenAddress) return null;
 
   try {
-    const provider = getProvider();
-    const router = new ethers.Contract(PANCAKE_ROUTER, PANCAKE_ROUTER_ABI, provider);
-    
-    // Path: Token → WBNB → USDT to get price in USDT
-    const path = [tokenInfo.address, WBNB_ADDRESS, USDT_ADDRESS];
-    const amountIn = ethers.parseUnits("1", tokenInfo.decimals);
-    
-    const amounts = await router.getAmountsOut(amountIn, path);
-    const priceInUSDT = parseFloat(ethers.formatUnits(amounts[amounts.length - 1], 18));
-    
+    const tokenInfo = await fetchTokenFromDexScreener(tokenAddress);
+    if (!tokenInfo) return null;
+
     return {
       symbol: symbol.toUpperCase(),
       name: tokenInfo.name,
-      price: priceInUSDT,
-      change24h: 0, // DEX doesn't provide 24h change
-      high24h: priceInUSDT * 1.05,
-      low24h: priceInUSDT * 0.95,
-      volume24h: 0,
-      marketCap: 0,
+      price: tokenInfo.priceUsd,
+      change24h: tokenInfo.priceChange24h,
+      high24h: tokenInfo.priceUsd * 1.05,
+      low24h: tokenInfo.priceUsd * 0.95,
+      volume24h: tokenInfo.volume24h,
+      marketCap: tokenInfo.marketCap,
       lastUpdated: Date.now(),
     };
   } catch (error) {
     console.error(`Error fetching DEX price for ${symbol}:`, error);
-    
-    // Fallback to known market price if DEX fails
-    if (symbol.toUpperCase() === "CAMLY") {
-      return {
-        symbol: "CAMLY",
-        name: "CAMLY COIN",
-        price: 0.00002318,
-        change24h: 4.86,
-        high24h: 0.00002452,
-        low24h: 0.00002100,
-        volume24h: 0,
-        marketCap: 609220000000,
-        lastUpdated: Date.now(),
-      };
-    }
     return null;
   }
 };
 
-// Fetch real-time prices from CoinGecko and DEX
+// Fetch real-time prices from DexScreener (priority) and CoinGecko (fallback)
 export const fetchTokenPrices = async (
   symbols: string[]
 ): Promise<TokenPrice[]> => {
   try {
-    // Separate tokens by price source
-    const tokensFromCoinGecko = symbols.filter(s => 
-      COINGECKO_IDS[s.toUpperCase()] !== null && COINGECKO_IDS[s.toUpperCase()] !== undefined
+    const results: TokenPrice[] = [];
+    const remainingSymbols: string[] = [];
+
+    // 1. First try DexScreener for all tokens with addresses (realtime, no rate limit)
+    await Promise.all(
+      symbols.map(async (symbol) => {
+        const upperSymbol = symbol.toUpperCase();
+        if (TOKEN_ADDRESSES[upperSymbol]) {
+          const dexPrice = await fetchDEXPrice(symbol);
+          if (dexPrice) {
+            results.push(dexPrice);
+            return;
+          }
+        }
+        remainingSymbols.push(symbol);
+      })
     );
-    const tokensFromDEX = symbols.filter(s => DEX_TOKEN_ADDRESSES[s.toUpperCase()]);
-    
-    let coinGeckoPrices: TokenPrice[] = [];
-    let dexPrices: TokenPrice[] = [];
-    
-    // Fetch from CoinGecko for tokens with ID
-    if (tokensFromCoinGecko.length > 0) {
-      const ids = tokensFromCoinGecko
-        .map(s => COINGECKO_IDS[s.toUpperCase()])
-        .filter(Boolean);
+
+    // 2. Try CoinGecko for remaining tokens
+    const tokensForCoinGecko = remainingSymbols.filter(
+      (s) => COINGECKO_IDS[s.toUpperCase()] !== null && COINGECKO_IDS[s.toUpperCase()] !== undefined
+    );
+
+    if (tokensForCoinGecko.length > 0) {
+      const ids = tokensForCoinGecko.map((s) => COINGECKO_IDS[s.toUpperCase()]).filter(Boolean);
 
       if (ids.length > 0) {
         try {
@@ -132,53 +112,49 @@ export const fetchTokenPrices = async (
 
           if (response.ok) {
             const data = await response.json();
-            
-            coinGeckoPrices = data.map((coin: any) => ({
-              symbol: Object.keys(COINGECKO_IDS).find(
-                key => COINGECKO_IDS[key] === coin.id
-              ) || coin.symbol.toUpperCase(),
-              name: coin.name,
-              price: coin.current_price ?? 0,
-              change24h: coin.price_change_percentage_24h ?? 0,
-              high24h: coin.high_24h ?? 0,
-              low24h: coin.low_24h ?? 0,
-              volume24h: coin.total_volume ?? 0,
-              marketCap: coin.market_cap ?? 0,
-              lastUpdated: Date.now(),
-            }));
+
+            for (const coin of data) {
+              const symbol =
+                Object.keys(COINGECKO_IDS).find((key) => COINGECKO_IDS[key] === coin.id) ||
+                coin.symbol.toUpperCase();
+              
+              // Skip if already fetched from DexScreener
+              if (results.some((r) => r.symbol === symbol)) continue;
+
+              results.push({
+                symbol,
+                name: coin.name,
+                price: coin.current_price ?? 0,
+                change24h: coin.price_change_percentage_24h ?? 0,
+                high24h: coin.high_24h ?? 0,
+                low24h: coin.low_24h ?? 0,
+                volume24h: coin.total_volume ?? 0,
+                marketCap: coin.market_cap ?? 0,
+                lastUpdated: Date.now(),
+              });
+            }
           }
         } catch (error) {
           console.error("CoinGecko fetch error:", error);
         }
       }
     }
-    
-    // Fetch from DEX (PancakeSwap) for tokens like CAMLY
-    for (const symbol of tokensFromDEX) {
-      const dexPrice = await fetchDEXPrice(symbol);
-      if (dexPrice) {
-        dexPrices.push(dexPrice);
-      }
-    }
-    
-    // Combine all prices
-    const allPrices = [...coinGeckoPrices, ...dexPrices];
-    
-    // For symbols that didn't get prices, use mock prices
-    const fetchedSymbols = allPrices.map(p => p.symbol.toUpperCase());
-    const missingSymbols = symbols.filter(s => !fetchedSymbols.includes(s.toUpperCase()));
-    
+
+    // 3. For symbols that didn't get prices, use mock prices
+    const fetchedSymbols = results.map((p) => p.symbol.toUpperCase());
+    const missingSymbols = symbols.filter((s) => !fetchedSymbols.includes(s.toUpperCase()));
+
     if (missingSymbols.length > 0) {
       const mockPrices = generateMockPrices(missingSymbols);
-      allPrices.push(...mockPrices);
+      results.push(...mockPrices);
     }
-    
+
     // Fallback if no results
-    if (allPrices.length === 0) {
+    if (results.length === 0) {
       return generateMockPrices(symbols);
     }
-    
-    return allPrices;
+
+    return results;
   } catch (error) {
     console.error("Error fetching prices:", error);
     return generateMockPrices(symbols);
