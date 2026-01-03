@@ -4,22 +4,28 @@ import type { TokenBalance } from "@/hooks/useWallet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Star, StarOff } from "lucide-react";
+import { Search, Star, StarOff, ChevronRight } from "lucide-react";
 import { fetchTokenPrices, formatPrice, formatChange, saveFavorites, loadFavorites, type TokenPrice } from "@/lib/priceTracker";
+import { TokenDetailDialog } from "./TokenDetailDialog";
 
 interface TokenListProps {
   balances: TokenBalance[];
   loading: boolean;
+  onSend?: () => void;
+  onReceive?: () => void;
+  onSwap?: () => void;
 }
 
 type FilterType = "all" | "balance" | "favorites";
 
-export const TokenList = ({ balances, loading }: TokenListProps) => {
+export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: TokenListProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [prices, setPrices] = useState<TokenPrice[]>([]);
   const [pricesLoading, setPricesLoading] = useState(true);
+  const [selectedToken, setSelectedToken] = useState<TokenBalance | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // Load favorites from localStorage
   useEffect(() => {
@@ -161,9 +167,13 @@ export const TokenList = ({ balances, loading }: TokenListProps) => {
             return (
               <div
                 key={token.symbol}
-                className={`flex items-center gap-3 p-4 rounded-xl transition-colors ${
-                  hasBalance ? "bg-muted/50 hover:bg-muted" : "bg-muted/20"
+                className={`flex items-center gap-3 p-4 rounded-xl transition-colors cursor-pointer ${
+                  hasBalance ? "bg-muted/50 hover:bg-muted" : "bg-muted/20 hover:bg-muted/30"
                 }`}
+                onClick={() => {
+                  setSelectedToken(token);
+                  setDetailOpen(true);
+                }}
               >
                 {/* Favorite button */}
                 <button
@@ -233,11 +243,25 @@ export const TokenList = ({ balances, loading }: TokenListProps) => {
                     </p>
                   )}
                 </div>
+
+                {/* Chevron */}
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
             );
           })
         )}
       </div>
+
+      {/* Token Detail Dialog */}
+      <TokenDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        token={selectedToken}
+        price={selectedToken ? getPrice(selectedToken.symbol) || null : null}
+        onSend={onSend}
+        onReceive={onReceive}
+        onSwap={onSwap}
+      />
     </div>
   );
 };
