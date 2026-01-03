@@ -50,38 +50,55 @@ export const fetchTokenPrices = async (
   symbols: string[]
 ): Promise<TokenPrice[]> => {
   try {
-    const ids = symbols
-      .map(s => COINGECKO_IDS[s.toUpperCase()])
-      .filter(Boolean);
+    // Tách tokens có CoinGecko ID và không có
+    const tokensWithIds = symbols.filter(s => COINGECKO_IDS[s.toUpperCase()] !== null && COINGECKO_IDS[s.toUpperCase()] !== undefined);
+    const tokensWithoutIds = symbols.filter(s => COINGECKO_IDS[s.toUpperCase()] === null);
     
-    if (ids.length === 0) {
+    let coinGeckoPrices: TokenPrice[] = [];
+    
+    // Fetch từ CoinGecko cho tokens có ID
+    if (tokensWithIds.length > 0) {
+      const ids = tokensWithIds
+        .map(s => COINGECKO_IDS[s.toUpperCase()])
+        .filter(Boolean);
+
+      if (ids.length > 0) {
+        const response = await fetch(
+          `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          coinGeckoPrices = data.map((coin: any) => ({
+            symbol: Object.keys(COINGECKO_IDS).find(
+              key => COINGECKO_IDS[key] === coin.id
+            ) || coin.symbol.toUpperCase(),
+            name: coin.name,
+            price: coin.current_price ?? 0,
+            change24h: coin.price_change_percentage_24h ?? 0,
+            high24h: coin.high_24h ?? 0,
+            low24h: coin.low_24h ?? 0,
+            volume24h: coin.total_volume ?? 0,
+            marketCap: coin.market_cap ?? 0,
+            lastUpdated: Date.now(),
+          }));
+        }
+      }
+    }
+    
+    // Tạo mock prices cho tokens không có CoinGecko ID (như CAMLY)
+    const mockPrices = tokensWithoutIds.length > 0 ? generateMockPrices(tokensWithoutIds) : [];
+    
+    // Kết hợp cả hai
+    const allPrices = [...coinGeckoPrices, ...mockPrices];
+    
+    // Nếu không có kết quả nào, fallback toàn bộ sang mock
+    if (allPrices.length === 0) {
       return generateMockPrices(symbols);
     }
-
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
-    );
-
-    if (!response.ok) {
-      // Fallback to mock data if API fails
-      return generateMockPrices(symbols);
-    }
-
-    const data = await response.json();
     
-    return data.map((coin: any) => ({
-      symbol: Object.keys(COINGECKO_IDS).find(
-        key => COINGECKO_IDS[key] === coin.id
-      ) || coin.symbol.toUpperCase(),
-      name: coin.name,
-      price: coin.current_price ?? 0,
-      change24h: coin.price_change_percentage_24h ?? 0,
-      high24h: coin.high_24h ?? 0,
-      low24h: coin.low_24h ?? 0,
-      volume24h: coin.total_volume ?? 0,
-      marketCap: coin.market_cap ?? 0,
-      lastUpdated: Date.now(),
-    }));
+    return allPrices;
   } catch (error) {
     console.error("Error fetching prices:", error);
     return generateMockPrices(symbols);
