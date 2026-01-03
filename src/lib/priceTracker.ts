@@ -22,18 +22,27 @@ export interface PriceAlert {
   triggered: boolean;
 }
 
-// CoinGecko IDs for common BSC tokens
-const COINGECKO_IDS: Record<string, string> = {
+// CoinGecko IDs for 19 BSC tokens
+const COINGECKO_IDS: Record<string, string | null> = {
   BNB: "binancecoin",
-  CAKE: "pancakeswap-token",
   USDT: "tether",
   USDC: "usd-coin",
-  ETH: "ethereum",
+  CAMLY: null, // Custom token - no CoinGecko ID
   BTCB: "bitcoin",
-  BUSD: "binance-usd",
-  XVS: "venus",
-  ALPACA: "alpaca-finance",
+  ETH: "ethereum",
+  CAKE: "pancakeswap-token",
+  LINK: "chainlink",
+  UNI: "uniswap",
+  SHIB: "shiba-inu",
   DOGE: "dogecoin",
+  BABYDOGE: "baby-doge-coin",
+  ADA: "cardano",
+  MATIC: "matic-network",
+  AVAX: "avalanche-2",
+  SOL: "solana",
+  XRP: "ripple",
+  MANA: "decentraland",
+  BTT: "bittorrent",
 };
 
 // Fetch real-time prices from CoinGecko
@@ -83,15 +92,24 @@ export const fetchTokenPrices = async (
 const generateMockPrices = (symbols: string[]): TokenPrice[] => {
   const basePrices: Record<string, number> = {
     BNB: 615.42,
-    CAKE: 2.45,
     USDT: 1.0,
     USDC: 1.0,
-    ETH: 3456.78,
+    CAMLY: 0.0001, // Custom token mock price
     BTCB: 97234.56,
-    BUSD: 1.0,
-    XVS: 8.76,
-    ALPACA: 0.23,
+    ETH: 3456.78,
+    CAKE: 2.45,
+    LINK: 14.56,
+    UNI: 6.78,
+    SHIB: 0.000024,
     DOGE: 0.32,
+    BABYDOGE: 0.0000000021,
+    ADA: 0.89,
+    MATIC: 0.52,
+    AVAX: 35.67,
+    SOL: 178.45,
+    XRP: 2.34,
+    MANA: 0.45,
+    BTT: 0.00000089,
   };
 
   return symbols.map(symbol => {
