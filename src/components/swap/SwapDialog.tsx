@@ -14,9 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowDownUp, Loader2, ExternalLink, Settings2 } from "lucide-react";
+import { ArrowDownUp, Loader2, ExternalLink, Settings2, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { SWAP_TOKENS, getSwapQuote, executeSwap } from "@/lib/swap";
+import { SWAP_TOKENS, getSwapQuote, executeSwap, getPancakeSwapUrl, type QuoteResult } from "@/lib/swap";
 import { BSC_MAINNET } from "@/lib/wallet";
 
 interface SwapDialogProps {
@@ -43,10 +43,14 @@ export const SwapDialog = ({
   const [priceImpact, setPriceImpact] = useState("0");
   const [slippage, setSlippage] = useState(0.5);
   const [showSettings, setShowSettings] = useState(false);
+  const [quoteSource, setQuoteSource] = useState<QuoteResult["source"] | null>(null);
+  const [isEstimate, setIsEstimate] = useState(false);
 
   const fetchQuote = useCallback(async () => {
     if (!amountIn || parseFloat(amountIn) <= 0) {
       setAmountOut("");
+      setQuoteSource(null);
+      setIsEstimate(false);
       return;
     }
 
@@ -57,11 +61,15 @@ export const SwapDialog = ({
     if (quote) {
       setAmountOut(parseFloat(quote.amountOut).toFixed(6));
       setPriceImpact(quote.priceImpact);
+      setQuoteSource(quote.source);
+      setIsEstimate(quote.isEstimate || false);
     } else {
       setAmountOut("");
+      setQuoteSource(null);
+      setIsEstimate(false);
       toast({
         title: "Không thể lấy giá",
-        description: "Vui lòng thử lại",
+        description: "Token có thể không có thanh khoản. Thử swap trên PancakeSwap.",
         variant: "destructive",
       });
     }
@@ -84,6 +92,14 @@ export const SwapDialog = ({
 
   const handleSwap = async () => {
     if (!amountIn || !amountOut) return;
+
+    // Warn if using estimated price
+    if (isEstimate) {
+      toast({
+        title: "Cảnh báo",
+        description: "Đây là giá ước tính. Token có thanh khoản thấp có thể có slippage cao.",
+      });
+    }
 
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
@@ -127,14 +143,26 @@ export const SwapDialog = ({
     } else {
       toast({
         title: "Swap thất bại",
-        description: result.error,
+        description: (
+          <div className="space-y-2">
+            <p>{result.error}</p>
+            <a
+              href={getPancakeSwapUrl(tokenIn, tokenOut)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-primary underline"
+            >
+              Thử swap trên PancakeSwap <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        ),
         variant: "destructive",
       });
     }
   };
 
   const rate = amountIn && amountOut
-    ? (parseFloat(amountOut) / parseFloat(amountIn)).toFixed(4)
+    ? (parseFloat(amountOut) / parseFloat(amountIn)).toFixed(6)
     : "0";
 
   return (
@@ -204,13 +232,16 @@ export const SwapDialog = ({
                   }
                 }}
               >
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="w-[130px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {SWAP_TOKENS.filter((t) => t.symbol !== tokenOut.symbol).map((token) => (
                     <SelectItem key={token.symbol} value={token.symbol}>
-                      {token.symbol}
+                      <div className="flex items-center gap-2">
+                        <img src={token.logo} alt={token.symbol} className="w-5 h-5 rounded-full" />
+                        {token.symbol}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -253,13 +284,16 @@ export const SwapDialog = ({
                   }
                 }}
               >
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="w-[130px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {SWAP_TOKENS.filter((t) => t.symbol !== tokenIn.symbol).map((token) => (
                     <SelectItem key={token.symbol} value={token.symbol}>
-                      {token.symbol}
+                      <div className="flex items-center gap-2">
+                        <img src={token.logo} alt={token.symbol} className="w-5 h-5 rounded-full" />
+                        {token.symbol}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -267,9 +301,26 @@ export const SwapDialog = ({
             </div>
           </div>
 
+          {/* Estimate warning */}
+          {isEstimate && amountOut && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+              <span className="text-warning">
+                Giá ước tính. Token có thanh khoản thấp có thể có slippage cao.
+              </span>
+            </div>
+          )}
+
           {/* Price info */}
           {amountIn && amountOut && (
             <div className="space-y-2 p-3 rounded-lg bg-muted/30 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Nguồn giá</span>
+                <span className="flex items-center gap-1">
+                  {isEstimate && <AlertTriangle className="h-3 w-3 text-warning" />}
+                  {quoteSource}
+                </span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Tỷ giá</span>
                 <span>1 {tokenIn.symbol} = {rate} {tokenOut.symbol}</span>
@@ -303,9 +354,17 @@ export const SwapDialog = ({
             )}
           </Button>
 
-          <p className="text-xs text-center text-muted-foreground">
-            Powered by PancakeSwap 🥞
-          </p>
+          {/* Backup PancakeSwap link */}
+          <div className="text-center">
+            <a
+              href={getPancakeSwapUrl(tokenIn, tokenOut)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+            >
+              Mở PancakeSwap trực tiếp <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
