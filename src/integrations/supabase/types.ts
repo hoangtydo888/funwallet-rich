@@ -14,16 +14,223 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      nft_collections: {
+        Row: {
+          chain: string
+          contract_address: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          metadata_url: string | null
+          name: string | null
+          token_id: string
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          chain?: string
+          contract_address: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          metadata_url?: string | null
+          name?: string | null
+          token_id: string
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          chain?: string
+          contract_address?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          metadata_url?: string | null
+          name?: string | null
+          token_id?: string
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nft_collections_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          kyc_status: string | null
+          preferred_language: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          kyc_status?: string | null
+          preferred_language?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          kyc_status?: string | null
+          preferred_language?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: string
+          block_number: number | null
+          created_at: string
+          from_address: string
+          gas_used: string | null
+          id: string
+          status: string
+          to_address: string
+          token_address: string | null
+          token_symbol: string
+          tx_hash: string
+          tx_timestamp: string | null
+          tx_type: string
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: string
+          block_number?: number | null
+          created_at?: string
+          from_address: string
+          gas_used?: string | null
+          id?: string
+          status?: string
+          to_address: string
+          token_address?: string | null
+          token_symbol: string
+          tx_hash: string
+          tx_timestamp?: string | null
+          tx_type: string
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: string
+          block_number?: number | null
+          created_at?: string
+          from_address?: string
+          gas_used?: string | null
+          id?: string
+          status?: string
+          to_address?: string
+          token_address?: string | null
+          token_symbol?: string
+          tx_hash?: string
+          tx_timestamp?: string | null
+          tx_type?: string
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          address: string
+          chain: string
+          created_at: string
+          id: string
+          is_primary: boolean | null
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          chain?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          chain?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +357,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
