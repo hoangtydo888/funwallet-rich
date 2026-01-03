@@ -22,7 +22,11 @@ import {
   ArrowDownUp,
   History,
   PieChart,
-  Download
+  Download,
+  Bell,
+  Globe,
+  Shield,
+  Layers
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -38,6 +42,10 @@ import { SwapDialog } from "@/components/swap/SwapDialog";
 import { TransactionHistory } from "@/components/transactions/TransactionHistory";
 import { PortfolioCharts } from "@/components/portfolio/PortfolioCharts";
 import { ImportNFTDialog } from "@/components/nft/ImportNFTDialog";
+import { StakingDialog } from "@/components/staking/StakingDialog";
+import { PriceAlertsDialog } from "@/components/price/PriceAlertsDialog";
+import { DAppBrowserDialog } from "@/components/dapp/DAppBrowserDialog";
+import { BackupRestoreDialog } from "@/components/backup/BackupRestoreDialog";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -71,6 +79,10 @@ const Dashboard = () => {
   const [mintBadgeOpen, setMintBadgeOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
   const [importNFTOpen, setImportNFTOpen] = useState(false);
+  const [stakingOpen, setStakingOpen] = useState(false);
+  const [priceAlertsOpen, setPriceAlertsOpen] = useState(false);
+  const [dappBrowserOpen, setDappBrowserOpen] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
 
   useEffect(() => {
@@ -200,8 +212,8 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Quick actions */}
-          <div className="grid grid-cols-5 gap-2 sm:gap-3">
+          {/* Quick actions - Row 1 */}
+          <div className="grid grid-cols-5 gap-2 sm:gap-3 mb-2">
             <QuickAction 
               icon={<ArrowUpRight />} 
               label="Gửi" 
@@ -221,15 +233,48 @@ const Dashboard = () => {
               disabled={!hasWallet}
             />
             <QuickAction 
+              icon={<Layers />} 
+              label="Stake" 
+              onClick={() => setStakingOpen(true)}
+              disabled={!hasWallet}
+            />
+            <QuickAction 
+              icon={<Plus />} 
+              label={hasWallet ? "Thêm" : "Tạo ví"}
+              onClick={() => setCreateWalletOpen(true)}
+            />
+          </div>
+
+          {/* Quick actions - Row 2 */}
+          <div className="grid grid-cols-5 gap-2 sm:gap-3">
+            <QuickAction 
+              icon={<Bell />} 
+              label="Giá" 
+              onClick={() => setPriceAlertsOpen(true)}
+            />
+            <QuickAction 
+              icon={<Globe />} 
+              label="DApps" 
+              onClick={() => setDappBrowserOpen(true)}
+              disabled={!hasWallet}
+            />
+            <QuickAction 
+              icon={<Shield />} 
+              label="Backup" 
+              onClick={() => setBackupOpen(true)}
+              disabled={!hasWallet}
+            />
+            <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
               disabled={!hasWallet || balanceLoading}
             />
             <QuickAction 
-              icon={<Plus />} 
-              label={hasWallet ? "Thêm" : "Tạo ví"}
-              onClick={() => setCreateWalletOpen(true)}
+              icon={<TrendingUp />} 
+              label="More" 
+              onClick={() => setActiveTab("portfolio")}
+              disabled={!hasWallet}
             />
           </div>
         </div>
@@ -366,6 +411,12 @@ const Dashboard = () => {
         onImportPrivateKey={importFromPrivateKey}
       />
 
+      {/* Price Alerts - available without wallet */}
+      <PriceAlertsDialog
+        open={priceAlertsOpen}
+        onOpenChange={setPriceAlertsOpen}
+      />
+
       {hasWallet && (
         <>
           <SendCryptoDialog
@@ -402,6 +453,30 @@ const Dashboard = () => {
             onOpenChange={setImportNFTOpen}
             onImport={importNFT}
             walletAddress={activeWallet.address}
+          />
+
+          <StakingDialog
+            open={stakingOpen}
+            onOpenChange={setStakingOpen}
+            walletAddress={activeWallet.address}
+            getPrivateKey={getPrivateKey}
+            onSuccess={refreshBalances}
+          />
+
+          <DAppBrowserDialog
+            open={dappBrowserOpen}
+            onOpenChange={setDappBrowserOpen}
+            walletAddress={activeWallet.address}
+          />
+
+          <BackupRestoreDialog
+            open={backupOpen}
+            onOpenChange={setBackupOpen}
+            wallets={wallets.map(w => ({ name: w.name, address: w.address }))}
+            onRestoreWallet={async (name, address, privateKey) => {
+              localStorage.setItem(`pk_${address.toLowerCase()}`, privateKey);
+              // The wallet will be added via the normal flow
+            }}
           />
         </>
       )}
