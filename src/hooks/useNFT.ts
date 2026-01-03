@@ -245,6 +245,21 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     fetchNFTs();
   }, [fetchNFTs]);
 
+  // Import NFT from contract
+  const importNFT = async (
+    contractAddress: string,
+    tokenId: string
+  ): Promise<{ name?: string; image_url?: string } | null> => {
+    const metadata = await fetchNFTMetadata(contractAddress, tokenId);
+    if (!metadata) return null;
+
+    const result = await addNFT(contractAddress, tokenId, metadata);
+    if (result) {
+      return { name: metadata.name, image_url: metadata.image_url };
+    }
+    return null;
+  };
+
   return {
     nfts,
     loading,
@@ -253,5 +268,6 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     fetchNFTMetadata,
     mintFunBadge,
     transferNFT,
+    importNFT,
   };
 };
