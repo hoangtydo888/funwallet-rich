@@ -39,8 +39,18 @@ export const TokenList = ({ balances, loading }: TokenListProps) => {
             }`}
           >
             {/* Token icon */}
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-lg">
-              {token.logo}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center overflow-hidden">
+              <img 
+                src={token.logo} 
+                alt={token.symbol} 
+                className="w-10 h-10 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  if (e.currentTarget.parentElement) {
+                    e.currentTarget.parentElement.innerHTML = `<span class="text-lg font-bold">${token.symbol.charAt(0)}</span>`;
+                  }
+                }}
+              />
             </div>
 
             {/* Token info */}

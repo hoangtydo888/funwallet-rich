@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="shib-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFA409"/>
+      <stop offset="100%" stop-color="#E68A00"/>
+    </linearGradient>
+  </defs>
+  <circle cx="16" cy="16" r="16" fill="url(#shib-grad)"/>
+  <g fill="#fff">
+    <path d="M16 8c-4.4 0-8 3.6-8 8 0 3 1.7 5.7 4.2 7l.8-1.5c-2-1-3.3-3-3.3-5.5 0-3.5 2.8-6.3 6.3-6.3s6.3 2.8 6.3 6.3c0 2.5-1.4 4.5-3.3 5.5l.8 1.5c2.5-1.3 4.2-4 4.2-7 0-4.4-3.6-8-8-8z"/>
+    <circle cx="13" cy="14" r="1.5"/>
+    <circle cx="19" cy="14" r="1.5"/>
+    <ellipse cx="16" cy="19" rx="2" ry="1"/>
+  </g>
+</svg>

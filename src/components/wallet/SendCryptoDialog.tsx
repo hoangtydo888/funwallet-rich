@@ -189,14 +189,27 @@ export const SendCryptoDialog = ({
             <Label>Chọn token</Label>
             <Select value={selectedToken} onValueChange={setSelectedToken}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={selectedBalance?.logo} 
+                      alt={selectedToken} 
+                      className="w-5 h-5 rounded-full"
+                    />
+                    <span>{selectedToken}</span>
+                  </div>
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-80">
                 {balances.map((token) => (
                   <SelectItem key={token.symbol} value={token.symbol}>
                     <div className="flex items-center gap-2">
-                      <span>{token.logo}</span>
-                      <span>{token.symbol}</span>
+                      <img 
+                        src={token.logo} 
+                        alt={token.symbol} 
+                        className="w-5 h-5 rounded-full"
+                      />
+                      <span className="font-medium">{token.symbol}</span>
                       <span className="text-muted-foreground text-xs">
                         ({formatBalance(token.balance)})
                       </span>
