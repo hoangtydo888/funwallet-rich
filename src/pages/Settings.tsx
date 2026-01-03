@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChain } from "@/contexts/ChainContext";
+import { useTheme, THEMES } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,8 +29,7 @@ import {
   Globe,
   Shield,
   Bell,
-  Moon,
-  Sun,
+  Palette,
   Smartphone,
   Key,
   Trash2,
@@ -41,9 +41,11 @@ import {
   EyeOff,
   AlertTriangle,
   Lock,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { SUPPORTED_CHAINS } from "@/lib/chains";
+import { ThemeCard } from "@/components/settings/ThemeCard";
 
 interface Settings {
   language: string;
@@ -93,6 +95,7 @@ const AUTO_LOCK_OPTIONS = [
 const Settings = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const { currentChain, setCurrentChain, availableChains } = useChain();
+  const { currentTheme, setTheme, themes } = useTheme();
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState<Settings>(() => {
@@ -212,8 +215,12 @@ const Settings = () => {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <Tabs defaultValue="wallet" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="appearance" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="appearance" className="gap-2">
+              <Palette className="h-4 w-4 hidden sm:block" />
+              Giao diện
+            </TabsTrigger>
             <TabsTrigger value="wallet" className="gap-2">
               <Wallet className="h-4 w-4 hidden sm:block" />
               Ví
@@ -231,6 +238,55 @@ const Settings = () => {
               Thông báo
             </TabsTrigger>
           </TabsList>
+
+          {/* Appearance / Theme Settings */}
+          <TabsContent value="appearance" className="space-y-6">
+            <div className="glass-card rounded-2xl p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <h2 className="font-heading font-semibold text-lg">Màu chủ đạo</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Chọn theme phù hợp với phong cách của bạn
+                  </p>
+                </div>
+              </div>
+
+              {/* Current theme indicator */}
+              <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-12 h-12 rounded-xl animate-pulse-glow"
+                    style={{ background: currentTheme.preview }}
+                  />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Theme hiện tại</p>
+                    <p className="font-heading font-semibold">{currentTheme.name}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Theme Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.values(themes).map((theme) => (
+                  <ThemeCard
+                    key={theme.id}
+                    theme={theme}
+                    isActive={currentTheme.id === theme.id}
+                    onSelect={() => {
+                      setTheme(theme.id);
+                      toast({
+                        title: "Đã đổi theme",
+                        description: `Theme "${theme.name}" đã được áp dụng`,
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </TabsContent>
 
           {/* Wallet Settings */}
           <TabsContent value="wallet" className="space-y-6">
@@ -295,28 +351,6 @@ const Settings = () => {
                   checked={settings.hideBalance}
                   onCheckedChange={(v) => updateSetting("hideBalance", v)}
                 />
-              </div>
-
-              {/* Theme */}
-              <div className="space-y-2">
-                <Label>Giao diện</Label>
-                <div className="flex gap-2">
-                  {[
-                    { value: "light", icon: Sun, label: "Sáng" },
-                    { value: "dark", icon: Moon, label: "Tối" },
-                    { value: "system", icon: Smartphone, label: "Hệ thống" },
-                  ].map(({ value, icon: Icon, label }) => (
-                    <Button
-                      key={value}
-                      variant={settings.theme === value ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => updateSetting("theme", value as Settings["theme"])}
-                    >
-                      <Icon className="h-4 w-4 mr-2" />
-                      {label}
-                    </Button>
-                  ))}
-                </div>
               </div>
             </div>
 

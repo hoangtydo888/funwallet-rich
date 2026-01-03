@@ -236,13 +236,13 @@ const Dashboard = () => {
           <p className="text-muted-foreground">Quản lý tài sản Web3 của bạn</p>
         </div>
 
-        {/* Wallet Card */}
-        <div className="glass-card rounded-3xl p-6 mb-8 gradient-border">
+        {/* Wallet Card - with theme glow effect */}
+        <div className="glass-card rounded-3xl p-6 mb-8 gradient-border glow-divine">
           <div className="flex items-start justify-between mb-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tổng tài sản</p>
               <div className="flex items-center gap-2">
-                <h2 className="font-heading text-4xl font-bold">
+                <h2 className="font-heading text-4xl font-bold gradient-text">
                   {balanceHidden ? "••••••" : `$${formatBalance(totalBalance.toFixed(2), 2)}`}
                 </h2>
                 <Button variant="ghost" size="icon" onClick={toggleBalanceVisibility} className="h-8 w-8">
@@ -259,7 +259,7 @@ const Dashboard = () => {
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center animate-pulse-glow">
                 <Wallet className="h-6 w-6 text-primary-foreground" />
               </div>
               {!pinEnabled && (

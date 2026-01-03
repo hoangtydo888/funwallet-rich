@@ -110,9 +110,9 @@ export const ReceiveCryptoDialog = ({
             </div>
           </div>
 
-          {/* QR Code */}
+          {/* QR Code with theme glow */}
           <div className="flex justify-center">
-            <div className="p-4 bg-white rounded-2xl">
+            <div className="p-4 bg-white rounded-2xl glow animate-pulse-glow">
               <QRCodeSVG
                 id="wallet-qr-code"
                 value={walletAddress}
