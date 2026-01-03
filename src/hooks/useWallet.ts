@@ -277,6 +277,100 @@ export const useWallet = () => {
     }
   };
 
+  // Delete wallet
+  const deleteWallet = async (walletId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      const wallet = wallets.find((w) => w.id === walletId);
+      
+      const { error } = await supabase
+        .from("wallets")
+        .delete()
+        .eq("id", walletId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      // Remove private key from localStorage
+      if (wallet) {
+        const keys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
+        delete keys[wallet.address];
+        localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(keys));
+      }
+
+      await fetchWallets();
+      return true;
+    } catch (error) {
+      console.error("Error deleting wallet:", error);
+      toast({
+        title: "Lỗi",
+        description: "Không thể xóa ví. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  // Set primary wallet
+  const setPrimaryWallet = async (walletId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      // Remove primary from all wallets
+      await supabase
+        .from("wallets")
+        .update({ is_primary: false })
+        .eq("user_id", user.id);
+
+      // Set new primary
+      const { error } = await supabase
+        .from("wallets")
+        .update({ is_primary: true })
+        .eq("id", walletId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      await fetchWallets();
+      return true;
+    } catch (error) {
+      console.error("Error setting primary wallet:", error);
+      toast({
+        title: "Lỗi",
+        description: "Không thể đặt ví chính. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  // Rename wallet
+  const renameWallet = async (walletId: string, newName: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      const { error } = await supabase
+        .from("wallets")
+        .update({ name: newName })
+        .eq("id", walletId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      await fetchWallets();
+      return true;
+    } catch (error) {
+      console.error("Error renaming wallet:", error);
+      toast({
+        title: "Lỗi",
+        description: "Không thể đổi tên ví. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   // Calculate total USD value
   const getTotalBalance = (): number => {
     // Simple calculation - in production use real prices
@@ -308,6 +402,9 @@ export const useWallet = () => {
     importFromMnemonic,
     importFromPrivateKey,
     getPrivateKey,
+    deleteWallet,
+    setPrimaryWallet,
+    renameWallet,
     getTotalBalance,
     refreshBalances: fetchBalances,
   };

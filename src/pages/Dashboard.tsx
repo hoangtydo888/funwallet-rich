@@ -29,7 +29,10 @@ import {
   Shield,
   Layers,
   Settings,
-  Link2
+  Link2,
+  Eye,
+  EyeOff,
+  ChevronDown
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -52,6 +55,8 @@ import { BackupRestoreDialog } from "@/components/backup/BackupRestoreDialog";
 import { ChainSelector } from "@/components/chain/ChainSelector";
 import { WalletConnectDialog } from "@/components/walletconnect/WalletConnectDialog";
 import { ImportTokenDialog, type CustomToken } from "@/components/wallet/ImportTokenDialog";
+import { WalletManagerDialog } from "@/components/wallet/WalletManagerDialog";
+import { PinDialog } from "@/components/wallet/PinDialog";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -61,6 +66,7 @@ const Dashboard = () => {
   const {
     wallets,
     activeWallet,
+    setActiveWallet,
     balances,
     loading: walletLoading,
     balanceLoading,
@@ -68,6 +74,9 @@ const Dashboard = () => {
     importFromMnemonic,
     importFromPrivateKey,
     getPrivateKey,
+    deleteWallet,
+    setPrimaryWallet,
+    renameWallet,
     getTotalBalance,
     refreshBalances,
   } = useWallet();
@@ -92,7 +101,56 @@ const Dashboard = () => {
   const [backupOpen, setBackupOpen] = useState(false);
   const [walletConnectOpen, setWalletConnectOpen] = useState(false);
   const [importTokenOpen, setImportTokenOpen] = useState(false);
+  const [walletManagerOpen, setWalletManagerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
+  
+  // Balance visibility state
+  const [balanceHidden, setBalanceHidden] = useState(() => {
+    return localStorage.getItem("fun_wallet_balance_hidden") === "true";
+  });
+  const [pinEnabled] = useState(() => {
+    return localStorage.getItem("fun_wallet_pin_enabled") === "true";
+  });
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showPinSetup, setShowPinSetup] = useState(false);
+
+  const toggleBalanceVisibility = () => {
+    if (balanceHidden && pinEnabled) {
+      setShowPinDialog(true);
+    } else {
+      const newHidden = !balanceHidden;
+      setBalanceHidden(newHidden);
+      localStorage.setItem("fun_wallet_balance_hidden", String(newHidden));
+    }
+  };
+
+  const verifyPin = (pin: string): boolean => {
+    const storedHash = localStorage.getItem("fun_wallet_pin_hash");
+    // Simple hash verification
+    let hash = 0;
+    for (let i = 0; i < pin.length; i++) {
+      const char = pin.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    if (storedHash === hash.toString(16)) {
+      setBalanceHidden(false);
+      localStorage.setItem("fun_wallet_balance_hidden", "false");
+      return true;
+    }
+    return false;
+  };
+
+  const setupPin = (pin: string) => {
+    let hash = 0;
+    for (let i = 0; i < pin.length; i++) {
+      const char = pin.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    localStorage.setItem("fun_wallet_pin_hash", hash.toString(16));
+    localStorage.setItem("fun_wallet_pin_enabled", "true");
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -182,20 +240,46 @@ const Dashboard = () => {
           <div className="flex items-start justify-between mb-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tổng tài sản</p>
-              <h2 className="font-heading text-4xl font-bold">
-                ${formatBalance(totalBalance.toFixed(2), 2)}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-heading text-4xl font-bold">
+                  {balanceHidden ? "••••••" : `$${formatBalance(totalBalance.toFixed(2), 2)}`}
+                </h2>
+                <Button variant="ghost" size="icon" onClick={toggleBalanceVisibility} className="h-8 w-8">
+                  {balanceHidden ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </Button>
+              </div>
               <p className="text-sm text-success mt-1 flex items-center gap-1">
-                {currentChain.logo} {currentChain.shortName}
+                {currentChain.logo.startsWith("/") ? (
+                  <img src={currentChain.logo} alt={currentChain.shortName} className="w-5 h-5 rounded-full" />
+                ) : (
+                  <span>{currentChain.logo}</span>
+                )}
+                {currentChain.shortName}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-              <Wallet className="h-6 w-6 text-primary-foreground" />
+            <div className="flex flex-col gap-2">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                <Wallet className="h-6 w-6 text-primary-foreground" />
+              </div>
+              {!pinEnabled && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowPinSetup(true)}
+                  className="text-xs"
+                >
+                  <Shield className="h-3 w-3 mr-1" />
+                  PIN
+                </Button>
+              )}
             </div>
           </div>
 
-          {/* Wallet address */}
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 mb-6">
+          {/* Wallet address - Clickable to open manager */}
+          <div 
+            className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 mb-6 cursor-pointer hover:bg-muted/70 transition-colors"
+            onClick={() => hasWallet && setWalletManagerOpen(true)}
+          >
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">
                 {hasWallet ? activeWallet.name : `Địa chỉ ví ${currentChain.shortName}`}
@@ -208,10 +292,11 @@ const Dashboard = () => {
             </div>
             {hasWallet && (
               <>
-                <Button variant="ghost" size="icon" onClick={copyAddress}>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); copyAddress(); }}>
                   <Copy className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" asChild>
+                <Button variant="ghost" size="icon" asChild onClick={(e) => e.stopPropagation()}>
                   <a
                     href={`${currentChain.explorer}/address/${activeWallet.address}`}
                     target="_blank"
@@ -515,8 +600,34 @@ const Dashboard = () => {
               refreshBalances();
             }}
           />
+
+          <WalletManagerDialog
+            open={walletManagerOpen}
+            onOpenChange={setWalletManagerOpen}
+            wallets={wallets}
+            activeWallet={activeWallet}
+            onSelectWallet={setActiveWallet}
+            onDeleteWallet={deleteWallet}
+            onSetPrimary={setPrimaryWallet}
+            onRenameWallet={renameWallet}
+          />
         </>
       )}
+
+      {/* PIN Dialogs */}
+      <PinDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        mode="verify"
+        onVerify={verifyPin}
+      />
+
+      <PinDialog
+        open={showPinSetup}
+        onOpenChange={setShowPinSetup}
+        mode="setup"
+        onSetup={setupPin}
+      />
     </div>
   );
 };
