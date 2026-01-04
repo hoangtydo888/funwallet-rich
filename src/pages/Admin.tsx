@@ -159,71 +159,23 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="bulk-transfer" className="space-y-4">
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Send className="h-5 w-5 text-primary" />
-                Chuyển Tiền Hàng Loạt
-              </h2>
-              <p className="text-muted-foreground mb-6">
-                Gửi crypto đến nhiều địa chỉ cùng lúc (tối đa 1000 địa chỉ mỗi lần)
-              </p>
-
-              {/* Admin wallet setup */}
-              <div className="bg-muted/30 border border-border rounded-lg p-4 mb-6">
-                <h3 className="font-medium mb-3">Cấu hình ví Admin</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Nhập private key của ví chứa token để thực hiện chuyển tiền hàng loạt. 
-                  Private key chỉ được lưu trong session và không được gửi đến server.
-                </p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="admin-pk">Private Key</Label>
-                    <Input
-                      id="admin-pk"
-                      type="password"
-                      placeholder="0x..."
-                      value={adminPrivateKey}
-                      onChange={(e) => {
-                        const pk = e.target.value;
-                        setAdminPrivateKey(pk);
-                        // Derive address from private key
-                        if (pk && pk.length === 66) {
-                          import('ethers').then(({ ethers }) => {
-                            try {
-                              const wallet = new ethers.Wallet(pk);
-                              setAdminAddress(wallet.address);
-                            } catch {
-                              setAdminAddress('');
-                            }
-                          });
-                        } else {
-                          setAdminAddress('');
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Địa chỉ ví</Label>
-                    <div className="h-10 px-3 border rounded-md flex items-center bg-muted/50 text-sm">
-                      {adminAddress ? (
-                        <span className="font-mono">{adminAddress.slice(0, 10)}...{adminAddress.slice(-8)}</span>
-                      ) : (
-                        <span className="text-muted-foreground">Chưa có</span>
-                      )}
-                    </div>
-                  </div>
+            <div className="bg-card border border-border rounded-xl p-6 text-center">
+              <div className="max-w-md mx-auto space-y-6">
+                <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mx-auto">
+                  <Send className="h-10 w-10 text-primary-foreground" />
                 </div>
+                <div>
+                  <h2 className="text-2xl font-semibold mb-2">Chuyển Tiền Hàng Loạt</h2>
+                  <p className="text-muted-foreground">
+                    Gửi crypto đến nhiều địa chỉ cùng lúc (tối đa 1000 địa chỉ mỗi lần). 
+                    Upload file CSV hoặc chọn từ danh sách users.
+                  </p>
+                </div>
+                <Button size="lg" onClick={() => navigate('/admin/bulk-transfer')} className="w-full sm:w-auto">
+                  <Send className="h-4 w-4 mr-2" />
+                  Mở trang Bulk Transfer
+                </Button>
               </div>
-
-              <Button 
-                onClick={() => setBulkTransferOpen(true)}
-                disabled={!adminPrivateKey || !adminAddress}
-                size="lg"
-                className="w-full sm:w-auto"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Mở giao diện chuyển tiền hàng loạt
-              </Button>
             </div>
           </TabsContent>
         </Tabs>
