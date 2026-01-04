@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdmin } from "@/hooks/useAdmin";
 import { useChain } from "@/contexts/ChainContext";
 import { useWallet } from "@/hooks/useWallet";
 import { useNFT } from "@/hooks/useNFT";
@@ -65,6 +66,7 @@ import { BulkSendDialog } from "@/components/wallet/BulkSendDialog";
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const { currentChain } = useChain();
+  const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   
   const {
@@ -265,6 +267,17 @@ const Dashboard = () => {
           </Link>
           <div className="flex items-center gap-2">
             <ChainSelector compact />
+            {isAdmin && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate("/admin")}
+                className="text-primary"
+                title="Admin Dashboard"
+              >
+                <Shield className="h-5 w-5" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
               <Settings className="h-5 w-5" />
             </Button>
