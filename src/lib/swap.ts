@@ -12,6 +12,10 @@ export const PANCAKE_ROUTER_ABI = [
   "function swapExactETHForTokens(uint amountOutMin, address[] path, address to, uint deadline) payable returns (uint[] amounts)",
   "function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline) returns (uint[] amounts)",
   "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline) returns (uint[] amounts)",
+  // Fee-on-transfer token functions (for tax tokens like CAMLY, BABYDOGE)
+  "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] path, address to, uint deadline) payable",
+  "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)",
+  "function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)",
 ];
 
 // Swap token type
@@ -33,12 +37,15 @@ export interface QuoteResult {
   isEstimate?: boolean;
 }
 
+// Tax tokens that require special swap functions
+export const TAX_TOKENS = ["CAMLY", "BABYDOGE", "SHIB"];
+
 // Swap tokens available (19 tokens)
 export const SWAP_TOKENS: SwapToken[] = [
   { symbol: "BNB", name: "BNB", address: WBNB_ADDRESS, decimals: 18, isNative: true, logo: "/tokens/bnb.png" },
   { symbol: "USDT", name: "Tether USD", address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18, logo: "/tokens/usdt.svg" },
   { symbol: "USDC", name: "USD Coin", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18, logo: "/tokens/usdc.svg" },
-  { symbol: "CAMLY", name: "CAMLY COIN", address: "0x0910320181889fefde0bb1ca63962b0a8882e413", decimals: 18, logo: "/tokens/camly.svg" },
+  { symbol: "CAMLY", name: "CAMLY COIN", address: "0x0910320181889fefde0bb1ca63962b0a8882e413", decimals: 18, logo: "/tokens/camly.png" },
   { symbol: "BTCB", name: "Bitcoin BEP-20", address: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c", decimals: 18, logo: "/tokens/btc.svg" },
   { symbol: "ETH", name: "Ethereum BEP-20", address: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8", decimals: 18, logo: "/tokens/eth.svg" },
   { symbol: "CAKE", name: "PancakeSwap", address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82", decimals: 18, logo: "/tokens/cake.svg" },
@@ -158,6 +165,11 @@ export const getSwapQuote = async (
   return null;
 };
 
+// Check if token is a tax token
+const isTaxToken = (token: SwapToken): boolean => {
+  return TAX_TOKENS.includes(token.symbol);
+};
+
 // Execute swap
 export const executeSwap = async (
   privateKey: string,
@@ -174,23 +186,42 @@ export const executeSwap = async (
 
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
     const amountInWei = ethers.parseUnits(amountIn, tokenIn.decimals);
+    
+    // Use higher slippage for tax tokens (minimum 10%)
+    const effectiveSlippage = (isTaxToken(tokenIn) || isTaxToken(tokenOut)) 
+      ? Math.max(slippage, 10) 
+      : slippage;
+    
     const minOutWei = ethers.parseUnits(
-      (parseFloat(amountOutMin) * (1 - slippage / 100)).toFixed(tokenOut.decimals),
+      (parseFloat(amountOutMin) * (1 - effectiveSlippage / 100)).toFixed(tokenOut.decimals),
       tokenOut.decimals
     );
+
+    // Check if we need to use fee-on-transfer functions
+    const useFeeOnTransfer = isTaxToken(tokenIn) || isTaxToken(tokenOut);
 
     let tx;
 
     if (tokenIn.isNative) {
       // BNB -> Token
       const path = [WBNB_ADDRESS, tokenOut.address];
-      tx = await router.swapExactETHForTokens(
-        minOutWei,
-        path,
-        wallet.address,
-        deadline,
-        { value: amountInWei }
-      );
+      if (useFeeOnTransfer) {
+        tx = await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+          minOutWei,
+          path,
+          wallet.address,
+          deadline,
+          { value: amountInWei }
+        );
+      } else {
+        tx = await router.swapExactETHForTokens(
+          minOutWei,
+          path,
+          wallet.address,
+          deadline,
+          { value: amountInWei }
+        );
+      }
     } else if (tokenOut.isNative) {
       // Token -> BNB
       // First approve
@@ -202,13 +233,23 @@ export const executeSwap = async (
       }
 
       const path = [tokenIn.address, WBNB_ADDRESS];
-      tx = await router.swapExactTokensForETH(
-        amountInWei,
-        minOutWei,
-        path,
-        wallet.address,
-        deadline
-      );
+      if (useFeeOnTransfer) {
+        tx = await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+          amountInWei,
+          minOutWei,
+          path,
+          wallet.address,
+          deadline
+        );
+      } else {
+        tx = await router.swapExactTokensForETH(
+          amountInWei,
+          minOutWei,
+          path,
+          wallet.address,
+          deadline
+        );
+      }
     } else {
       // Token -> Token
       const tokenContract = new ethers.Contract(tokenIn.address, ERC20_ABI, wallet);
@@ -219,18 +260,37 @@ export const executeSwap = async (
       }
 
       const path = [tokenIn.address, WBNB_ADDRESS, tokenOut.address];
-      tx = await router.swapExactTokensForTokens(
-        amountInWei,
-        minOutWei,
-        path,
-        wallet.address,
-        deadline
-      );
+      if (useFeeOnTransfer) {
+        tx = await router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+          amountInWei,
+          minOutWei,
+          path,
+          wallet.address,
+          deadline
+        );
+      } else {
+        tx = await router.swapExactTokensForTokens(
+          amountInWei,
+          minOutWei,
+          path,
+          wallet.address,
+          deadline
+        );
+      }
     }
 
     return { hash: tx.hash };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Swap failed";
+    
+    // Provide better error messages for common issues
+    if (errorMessage.includes("execution reverted")) {
+      return { error: "Giao dịch thất bại. Vui lòng thử tăng slippage lên 15-20% hoặc giảm số lượng swap." };
+    }
+    if (errorMessage.includes("insufficient")) {
+      return { error: "Số dư không đủ để thực hiện giao dịch (bao gồm phí gas)." };
+    }
+    
     return { error: errorMessage };
   }
 };
