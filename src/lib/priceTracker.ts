@@ -1,5 +1,8 @@
 import { fetchTokenFromDexScreener, TOKEN_ADDRESSES } from "./dexscreener";
 
+// Stablecoins that should always be ~$1.00
+const STABLECOINS = ["USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "FRAX"];
+
 // Token price data interface
 export interface TokenPrice {
   symbol: string;
@@ -154,7 +157,22 @@ export const fetchTokenPrices = async (
       return generateMockPrices(symbols);
     }
 
-    return results;
+    // Fix stablecoin prices if they deviate more than 5% from $1.00
+    const fixedResults = results.map(token => {
+      if (STABLECOINS.includes(token.symbol.toUpperCase())) {
+        if (token.price < 0.95 || token.price > 1.05) {
+          console.warn(`Stablecoin ${token.symbol} price ${token.price} is off, forcing to $1.00`);
+          return {
+            ...token,
+            price: 1.0,
+            change24h: 0,
+          };
+        }
+      }
+      return token;
+    });
+
+    return fixedResults;
   } catch (error) {
     console.error("Error fetching prices:", error);
     return generateMockPrices(symbols);

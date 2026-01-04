@@ -71,6 +71,9 @@ export interface TokenInfo {
   dexUrl: string;
 }
 
+// Stablecoin quote tokens to prioritize for USD pairs
+const STABLE_QUOTES = ["USDT", "USDC", "BUSD", "USD", "DAI", "WBNB"];
+
 // Fetch token info from DexScreener
 export const fetchTokenFromDexScreener = async (
   tokenAddress: string
@@ -88,8 +91,16 @@ export const fetchTokenFromDexScreener = async (
       return null;
     }
 
-    // Get the pair with highest liquidity
-    const bestPair = pairs.reduce((best, current) => 
+    // Prioritize pairs with stablecoin quote tokens (USD pairs)
+    const usdPairs = pairs.filter(pair => 
+      STABLE_QUOTES.includes(pair.quoteToken?.symbol?.toUpperCase() || "")
+    );
+
+    // If USD pairs exist, choose the one with highest liquidity among them
+    // Otherwise fallback to highest liquidity pair overall
+    const candidatePairs = usdPairs.length > 0 ? usdPairs : pairs;
+    
+    const bestPair = candidatePairs.reduce((best, current) => 
       (current.liquidity?.usd || 0) > (best.liquidity?.usd || 0) ? current : best
     );
 
