@@ -566,7 +566,7 @@ export const BulkSendDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle className="font-heading flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -577,8 +577,8 @@ export const BulkSendDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Main Scrollable Content */}
-        <ScrollArea className="flex-1 pr-4">
+        {/* Main Scrollable Content - fixed height */}
+        <ScrollArea className="flex-1 min-h-0 max-h-[60vh] pr-4">
           <div className="space-y-4">
             {/* Stats Cards */}
             <div className="grid grid-cols-3 gap-3">
@@ -771,19 +771,6 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Nút GỬI NGAY - Parse và gửi 1 bước */}
-                    <Button 
-                      onClick={handleDirectSend} 
-                      className="w-full bg-primary hover:bg-primary/90" 
-                      disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
-                      size="lg"
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      {previewData && previewData.count > 0 
-                        ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
-                        : `Nhập địa chỉ để gửi`
-                      }
-                    </Button>
                   </>
                 )}
 
@@ -898,56 +885,85 @@ export const BulkSendDialog = ({
         </ScrollArea>
 
         {/* Sticky Action Buttons - Always visible at bottom */}
-        {activeTab === "send" && items.length > 0 && (
-          <div className="shrink-0 border-t pt-4 mt-4 space-y-2 bg-background">
+        <div className="shrink-0 border-t pt-4 mt-2 space-y-2 bg-background">
+          {/* Nút GỬI NGAY khi chưa có items */}
+          {activeTab === "send" && items.length === 0 && !isProcessing && (
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleClose}
+                className="flex-1"
+              >
+                Đóng
+              </Button>
+              <Button 
+                onClick={handleDirectSend} 
+                className="flex-[2] bg-primary hover:bg-primary/90" 
+                disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
+                size="lg"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                {previewData && previewData.count > 0 
+                  ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
+                  : `Nhập địa chỉ để gửi`
+                }
+              </Button>
+            </div>
+          )}
 
-            {/* Action buttons when items are loaded */}
-            {items.length > 0 && (
-              <div className="flex gap-2">
-                {!isProcessing && (
-                  <>
-                    <Button variant="outline" onClick={() => setItems([])} className="flex-1">
-                      Xóa danh sách
+          {/* Action buttons when items are loaded */}
+          {activeTab === "send" && items.length > 0 && (
+            <div className="flex gap-2">
+              {!isProcessing && (
+                <>
+                  <Button variant="outline" onClick={() => setItems([])} className="flex-1">
+                    Quay lại
+                  </Button>
+                  {failCount > 0 && (
+                    <Button variant="outline" onClick={exportFailed}>
+                      <Download className="h-4 w-4 mr-1" />
+                      Xuất lỗi
                     </Button>
-                    {failCount > 0 && (
-                      <Button variant="outline" onClick={exportFailed}>
-                        <Download className="h-4 w-4 mr-1" />
-                        Xuất lỗi
-                      </Button>
-                    )}
-                  </>
-                )}
-                
-                {items.some((i) => i.status === "pending") && (
-                  <Button
-                    onClick={handleBulkSend}
-                    disabled={isProcessing || totalAmount > maxAmount}
-                    className="flex-1"
-                    size="lg"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Đang gửi...
-                      </>
-                    ) : (
-                      <>
-                        <Users className="h-4 w-4 mr-2" />
-                        Gửi {items.filter((i) => i.status === "pending").length} địa chỉ
-                      </>
-                    )}
-                  </Button>
-                )}
+                  )}
+                </>
+              )}
+              
+              {items.some((i) => i.status === "pending") && (
+                <Button
+                  onClick={handleBulkSend}
+                  disabled={isProcessing || totalAmount > maxAmount}
+                  className="flex-1"
+                  size="lg"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Đang gửi...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="h-4 w-4 mr-2" />
+                      Gửi {items.filter((i) => i.status === "pending").length} địa chỉ
+                    </>
+                  )}
+                </Button>
+              )}
 
-                {!items.some((i) => i.status === "pending") && !isProcessing && (
-                  <Button onClick={handleClose} className="flex-1" size="lg">
-                    Đóng
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+              {!items.some((i) => i.status === "pending") && !isProcessing && (
+                <Button onClick={handleClose} className="flex-1" size="lg">
+                  Đóng
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Nút đóng cho tab History */}
+          {activeTab === "history" && (
+            <Button variant="outline" onClick={handleClose} className="w-full">
+              Đóng
+            </Button>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
