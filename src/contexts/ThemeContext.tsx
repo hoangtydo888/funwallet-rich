@@ -1,5 +1,16 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
+// 7 màu cầu vồng - sử dụng trong toàn app
+export const RAINBOW_COLORS = {
+  red: "#FF0000",
+  orange: "#FFA500",
+  yellow: "#FFFF00",
+  green: "#00FF7F",      // Màu chủ đạo Spring Green
+  blue: "#00BFFF",
+  indigo: "#4B0082",
+  violet: "#FF00FF",
+} as const;
+
 export interface ThemeColors {
   primary: string;
   secondary: string;
@@ -19,110 +30,34 @@ export interface Theme {
   name: string;
   description: string;
   isRecommended: boolean;
+  isDefault?: boolean;
   colors: ThemeColors;
   preview: string;
+  rainbowColors?: typeof RAINBOW_COLORS;
 }
 
 export const THEMES: Record<string, Theme> = {
-  "cosmic-golden-age": {
-    id: "cosmic-golden-age",
-    name: "Cosmic Golden Age",
-    description: "Divine Exclusive Theme - Ánh sáng vũ trụ hoàng kim",
+  "rainbow-fresh-awakening": {
+    id: "rainbow-fresh-awakening",
+    name: "Rainbow Fresh Awakening",
+    description: "Tươi sáng rạng ngời - Năng lượng tích cực",
     isRecommended: true,
+    isDefault: true,
     colors: {
-      primary: "45 100% 50%",           // #FFD700 Pure Gold
-      secondary: "40 95% 55%",          // Gold lighter
-      accent: "38 92% 50%",             // Amber accent
-      background: "0 0% 0%",            // Pure Black #000000
-      card: "40 15% 6%",                // Dark with gold tint
-      border: "45 30% 20%",             // Gold border subtle
-      ring: "45 100% 50%",              // Gold ring
-      glow: "45 100% 50%",              // Gold glow
-      foreground: "45 20% 95%",         // Light gold-tinted white
-      muted: "40 10% 12%",              // Muted gold-dark
-      mutedForeground: "45 15% 55%",    // Muted gold text
+      primary: "157 100% 50%",           // #00FF7F Spring Green
+      secondary: "195 100% 50%",         // #00BFFF Deep Sky Blue
+      accent: "45 100% 50%",             // Yellow accent
+      background: "0 0% 98%",            // #FAFAFA gần trắng
+      card: "0 0% 100%",                 // Pure White cards
+      border: "0 0% 88%",                // Light gray border
+      ring: "157 100% 50%",              // Green ring
+      glow: "157 100% 50%",              // Green glow
+      foreground: "180 50% 20%",         // Xanh ngọc lam đậm - dễ đọc
+      muted: "0 0% 96%",                 // Very light gray
+      mutedForeground: "180 30% 40%",    // Xanh ngọc lam nhạt
     },
-    preview: "linear-gradient(135deg, #FFD700 0%, #000000 100%)",
-  },
-  "midnight-blue": {
-    id: "midnight-blue",
-    name: "Midnight Blue",
-    description: "Bầu trời đêm thanh bình",
-    isRecommended: false,
-    colors: {
-      primary: "217 91% 60%",           // #3B82F6 Blue
-      secondary: "199 89% 48%",         // Cyan
-      accent: "199 89% 48%",
-      background: "222 47% 6%",         // Dark blue
-      card: "222 47% 9%",
-      border: "217 32% 20%",
-      ring: "217 91% 60%",
-      glow: "217 91% 60%",
-      foreground: "210 40% 98%",
-      muted: "217 20% 15%",
-      mutedForeground: "217 15% 55%",
-    },
-    preview: "linear-gradient(135deg, #3B82F6 0%, #0F172A 100%)",
-  },
-  "emerald-forest": {
-    id: "emerald-forest",
-    name: "Emerald Forest",
-    description: "Thiên nhiên xanh mát",
-    isRecommended: false,
-    colors: {
-      primary: "152 76% 45%",           // #10B981 Emerald
-      secondary: "160 84% 39%",
-      accent: "160 84% 39%",
-      background: "160 30% 4%",
-      card: "160 25% 7%",
-      border: "152 30% 18%",
-      ring: "152 76% 45%",
-      glow: "152 76% 45%",
-      foreground: "152 20% 95%",
-      muted: "160 15% 12%",
-      mutedForeground: "152 15% 55%",
-    },
-    preview: "linear-gradient(135deg, #10B981 0%, #064E3B 100%)",
-  },
-  "royal-purple": {
-    id: "royal-purple",
-    name: "Royal Purple",
-    description: "Vương giả tím cao quý",
-    isRecommended: false,
-    colors: {
-      primary: "262 83% 58%",           // Original purple
-      secondary: "280 70% 50%",
-      accent: "280 70% 50%",
-      background: "262 25% 6%",
-      card: "262 25% 9%",
-      border: "262 20% 18%",
-      ring: "262 83% 58%",
-      glow: "262 83% 58%",
-      foreground: "260 20% 98%",
-      muted: "262 15% 15%",
-      mutedForeground: "262 15% 55%",
-    },
-    preview: "linear-gradient(135deg, #8B5CF6 0%, #1E1B4B 100%)",
-  },
-  "rose-gold": {
-    id: "rose-gold",
-    name: "Rose Gold",
-    description: "Vàng hồng thanh lịch",
-    isRecommended: false,
-    colors: {
-      primary: "350 80% 65%",           // Rose
-      secondary: "20 80% 60%",          // Peach
-      accent: "350 80% 65%",
-      background: "350 15% 5%",
-      card: "350 15% 8%",
-      border: "350 20% 18%",
-      ring: "350 80% 65%",
-      glow: "350 80% 65%",
-      foreground: "350 15% 95%",
-      muted: "350 10% 12%",
-      mutedForeground: "350 15% 55%",
-    },
-    preview: "linear-gradient(135deg, #F472B6 0%, #1F1315 100%)",
+    preview: "linear-gradient(135deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)",
+    rainbowColors: RAINBOW_COLORS,
   },
 };
 
@@ -130,6 +65,7 @@ interface ThemeContextType {
   currentTheme: Theme;
   setTheme: (themeId: string) => void;
   themes: typeof THEMES;
+  rainbowColors: typeof RAINBOW_COLORS;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -146,7 +82,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       // Ignore
     }
-    return THEMES["cosmic-golden-age"]; // Default theme
+    return THEMES["rainbow-fresh-awakening"]; // Default theme
   });
 
   // Apply theme colors to CSS variables
@@ -154,10 +90,16 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const root = document.documentElement;
     const colors = currentTheme.colors;
 
+    // Remove dark class for light mode
+    root.classList.remove("dark");
+
     // Apply all theme colors
     root.style.setProperty("--primary", colors.primary);
+    root.style.setProperty("--primary-foreground", "180 60% 15%");
     root.style.setProperty("--secondary", colors.secondary);
+    root.style.setProperty("--secondary-foreground", "195 60% 15%");
     root.style.setProperty("--accent", colors.accent);
+    root.style.setProperty("--accent-foreground", "45 60% 15%");
     root.style.setProperty("--background", colors.background);
     root.style.setProperty("--card", colors.card);
     root.style.setProperty("--border", colors.border);
@@ -171,14 +113,14 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     root.style.setProperty("--muted-foreground", colors.mutedForeground);
     root.style.setProperty("--glow-color", colors.glow);
 
-    // Update gradients based on theme
+    // Rainbow gradient
     root.style.setProperty(
-      "--gradient-primary",
-      `linear-gradient(135deg, hsl(${colors.primary}) 0%, hsl(${colors.secondary}) 100%)`
+      "--gradient-rainbow",
+      "linear-gradient(135deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)"
     );
     root.style.setProperty(
-      "--gradient-glow",
-      `radial-gradient(ellipse at center, hsl(${colors.primary} / 0.15) 0%, transparent 70%)`
+      "--gradient-primary",
+      "linear-gradient(135deg, hsl(157, 100%, 50%) 0%, hsl(195, 100%, 50%) 100%)"
     );
 
     // Store preference
@@ -192,7 +134,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <ThemeContext.Provider value={{ currentTheme, setTheme, themes: THEMES }}>
+    <ThemeContext.Provider value={{ currentTheme, setTheme, themes: THEMES, rainbowColors: RAINBOW_COLORS }}>
       {children}
     </ThemeContext.Provider>
   );

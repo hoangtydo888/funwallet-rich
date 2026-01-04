@@ -206,12 +206,28 @@ const Dashboard = () => {
   const totalBalance = getTotalBalance();
   const hasWallet = wallets.length > 0 && activeWallet;
 
+  // Rainbow colors for quick action buttons
+  const RAINBOW_BUTTON_COLORS = [
+    "bg-[#FF0000] hover:bg-[#CC0000] text-white",    // Đỏ - Gửi
+    "bg-[#FFA500] hover:bg-[#CC8400] text-white",    // Cam - Nhận
+    "bg-[#FFFF00] hover:bg-[#CCCC00] text-foreground", // Vàng - Swap
+    "bg-[#00FF7F] hover:bg-[#00CC66] text-white",    // Xanh lá - Stake
+    "bg-[#00BFFF] hover:bg-[#0099CC] text-white",    // Xanh dương - Thêm
+    "bg-[#4B0082] hover:bg-[#3D006B] text-white",    // Chàm - Giá
+    "bg-[#FF00FF] hover:bg-[#CC00CC] text-white",    // Tím - DApps
+  ];
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
+      {/* Header with subtle rainbow gradient */}
+      <header 
+        className="sticky top-0 z-50 border-b border-border/50 px-4 py-3"
+        style={{
+          background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(0,255,127,0.05) 100%)"
+        }}
+      >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-heading text-xl font-bold gradient-text">
+          <Link to="/" className="flex items-center gap-2 font-heading text-xl font-bold rainbow-text">
             <img src="/logo.png" alt="FUN Wallet" className="w-8 h-8 rounded-full" />
             FUN Wallet
           </Link>
@@ -236,20 +252,20 @@ const Dashboard = () => {
           <p className="text-muted-foreground">Quản lý tài sản Web3 của bạn</p>
         </div>
 
-        {/* Wallet Card - with theme glow effect */}
-        <div className="glass-card rounded-3xl p-6 mb-8 gradient-border glow-divine">
+        {/* Wallet Card - Rainbow Fresh Awakening Style */}
+        <div className="bg-card rounded-3xl p-6 mb-8 border-2 border-primary/30 shadow-xl glow-rainbow">
           <div className="flex items-start justify-between mb-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tổng tài sản</p>
               <div className="flex items-center gap-2">
-                <h2 className="font-heading text-4xl font-bold gradient-text">
+                <h2 className="font-heading text-4xl font-bold rainbow-text">
                   {balanceHidden ? "••••••" : `$${formatBalance(totalBalance.toFixed(2), 2)}`}
                 </h2>
                 <Button variant="ghost" size="icon" onClick={toggleBalanceVisibility} className="h-8 w-8">
                   {balanceHidden ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </Button>
               </div>
-              <p className="text-sm text-success mt-1 flex items-center gap-1">
+              <p className="text-sm text-[#00FF7F] mt-1 flex items-center gap-1 font-medium">
                 {currentChain.logo.startsWith("/") ? (
                   <img src={currentChain.logo} alt={currentChain.shortName} className="w-5 h-5 rounded-full" />
                 ) : (
@@ -259,8 +275,11 @@ const Dashboard = () => {
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center animate-pulse-glow">
-                <Wallet className="h-6 w-6 text-primary-foreground" />
+              <div 
+                className="w-12 h-12 rounded-xl flex items-center justify-center animate-pulse-glow"
+                style={{ background: "linear-gradient(135deg, #00FF7F 0%, #00BFFF 100%)" }}
+              >
+                <Wallet className="h-6 w-6 text-white" />
               </div>
               {!pinEnabled && (
                 <Button 
@@ -310,36 +329,41 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Quick actions - Row 1 */}
+          {/* Quick actions - Row 1 with Rainbow Colors */}
           <div className="grid grid-cols-5 gap-2 sm:gap-3 mb-2">
             <QuickAction 
               icon={<ArrowUpRight />} 
               label="Gửi" 
               onClick={() => setSendOpen(true)}
               disabled={!hasWallet}
+              colorClass={RAINBOW_BUTTON_COLORS[0]}
             />
             <QuickAction 
               icon={<ArrowDownLeft />} 
               label="Nhận" 
               onClick={() => setReceiveOpen(true)}
               disabled={!hasWallet}
+              colorClass={RAINBOW_BUTTON_COLORS[1]}
             />
             <QuickAction 
               icon={<ArrowDownUp />} 
               label="Swap" 
               onClick={() => setSwapOpen(true)}
               disabled={!hasWallet}
+              colorClass={RAINBOW_BUTTON_COLORS[2]}
             />
             <QuickAction 
               icon={<Layers />} 
               label="Stake" 
               onClick={() => setStakingOpen(true)}
               disabled={!hasWallet}
+              colorClass={RAINBOW_BUTTON_COLORS[3]}
             />
             <QuickAction 
               icon={<Plus />} 
               label={hasWallet ? "Thêm" : "Tạo ví"}
               onClick={() => setCreateWalletOpen(true)}
+              colorClass={RAINBOW_BUTTON_COLORS[4]}
             />
           </div>
 
@@ -349,30 +373,35 @@ const Dashboard = () => {
               icon={<Bell />} 
               label="Giá" 
               onClick={() => setPriceAlertsOpen(true)}
+              colorClass={RAINBOW_BUTTON_COLORS[5]}
             />
             <QuickAction 
               icon={<Globe />} 
               label="DApps" 
               onClick={() => setDappBrowserOpen(true)}
               disabled={!hasWallet}
+              colorClass={RAINBOW_BUTTON_COLORS[6]}
             />
             <QuickAction 
               icon={<Shield />} 
               label="Backup" 
               onClick={() => setBackupOpen(true)}
               disabled={!hasWallet}
+              colorClass="bg-[#00FF7F] hover:bg-[#00CC66] text-white"
             />
             <QuickAction 
               icon={<Link2 />} 
               label="WC" 
               onClick={() => setWalletConnectOpen(true)}
               disabled={!hasWallet}
+              colorClass="bg-[#00BFFF] hover:bg-[#0099CC] text-white"
             />
             <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
               disabled={!hasWallet || balanceLoading}
+              colorClass="bg-muted hover:bg-muted/80 text-foreground"
             />
           </div>
         </div>
@@ -637,19 +666,21 @@ const QuickAction = ({
   icon, 
   label, 
   onClick, 
-  disabled 
+  disabled,
+  colorClass 
 }: { 
   icon: React.ReactNode; 
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  colorClass?: string;
 }) => (
   <button 
     onClick={onClick}
     disabled={disabled}
-    className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    className={`flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
   >
-    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary">
+    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 flex items-center justify-center">
       {icon}
     </div>
     <span className="text-xs sm:text-sm font-medium">{label}</span>
