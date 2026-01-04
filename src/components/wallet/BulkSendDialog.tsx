@@ -89,7 +89,7 @@ export const BulkSendDialog = ({
   const [selectedToken, setSelectedToken] = useState("BNB");
   const [items, setItems] = useState<TransferItem[]>([]);
   const [manualInput, setManualInput] = useState("");
-  const [inputMode, setInputMode] = useState<"csv" | "manual">("manual");
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState({ processed: 0, total: 0 });
   const [stats, setStats] = useState<UserStats>({ totalTransfers: 0, totalAmount: 0, totalRecipients: 0 });
@@ -600,79 +600,51 @@ export const BulkSendDialog = ({
                       </p>
                     </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        variant={inputMode === "manual" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setInputMode("manual")}
-                        className="flex-1"
-                      >
-                        <FileText className="h-4 w-4 mr-1" />
-                        Nhập thủ công
-                      </Button>
-                      <Button
-                        variant={inputMode === "csv" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setInputMode("csv")}
-                        className="flex-1"
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        Tải file CSV
-                      </Button>
+                    {/* Textarea - LUÔN HIỂN THỊ */}
+                    <div className="space-y-2">
+                      <Label>
+                        {useUniformAmount 
+                          ? `Nhập danh sách địa chỉ (mỗi dòng 1 địa chỉ)`
+                          : `Nhập danh sách (address,amount)`}
+                      </Label>
+                      <Textarea
+                        value={manualInput}
+                        onChange={(e) => setManualInput(e.target.value)}
+                        placeholder={useUniformAmount 
+                          ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12\n0x9876543210fedcba9876543210fedcba98765432`
+                          : `0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
+                        rows={8}
+                        className="font-mono text-sm"
+                      />
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Tối đa {MAX_RECIPIENTS} địa chỉ</span>
+                        <button 
+                          type="button"
+                          className="text-primary hover:underline flex items-center gap-1" 
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="h-3 w-3" />
+                          Hoặc tải file CSV
+                        </button>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.txt"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
                     </div>
 
-                    {inputMode === "manual" ? (
-                      <div className="space-y-2">
-                        <Label>
-                          {useUniformAmount 
-                            ? `Nhập danh sách địa chỉ (mỗi dòng 1 địa chỉ) - Tối đa ${MAX_RECIPIENTS}`
-                            : `Nhập danh sách (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
-                        </Label>
-                        <Textarea
-                          value={manualInput}
-                          onChange={(e) => setManualInput(e.target.value)}
-                          placeholder={useUniformAmount 
-                            ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12\n0x9876543210fedcba9876543210fedcba98765432`
-                            : `0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
-                          rows={6}
-                          className="font-mono text-sm"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
-                          useUniformAmount && !uniformAmount 
-                            ? "border-muted cursor-not-allowed opacity-50" 
-                            : "border-primary/30 hover:border-primary/50"
-                        }`}
-                        onClick={() => {
-                          if (useUniformAmount && !uniformAmount) {
-                            toast({
-                              title: "Chưa nhập số tiền",
-                              description: "Vui lòng nhập số tiền mỗi địa chỉ trước",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                          fileInputRef.current?.click();
-                        }}
-                      >
-                        <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
-                        <p className="font-medium">Kéo thả hoặc click để upload</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {useUniformAmount 
-                            ? `File chứa danh sách địa chỉ - Tối đa ${MAX_RECIPIENTS} địa chỉ`
-                            : `Định dạng: CSV (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
-                        </p>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".csv,.txt"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                        />
-                      </div>
-                    )}
+                    {/* Nút Phân tích - LUÔN HIỂN THỊ */}
+                    <Button 
+                      onClick={handleParseManual} 
+                      className="w-full" 
+                      disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount)}
+                      size="lg"
+                    >
+                      Phân tích danh sách {manualInput.trim() && `(${manualInput.split('\n').filter(l => l.trim()).length} dòng)`}
+                    </Button>
                   </>
                 )}
 
@@ -787,19 +759,8 @@ export const BulkSendDialog = ({
         </ScrollArea>
 
         {/* Sticky Action Buttons - Always visible at bottom */}
-        {activeTab === "send" && (
+        {activeTab === "send" && items.length > 0 && (
           <div className="shrink-0 border-t pt-4 mt-4 space-y-2 bg-background">
-            {/* Parse button when input is entered but not parsed yet */}
-            {items.length === 0 && !isProcessing && inputMode === "manual" && manualInput.trim() && (
-              <Button 
-                onClick={handleParseManual} 
-                className="w-full" 
-                disabled={useUniformAmount && !uniformAmount}
-                size="lg"
-              >
-                Phân tích danh sách
-              </Button>
-            )}
 
             {/* Action buttons when items are loaded */}
             {items.length > 0 && (
