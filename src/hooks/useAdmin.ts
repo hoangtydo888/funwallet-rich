@@ -47,7 +47,6 @@ export const useAdmin = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserWithWallets[]>([]);
-  const [allWallets, setAllWallets] = useState<{ id: string; created_at: string }[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
@@ -113,9 +112,6 @@ export const useAdmin = () => {
         console.error('Error fetching wallets:', walletsError);
         return;
       }
-
-      // Store all wallets for statistics
-      setAllWallets(wallets || []);
 
       // Combine profiles with their wallets
       const usersWithWallets: UserWithWallets[] = (profiles || []).map((profile) => ({
@@ -246,7 +242,6 @@ export const useAdmin = () => {
     isAdmin,
     loading,
     users,
-    allWallets,
     rewards,
     stats,
     fetchUsers,
