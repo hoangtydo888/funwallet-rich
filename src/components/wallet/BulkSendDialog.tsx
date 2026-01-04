@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -93,6 +95,8 @@ export const BulkSendDialog = ({
   const [stats, setStats] = useState<UserStats>({ totalTransfers: 0, totalAmount: 0, totalRecipients: 0 });
   const [history, setHistory] = useState<BulkTransferHistory[]>([]);
   const [activeTab, setActiveTab] = useState<"send" | "history">("send");
+  const [uniformAmount, setUniformAmount] = useState<string>("");
+  const [useUniformAmount, setUseUniformAmount] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedBalance = balances.find((b) => b.symbol === selectedToken);
@@ -141,26 +145,36 @@ export const BulkSendDialog = ({
     }
   };
 
-  // Parse CSV content with MAX_RECIPIENTS limit
-  const parseCSV = (content: string): TransferItem[] => {
+  // Parse CSV content with MAX_RECIPIENTS limit - supports both formats
+  const parseCSV = (content: string, uniformAmt?: string): TransferItem[] => {
     const lines = content.trim().split("\n");
     const result: TransferItem[] = [];
 
     for (const line of lines) {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("address") || trimmed.startsWith("Address")) continue;
+      if (!trimmed || trimmed.toLowerCase().startsWith("address")) continue;
 
       const parts = trimmed.split(/[,;\t]/).map((p) => p.trim());
-      if (parts.length >= 2) {
-        const address = parts[0];
-        const amount = parts[1];
-        if (address && amount) {
-          result.push({
-            address,
-            amount,
-            status: "pending",
-          });
-        }
+      const address = parts[0];
+      
+      // Skip empty lines
+      if (!address) continue;
+
+      // Case 1: Has both address and amount
+      if (parts.length >= 2 && parts[1] && !isNaN(parseFloat(parts[1]))) {
+        result.push({
+          address,
+          amount: parts[1],
+          status: "pending",
+        });
+      } 
+      // Case 2: Only address - use uniform amount
+      else if (uniformAmt && parseFloat(uniformAmt) > 0) {
+        result.push({
+          address,
+          amount: uniformAmt,
+          status: "pending",
+        });
       }
     }
 
@@ -185,11 +199,14 @@ export const BulkSendDialog = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      const parsed = parseCSV(content);
+      const amtToUse = useUniformAmount ? uniformAmount : undefined;
+      const parsed = parseCSV(content, amtToUse);
       if (parsed.length === 0) {
         toast({
           title: "File trống hoặc không hợp lệ",
-          description: "Định dạng: address,amount (mỗi dòng một người nhận)",
+          description: useUniformAmount && !uniformAmount 
+            ? "Vui lòng nhập số tiền mỗi địa chỉ trước" 
+            : "Định dạng: address hoặc address,amount (mỗi dòng một người nhận)",
           variant: "destructive",
         });
         return;
@@ -206,11 +223,14 @@ export const BulkSendDialog = ({
 
   // Parse manual input
   const handleParseManual = () => {
-    const parsed = parseCSV(manualInput);
+    const amtToUse = useUniformAmount ? uniformAmount : undefined;
+    const parsed = parseCSV(manualInput, amtToUse);
     if (parsed.length === 0) {
       toast({
         title: "Không tìm thấy dữ liệu hợp lệ",
-        description: "Định dạng: address,amount (mỗi dòng một người nhận)",
+        description: useUniformAmount && !uniformAmount 
+          ? "Vui lòng nhập số tiền mỗi địa chỉ trước" 
+          : "Định dạng: address hoặc address,amount (mỗi dòng một người nhận)",
         variant: "destructive",
       });
       return;
@@ -424,6 +444,7 @@ export const BulkSendDialog = ({
     if (isProcessing) return;
     setItems([]);
     setManualInput("");
+    setUniformAmount("");
     setProgress({ processed: 0, total: 0 });
     setActiveTab("send");
     onOpenChange(false);
@@ -544,6 +565,39 @@ export const BulkSendDialog = ({
               {/* Input Mode Toggle */}
               {items.length === 0 && !isProcessing && (
                 <>
+                  {/* Uniform Amount Input */}
+                  <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Số tiền mỗi địa chỉ</Label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Dùng cùng số tiền</span>
+                        <Switch 
+                          checked={useUniformAmount} 
+                          onCheckedChange={setUseUniformAmount}
+                        />
+                      </div>
+                    </div>
+                    {useUniformAmount && (
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder="VD: 100"
+                          value={uniformAmount}
+                          onChange={(e) => setUniformAmount(e.target.value)}
+                          className="flex-1"
+                        />
+                        <span className="flex items-center px-3 bg-muted rounded-md text-sm font-medium">
+                          {selectedToken}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {useUniformAmount 
+                        ? "Nhập số tiền chung, sau đó paste danh sách địa chỉ (mỗi dòng 1 địa chỉ)" 
+                        : "Nhập theo định dạng: address,amount (mỗi dòng)"}
+                    </p>
+                  </div>
+
                   <div className="flex gap-2">
                     <Button
                       variant={inputMode === "manual" ? "default" : "outline"}
@@ -567,27 +621,53 @@ export const BulkSendDialog = ({
 
                   {inputMode === "manual" ? (
                     <div className="space-y-2">
-                      <Label>Nhập danh sách (address,amount) - Tối đa {MAX_RECIPIENTS} địa chỉ</Label>
+                      <Label>
+                        {useUniformAmount 
+                          ? `Nhập danh sách địa chỉ (mỗi dòng 1 địa chỉ) - Tối đa ${MAX_RECIPIENTS}`
+                          : `Nhập danh sách (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
+                      </Label>
                       <Textarea
                         value={manualInput}
                         onChange={(e) => setManualInput(e.target.value)}
-                        placeholder={`0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
+                        placeholder={useUniformAmount 
+                          ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12\n0x9876543210fedcba9876543210fedcba98765432`
+                          : `0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
                         rows={5}
                         className="font-mono text-sm"
                       />
-                      <Button onClick={handleParseManual} className="w-full" disabled={!manualInput.trim()}>
+                      <Button 
+                        onClick={handleParseManual} 
+                        className="w-full" 
+                        disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount)}
+                      >
                         Phân tích danh sách
                       </Button>
                     </div>
                   ) : (
                     <div
-                      className="border-2 border-dashed border-primary/30 rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                      onClick={() => fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                        useUniformAmount && !uniformAmount 
+                          ? "border-muted cursor-not-allowed opacity-50" 
+                          : "border-primary/30 hover:border-primary/50"
+                      }`}
+                      onClick={() => {
+                        if (useUniformAmount && !uniformAmount) {
+                          toast({
+                            title: "Chưa nhập số tiền",
+                            description: "Vui lòng nhập số tiền mỗi địa chỉ trước",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
                       <p className="font-medium">Kéo thả hoặc click để upload</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Định dạng: CSV (address,amount) - Tối đa {MAX_RECIPIENTS} địa chỉ
+                        {useUniformAmount 
+                          ? `File chứa danh sách địa chỉ - Tối đa ${MAX_RECIPIENTS} địa chỉ`
+                          : `Định dạng: CSV (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
                       </p>
                       <input
                         ref={fileInputRef}
