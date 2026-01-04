@@ -14,6 +14,89 @@ export type Database = {
   }
   public: {
     Tables: {
+      bulk_transfer_items: {
+        Row: {
+          amount: string
+          bulk_transfer_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          recipient_address: string
+          status: string
+          tx_hash: string | null
+        }
+        Insert: {
+          amount: string
+          bulk_transfer_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_address: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Update: {
+          amount?: string
+          bulk_transfer_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_address?: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_transfer_items_bulk_transfer_id_fkey"
+            columns: ["bulk_transfer_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bulk_transfers: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          failed_count: number | null
+          id: string
+          status: string
+          successful_count: number | null
+          token_address: string | null
+          token_symbol: string
+          total_amount: string
+          total_recipients: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          failed_count?: number | null
+          id?: string
+          status?: string
+          successful_count?: number | null
+          token_address?: string | null
+          token_symbol: string
+          total_amount: string
+          total_recipients: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          failed_count?: number | null
+          id?: string
+          status?: string
+          successful_count?: number | null
+          token_address?: string | null
+          token_symbol?: string
+          total_amount?: string
+          total_recipients?: number
+        }
+        Relationships: []
+      }
       nft_collections: {
         Row: {
           chain: string
