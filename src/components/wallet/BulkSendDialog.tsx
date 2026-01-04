@@ -468,7 +468,7 @@ export const BulkSendDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -632,7 +632,7 @@ export const BulkSendDialog = ({
                         placeholder={useUniformAmount 
                           ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12\n0x9876543210fedcba9876543210fedcba98765432`
                           : `0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
-                        rows={5}
+                        rows={10}
                         className="font-mono text-sm"
                       />
                       <Button 
@@ -727,7 +727,7 @@ export const BulkSendDialog = ({
                   )}
 
                   {/* Items Scroll */}
-                  <ScrollArea className="flex-1 max-h-40 border rounded-lg">
+                  <ScrollArea className="flex-1 max-h-60 border rounded-lg">
                     <div className="p-2 space-y-1">
                       {items.map((item, idx) => (
                         <div
@@ -802,7 +802,7 @@ export const BulkSendDialog = ({
                 </div>
               ) : (
                 <>
-                  <ScrollArea className="flex-1 max-h-64">
+                  <ScrollArea className="flex-1 max-h-80">
                     <div className="space-y-2">
                       {history.map((h) => (
                         <div key={h.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
