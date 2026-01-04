@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -19,6 +18,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { 
   Upload, 
   Loader2, 
@@ -27,11 +27,19 @@ import {
   Download,
   AlertCircle,
   Users,
-  FileText
+  FileText,
+  TrendingUp,
+  History,
+  Coins
 } from "lucide-react";
 import { sendBNB, sendToken, isValidAddress, formatBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
 import type { TokenBalance } from "@/hooks/useWallet";
+
+const MAX_RECIPIENTS = 1000;
 
 interface TransferItem {
   address: string;
@@ -39,6 +47,23 @@ interface TransferItem {
   status: "pending" | "processing" | "success" | "failed";
   txHash?: string;
   error?: string;
+}
+
+interface BulkTransferHistory {
+  id: string;
+  token_symbol: string;
+  total_recipients: number;
+  total_amount: string;
+  successful_count: number;
+  failed_count: number;
+  status: string;
+  created_at: string;
+}
+
+interface UserStats {
+  totalTransfers: number;
+  totalAmount: number;
+  totalRecipients: number;
 }
 
 interface BulkSendDialogProps {
@@ -58,18 +83,65 @@ export const BulkSendDialog = ({
   getPrivateKey,
   onSuccess,
 }: BulkSendDialogProps) => {
+  const { user } = useAuth();
   const [selectedToken, setSelectedToken] = useState("BNB");
   const [items, setItems] = useState<TransferItem[]>([]);
   const [manualInput, setManualInput] = useState("");
   const [inputMode, setInputMode] = useState<"csv" | "manual">("manual");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState({ processed: 0, total: 0 });
+  const [stats, setStats] = useState<UserStats>({ totalTransfers: 0, totalAmount: 0, totalRecipients: 0 });
+  const [history, setHistory] = useState<BulkTransferHistory[]>([]);
+  const [activeTab, setActiveTab] = useState<"send" | "history">("send");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedBalance = balances.find((b) => b.symbol === selectedToken);
   const maxAmount = parseFloat(selectedBalance?.balance || "0");
 
-  // Parse CSV content
+  // Fetch user stats and history
+  useEffect(() => {
+    if (open && user) {
+      fetchStats();
+      fetchHistory();
+    }
+  }, [open, user]);
+
+  const fetchStats = async () => {
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from('bulk_transfers')
+      .select('total_amount, successful_count, total_recipients')
+      .eq('created_by', user.id)
+      .eq('status', 'completed');
+
+    if (data && data.length > 0) {
+      const totalAmount = data.reduce((sum, t) => sum + parseFloat(t.total_amount || '0'), 0);
+      const totalRecipients = data.reduce((sum, t) => sum + (t.successful_count || 0), 0);
+      setStats({
+        totalTransfers: data.length,
+        totalAmount,
+        totalRecipients
+      });
+    }
+  };
+
+  const fetchHistory = async () => {
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from('bulk_transfers')
+      .select('id, token_symbol, total_recipients, total_amount, successful_count, failed_count, status, created_at')
+      .eq('created_by', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (data) {
+      setHistory(data);
+    }
+  };
+
+  // Parse CSV content with MAX_RECIPIENTS limit
   const parseCSV = (content: string): TransferItem[] => {
     const lines = content.trim().split("\n");
     const result: TransferItem[] = [];
@@ -91,6 +163,17 @@ export const BulkSendDialog = ({
         }
       }
     }
+
+    // Limit to MAX_RECIPIENTS
+    if (result.length > MAX_RECIPIENTS) {
+      toast({
+        title: "Vượt quá giới hạn",
+        description: `Tối đa ${MAX_RECIPIENTS} địa chỉ. Đã cắt bớt ${result.length - MAX_RECIPIENTS} địa chỉ.`,
+        variant: "destructive",
+      });
+      return result.slice(0, MAX_RECIPIENTS);
+    }
+
     return result;
   };
 
@@ -159,7 +242,7 @@ export const BulkSendDialog = ({
   // Calculate total amount
   const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
 
-  // Execute bulk transfer
+  // Execute bulk transfer with database logging
   const handleBulkSend = async () => {
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
@@ -193,6 +276,36 @@ export const BulkSendDialog = ({
     setIsProcessing(true);
     setProgress({ processed: 0, total: valid.length });
 
+    // Create bulk transfer record
+    let bulkTransferId: string | null = null;
+    if (user) {
+      const token = balances.find((b) => b.symbol === selectedToken);
+      const { data: bulkData } = await supabase
+        .from('bulk_transfers')
+        .insert({
+          created_by: user.id,
+          token_symbol: selectedToken,
+          token_address: token?.address || null,
+          total_recipients: valid.length,
+          total_amount: totalAmount.toString(),
+          status: 'processing',
+        })
+        .select()
+        .single();
+      
+      if (bulkData) {
+        bulkTransferId = bulkData.id;
+        // Insert items
+        const itemsToInsert = valid.map(item => ({
+          bulk_transfer_id: bulkTransferId,
+          recipient_address: item.address,
+          amount: item.amount,
+          status: 'pending',
+        }));
+        await supabase.from('bulk_transfer_items').insert(itemsToInsert);
+      }
+    }
+
     const updatedItems = [...invalid];
     const token = balances.find((b) => b.symbol === selectedToken);
 
@@ -213,12 +326,28 @@ export const BulkSendDialog = ({
           status: "failed",
           error: result.error,
         });
+        // Update item status in DB
+        if (bulkTransferId) {
+          await supabase
+            .from('bulk_transfer_items')
+            .update({ status: 'failed', error_message: result.error })
+            .eq('bulk_transfer_id', bulkTransferId)
+            .eq('recipient_address', item.address);
+        }
       } else {
         updatedItems.push({
           ...item,
           status: "success",
           txHash: result.hash,
         });
+        // Update item status in DB
+        if (bulkTransferId) {
+          await supabase
+            .from('bulk_transfer_items')
+            .update({ status: 'success', tx_hash: result.hash })
+            .eq('bulk_transfer_id', bulkTransferId)
+            .eq('recipient_address', item.address);
+        }
       }
 
       setProgress({ processed: i + 1, total: valid.length });
@@ -228,6 +357,21 @@ export const BulkSendDialog = ({
       if (i < valid.length - 1) {
         await new Promise((r) => setTimeout(r, 1000));
       }
+    }
+
+    // Update bulk transfer record
+    if (bulkTransferId) {
+      const successCount = updatedItems.filter((i) => i.status === "success").length;
+      const failCount = updatedItems.filter((i) => i.status === "failed").length;
+      await supabase
+        .from('bulk_transfers')
+        .update({
+          successful_count: successCount,
+          failed_count: failCount,
+          status: failCount === 0 ? 'completed' : 'partial',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', bulkTransferId);
     }
 
     setIsProcessing(false);
@@ -241,6 +385,8 @@ export const BulkSendDialog = ({
 
     if (successCount > 0) {
       onSuccess();
+      fetchStats();
+      fetchHistory();
     }
   };
 
@@ -259,234 +405,354 @@ export const BulkSendDialog = ({
     URL.revokeObjectURL(url);
   };
 
+  // Export all history
+  const exportHistory = () => {
+    if (history.length === 0) return;
+
+    const csv = "id,thoi_gian,token,so_nguoi,tong_tien,thanh_cong,that_bai,trang_thai\n" + 
+      history.map((h) => `${h.id},${h.created_at},${h.token_symbol},${h.total_recipients},${h.total_amount},${h.successful_count},${h.failed_count},${h.status}`).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "bulk_transfer_history.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleClose = () => {
     if (isProcessing) return;
     setItems([]);
     setManualInput("");
     setProgress({ processed: 0, total: 0 });
+    setActiveTab("send");
     onOpenChange(false);
   };
 
   const successCount = items.filter((i) => i.status === "success").length;
   const failCount = items.filter((i) => i.status === "failed").length;
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-success/20 text-success border-success/30">Thành công</Badge>;
+      case 'partial':
+        return <Badge className="bg-warning/20 text-warning border-warning/30">Một phần</Badge>;
+      case 'processing':
+        return <Badge className="bg-primary/20 text-primary border-primary/30">Đang xử lý</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Chuyển Hàng Loạt
+            Chuyển Tiền Hàng Loạt
           </DialogTitle>
           <DialogDescription>
-            Gửi {selectedToken} đến nhiều địa chỉ cùng lúc
+            Gửi đến tối đa {MAX_RECIPIENTS} địa chỉ cùng lúc
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          {/* Token Selection */}
-          <div className="space-y-2">
-            <Label>Chọn token</Label>
-            <Select value={selectedToken} onValueChange={setSelectedToken} disabled={isProcessing}>
-              <SelectTrigger>
-                <SelectValue>
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={selectedBalance?.logo}
-                      alt={selectedToken}
-                      className="w-5 h-5 rounded-full"
-                    />
-                    <span>{selectedToken}</span>
-                    <span className="text-muted-foreground text-xs">
-                      (Có: {formatBalance(maxAmount.toString())})
-                    </span>
-                  </div>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {balances.map((token) => (
-                  <SelectItem key={token.symbol} value={token.symbol}>
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={token.logo}
-                        alt={token.symbol}
-                        className="w-5 h-5 rounded-full"
-                      />
-                      <span>{token.symbol}</span>
-                      <span className="text-muted-foreground text-xs">
-                        ({formatBalance(token.balance)})
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-3 text-center">
+            <Coins className="h-5 w-5 mx-auto mb-1 text-primary" />
+            <p className="text-lg font-bold">{formatBalance(stats.totalAmount.toString())}</p>
+            <p className="text-xs text-muted-foreground">Tổng đã chuyển</p>
           </div>
+          <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl p-3 text-center">
+            <TrendingUp className="h-5 w-5 mx-auto mb-1 text-success" />
+            <p className="text-lg font-bold">{stats.totalTransfers}</p>
+            <p className="text-xs text-muted-foreground">Số lần chuyển</p>
+          </div>
+          <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 rounded-xl p-3 text-center">
+            <Users className="h-5 w-5 mx-auto mb-1 text-accent-foreground" />
+            <p className="text-lg font-bold">{stats.totalRecipients}</p>
+            <p className="text-xs text-muted-foreground">Người nhận</p>
+          </div>
+        </div>
 
-          {/* Input Mode Toggle */}
-          {items.length === 0 && !isProcessing && (
+        {/* Tab Toggle */}
+        <div className="flex gap-2 border-b pb-2">
+          <Button
+            variant={activeTab === "send" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("send")}
+            className="flex-1"
+          >
+            <Upload className="h-4 w-4 mr-1" />
+            Gửi mới
+          </Button>
+          <Button
+            variant={activeTab === "history" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("history")}
+            className="flex-1"
+          >
+            <History className="h-4 w-4 mr-1" />
+            Lịch sử ({history.length})
+          </Button>
+        </div>
+
+        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+          {activeTab === "send" ? (
             <>
-              <div className="flex gap-2">
-                <Button
-                  variant={inputMode === "manual" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setInputMode("manual")}
-                  className="flex-1"
-                >
-                  <FileText className="h-4 w-4 mr-1" />
-                  Nhập thủ công
-                </Button>
-                <Button
-                  variant={inputMode === "csv" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setInputMode("csv")}
-                  className="flex-1"
-                >
-                  <Upload className="h-4 w-4 mr-1" />
-                  Tải file CSV
-                </Button>
+              {/* Token Selection */}
+              <div className="space-y-2">
+                <Label>Chọn token</Label>
+                <Select value={selectedToken} onValueChange={setSelectedToken} disabled={isProcessing}>
+                  <SelectTrigger>
+                    <SelectValue>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={selectedBalance?.logo}
+                          alt={selectedToken}
+                          className="w-5 h-5 rounded-full"
+                        />
+                        <span>{selectedToken}</span>
+                        <span className="text-muted-foreground text-xs">
+                          (Có: {formatBalance(maxAmount.toString())})
+                        </span>
+                      </div>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {balances.map((token) => (
+                      <SelectItem key={token.symbol} value={token.symbol}>
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={token.logo}
+                            alt={token.symbol}
+                            className="w-5 h-5 rounded-full"
+                          />
+                          <span>{token.symbol}</span>
+                          <span className="text-muted-foreground text-xs">
+                            ({formatBalance(token.balance)})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              {inputMode === "manual" ? (
-                <div className="space-y-2">
-                  <Label>Nhập danh sách (address,amount)</Label>
-                  <Textarea
-                    value={manualInput}
-                    onChange={(e) => setManualInput(e.target.value)}
-                    placeholder={`0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
-                    rows={5}
-                    className="font-mono text-sm"
-                  />
-                  <Button onClick={handleParseManual} className="w-full" disabled={!manualInput.trim()}>
-                    Phân tích danh sách
+              {/* Input Mode Toggle */}
+              {items.length === 0 && !isProcessing && (
+                <>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={inputMode === "manual" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setInputMode("manual")}
+                      className="flex-1"
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      Nhập thủ công
+                    </Button>
+                    <Button
+                      variant={inputMode === "csv" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setInputMode("csv")}
+                      className="flex-1"
+                    >
+                      <Upload className="h-4 w-4 mr-1" />
+                      Tải file CSV
+                    </Button>
+                  </div>
+
+                  {inputMode === "manual" ? (
+                    <div className="space-y-2">
+                      <Label>Nhập danh sách (address,amount) - Tối đa {MAX_RECIPIENTS} địa chỉ</Label>
+                      <Textarea
+                        value={manualInput}
+                        onChange={(e) => setManualInput(e.target.value)}
+                        placeholder={`0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
+                        rows={5}
+                        className="font-mono text-sm"
+                      />
+                      <Button onClick={handleParseManual} className="w-full" disabled={!manualInput.trim()}>
+                        Phân tích danh sách
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      className="border-2 border-dashed border-primary/30 rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
+                      <p className="font-medium">Kéo thả hoặc click để upload</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Định dạng: CSV (address,amount) - Tối đa {MAX_RECIPIENTS} địa chỉ
+                      </p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.txt"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Items List */}
+              {items.length > 0 && (
+                <>
+                  {/* Summary */}
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-muted rounded-lg p-2">
+                      <p className="text-lg font-bold">{items.length}</p>
+                      <p className="text-xs text-muted-foreground">Tổng</p>
+                    </div>
+                    <div className="bg-muted rounded-lg p-2">
+                      <p className="text-lg font-bold text-muted-foreground">{MAX_RECIPIENTS}</p>
+                      <p className="text-xs text-muted-foreground">Tối đa</p>
+                    </div>
+                    <div className="bg-success/10 rounded-lg p-2">
+                      <p className="text-lg font-bold text-success">{successCount}</p>
+                      <p className="text-xs text-muted-foreground">Thành công</p>
+                    </div>
+                    <div className="bg-destructive/10 rounded-lg p-2">
+                      <p className="text-lg font-bold text-destructive">{failCount}</p>
+                      <p className="text-xs text-muted-foreground">Thất bại</p>
+                    </div>
+                  </div>
+
+                  {/* Total Amount Warning */}
+                  {totalAmount > 0 && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <p>
+                        Tổng cần gửi: <strong>{formatBalance(totalAmount.toString())} {selectedToken}</strong>
+                        {totalAmount > maxAmount && " (Không đủ số dư!)"}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Progress */}
+                  {isProcessing && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Đang xử lý...</span>
+                        <span>{progress.processed}/{progress.total}</span>
+                      </div>
+                      <Progress value={(progress.processed / progress.total) * 100} />
+                    </div>
+                  )}
+
+                  {/* Items Scroll */}
+                  <ScrollArea className="flex-1 max-h-40 border rounded-lg">
+                    <div className="p-2 space-y-1">
+                      {items.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 text-xs p-2 rounded bg-muted/50"
+                        >
+                          {item.status === "success" && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
+                          {item.status === "failed" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                          {item.status === "pending" && <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
+                          {item.status === "processing" && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+                          <span className="font-mono truncate flex-1">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
+                          <span className="font-medium">{item.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2">
+                {items.length > 0 && !isProcessing && (
+                  <>
+                    <Button variant="outline" onClick={() => setItems([])} className="flex-1">
+                      Xóa danh sách
+                    </Button>
+                    {failCount > 0 && (
+                      <Button variant="outline" onClick={exportFailed}>
+                        <Download className="h-4 w-4 mr-1" />
+                        Xuất lỗi
+                      </Button>
+                    )}
+                  </>
+                )}
+                
+                {items.length > 0 && items.some((i) => i.status === "pending") && (
+                  <Button
+                    onClick={handleBulkSend}
+                    disabled={isProcessing || totalAmount > maxAmount}
+                    className="flex-1"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Đang gửi...
+                      </>
+                    ) : (
+                      <>
+                        <Users className="h-4 w-4 mr-2" />
+                        Gửi {items.filter((i) => i.status === "pending").length} địa chỉ
+                      </>
+                    )}
                   </Button>
+                )}
+
+                {items.length > 0 && !items.some((i) => i.status === "pending") && !isProcessing && (
+                  <Button onClick={handleClose} className="flex-1">
+                    Đóng
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : (
+            /* History Tab */
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {history.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Chưa có lịch sử chuyển tiền</p>
+                  </div>
                 </div>
               ) : (
-                <div
-                  className="border-2 border-dashed border-primary/30 rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
-                  <p className="font-medium">Kéo thả hoặc click để upload</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Định dạng: CSV (address,amount)
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,.txt"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Items List */}
-          {items.length > 0 && (
-            <>
-              {/* Summary */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-muted rounded-lg p-2">
-                  <p className="text-lg font-bold">{items.length}</p>
-                  <p className="text-xs text-muted-foreground">Tổng</p>
-                </div>
-                <div className="bg-success/10 rounded-lg p-2">
-                  <p className="text-lg font-bold text-success">{successCount}</p>
-                  <p className="text-xs text-muted-foreground">Thành công</p>
-                </div>
-                <div className="bg-destructive/10 rounded-lg p-2">
-                  <p className="text-lg font-bold text-destructive">{failCount}</p>
-                  <p className="text-xs text-muted-foreground">Thất bại</p>
-                </div>
-              </div>
-
-              {/* Total Amount Warning */}
-              {totalAmount > 0 && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <p>
-                    Tổng cần gửi: <strong>{formatBalance(totalAmount.toString())} {selectedToken}</strong>
-                    {totalAmount > maxAmount && " (Không đủ số dư!)"}
-                  </p>
-                </div>
-              )}
-
-              {/* Progress */}
-              {isProcessing && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Đang xử lý...</span>
-                    <span>{progress.processed}/{progress.total}</span>
-                  </div>
-                  <Progress value={(progress.processed / progress.total) * 100} />
-                </div>
-              )}
-
-              {/* Items Scroll */}
-              <ScrollArea className="flex-1 max-h-48 border rounded-lg">
-                <div className="p-2 space-y-1">
-                  {items.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2 text-xs p-2 rounded bg-muted/50"
-                    >
-                      {item.status === "success" && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
-                      {item.status === "failed" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
-                      {item.status === "pending" && <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
-                      {item.status === "processing" && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
-                      <span className="font-mono truncate flex-1">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
-                      <span className="font-medium">{item.amount}</span>
+                <>
+                  <ScrollArea className="flex-1 max-h-64">
+                    <div className="space-y-2">
+                      {history.map((h) => (
+                        <div key={h.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{h.token_symbol}</span>
+                              {getStatusBadge(h.status)}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(h.created_at), 'dd/MM/yyyy HH:mm')}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">{formatBalance(h.total_amount)} {h.token_symbol}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {h.successful_count}/{h.total_recipients} thành công
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-2 pt-2">
-            {items.length > 0 && !isProcessing && (
-              <>
-                <Button variant="outline" onClick={() => setItems([])} className="flex-1">
-                  Xóa danh sách
-                </Button>
-                {failCount > 0 && (
-                  <Button variant="outline" onClick={exportFailed}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Xuất lỗi
+                  </ScrollArea>
+                  <Button variant="outline" onClick={exportHistory} className="mt-3 w-full">
+                    <Download className="h-4 w-4 mr-2" />
+                    Xuất lịch sử CSV
                   </Button>
-                )}
-              </>
-            )}
-            
-            {items.length > 0 && items.some((i) => i.status === "pending") && (
-              <Button
-                onClick={handleBulkSend}
-                disabled={isProcessing || totalAmount > maxAmount}
-                className="flex-1"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Đang gửi...
-                  </>
-                ) : (
-                  <>
-                    <Users className="h-4 w-4 mr-2" />
-                    Gửi {items.filter((i) => i.status === "pending").length} địa chỉ
-                  </>
-                )}
-              </Button>
-            )}
-
-            {items.length > 0 && !items.some((i) => i.status === "pending") && !isProcessing && (
-              <Button onClick={handleClose} className="flex-1">
-                Đóng
-              </Button>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
