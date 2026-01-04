@@ -33,7 +33,8 @@ import {
   Link2,
   Eye,
   EyeOff,
-  ChevronDown
+  ChevronDown,
+  Users
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -59,6 +60,7 @@ import { WalletConnectDialog } from "@/components/walletconnect/WalletConnectDia
 import { ImportTokenDialog, type CustomToken } from "@/components/wallet/ImportTokenDialog";
 import { WalletManagerDialog } from "@/components/wallet/WalletManagerDialog";
 import { PinDialog } from "@/components/wallet/PinDialog";
+import { BulkSendDialog } from "@/components/wallet/BulkSendDialog";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -104,6 +106,7 @@ const Dashboard = () => {
   const [walletConnectOpen, setWalletConnectOpen] = useState(false);
   const [importTokenOpen, setImportTokenOpen] = useState(false);
   const [walletManagerOpen, setWalletManagerOpen] = useState(false);
+  const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
   
   // Realtime prices state for synchronized total balance
@@ -363,13 +366,20 @@ const Dashboard = () => {
           </div>
 
           {/* Quick actions - Row 1 with Rainbow Colors */}
-          <div className="grid grid-cols-5 gap-2 sm:gap-3 mb-2">
+          <div className="grid grid-cols-6 gap-2 sm:gap-3 mb-2">
             <QuickAction 
               icon={<ArrowUpRight />} 
               label="Gửi" 
               onClick={() => setSendOpen(true)}
               disabled={!hasWallet}
               colorClass={RAINBOW_BUTTON_COLORS[0]}
+            />
+            <QuickAction 
+              icon={<Users />} 
+              label="Gửi nhiều" 
+              onClick={() => setBulkSendOpen(true)}
+              disabled={!hasWallet}
+              colorClass="bg-[#FF6347] hover:bg-[#CC4F39] text-white"
             />
             <QuickAction 
               icon={<ArrowDownLeft />} 
@@ -691,6 +701,18 @@ const Dashboard = () => {
         mode="setup"
         onSetup={setupPin}
       />
+
+      {/* Bulk Send Dialog */}
+      {activeWallet && (
+        <BulkSendDialog
+          open={bulkSendOpen}
+          onOpenChange={setBulkSendOpen}
+          walletAddress={activeWallet.address}
+          balances={balances}
+          getPrivateKey={getPrivateKey}
+          onSuccess={refreshBalances}
+        />
+      )}
     </div>
   );
 };
