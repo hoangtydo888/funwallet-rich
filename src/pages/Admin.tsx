@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Wallet, Gift, TrendingUp, ArrowLeft, LogOut, ShieldCheck } from 'lucide-react';
+import { Users, Wallet, Gift, TrendingUp, ArrowLeft, LogOut, ShieldCheck, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin, UserWithWallets } from '@/hooks/useAdmin';
 import { AdminStatsCard } from '@/components/admin/AdminStatsCard';
 import { UsersTable } from '@/components/admin/UsersTable';
 import { RewardsTable } from '@/components/admin/RewardsTable';
 import { CreateRewardDialog } from '@/components/admin/CreateRewardDialog';
+import { BulkTransferDialog } from '@/components/admin/BulkTransferDialog';
 import { toast } from 'sonner';
 
 const Admin = () => {
@@ -17,6 +20,9 @@ const Admin = () => {
   const { isAdmin, loading, users, rewards, stats, createReward, updateRewardStatus } = useAdmin();
   const [selectedUser, setSelectedUser] = useState<UserWithWallets | null>(null);
   const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
+  const [bulkTransferOpen, setBulkTransferOpen] = useState(false);
+  const [adminPrivateKey, setAdminPrivateKey] = useState('');
+  const [adminAddress, setAdminAddress] = useState('');
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -126,6 +132,10 @@ const Admin = () => {
               <Gift className="h-4 w-4" />
               Rewards
             </TabsTrigger>
+            <TabsTrigger value="bulk-transfer" className="flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Bulk Transfer
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-4">
@@ -147,6 +157,75 @@ const Admin = () => {
               <RewardsTable rewards={rewards} onUpdateStatus={handleUpdateStatus} />
             </div>
           </TabsContent>
+
+          <TabsContent value="bulk-transfer" className="space-y-4">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Send className="h-5 w-5 text-primary" />
+                Chuyển Tiền Hàng Loạt
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Gửi crypto đến nhiều địa chỉ cùng lúc (tối đa 1000 địa chỉ mỗi lần)
+              </p>
+
+              {/* Admin wallet setup */}
+              <div className="bg-muted/30 border border-border rounded-lg p-4 mb-6">
+                <h3 className="font-medium mb-3">Cấu hình ví Admin</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Nhập private key của ví chứa token để thực hiện chuyển tiền hàng loạt. 
+                  Private key chỉ được lưu trong session và không được gửi đến server.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-pk">Private Key</Label>
+                    <Input
+                      id="admin-pk"
+                      type="password"
+                      placeholder="0x..."
+                      value={adminPrivateKey}
+                      onChange={(e) => {
+                        const pk = e.target.value;
+                        setAdminPrivateKey(pk);
+                        // Derive address from private key
+                        if (pk && pk.length === 66) {
+                          import('ethers').then(({ ethers }) => {
+                            try {
+                              const wallet = new ethers.Wallet(pk);
+                              setAdminAddress(wallet.address);
+                            } catch {
+                              setAdminAddress('');
+                            }
+                          });
+                        } else {
+                          setAdminAddress('');
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Địa chỉ ví</Label>
+                    <div className="h-10 px-3 border rounded-md flex items-center bg-muted/50 text-sm">
+                      {adminAddress ? (
+                        <span className="font-mono">{adminAddress.slice(0, 10)}...{adminAddress.slice(-8)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Chưa có</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Button 
+                onClick={() => setBulkTransferOpen(true)}
+                disabled={!adminPrivateKey || !adminAddress}
+                size="lg"
+                className="w-full sm:w-auto"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Mở giao diện chuyển tiền hàng loạt
+              </Button>
+            </div>
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -156,6 +235,15 @@ const Admin = () => {
         onOpenChange={setRewardDialogOpen}
         user={selectedUser}
         onCreateReward={createReward}
+      />
+
+      {/* Bulk Transfer Dialog */}
+      <BulkTransferDialog
+        open={bulkTransferOpen}
+        onOpenChange={setBulkTransferOpen}
+        users={users}
+        adminPrivateKey={adminPrivateKey}
+        adminAddress={adminAddress}
       />
     </div>
   );
