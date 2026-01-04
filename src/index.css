@@ -4,107 +4,88 @@
 @tailwind components;
 @tailwind utilities;
 
-/* FUN Wallet Design System - Web3 Aesthetic */
-/* Default Theme: Cosmic Golden Age - Divine Exclusive */
+/* FUN Wallet Design System - Rainbow Fresh Awakening Theme */
+/* Tươi sáng rạng ngời - Năng lượng tích cực */
 
 @layer base {
   :root {
     --font-heading: 'Space Grotesk', sans-serif;
     --font-body: 'Inter', sans-serif;
     
-    /* Light mode - kept for compatibility but app defaults to dark */
-    --background: 220 20% 97%;
-    --foreground: 230 25% 10%;
+    /* Rainbow Fresh Awakening - Light Mode Default */
+    --background: 0 0% 98%;              /* #FAFAFA */
+    --foreground: 180 50% 20%;           /* Xanh ngọc lam đậm */
 
-    --card: 0 0% 100%;
-    --card-foreground: 230 25% 10%;
+    --card: 0 0% 100%;                   /* Pure white */
+    --card-foreground: 180 50% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 230 25% 10%;
+    --popover-foreground: 180 50% 20%;
 
-    --primary: 45 100% 50%;
-    --primary-foreground: 0 0% 0%;
+    --primary: 157 100% 50%;             /* #00FF7F Spring Green */
+    --primary-foreground: 180 60% 15%;   /* Dark teal cho contrast tốt */
 
-    --secondary: 40 95% 55%;
-    --secondary-foreground: 0 0% 0%;
+    --secondary: 195 100% 50%;           /* #00BFFF Deep Sky Blue */
+    --secondary-foreground: 195 60% 15%;
 
-    --muted: 220 14% 90%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 180 30% 40%;     /* Xanh ngọc lam nhạt */
 
-    --accent: 38 92% 50%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 45 100% 50%;               /* Yellow accent */
+    --accent-foreground: 45 60% 15%;
 
-    --success: 152 76% 45%;
+    --success: 157 100% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 35 100% 50%;
+    --warning-foreground: 35 60% 15%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 85%;
-    --input: 220 13% 85%;
-    --ring: 45 100% 50%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 157 100% 50%;
 
     --radius: 0.75rem;
     
-    /* Glow color for theme */
-    --glow-color: 45 100% 50%;
+    /* Glow color - Spring Green */
+    --glow-color: 157 100% 50%;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(45, 100%, 50%) 0%, hsl(40, 95%, 55%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(45, 93%, 58%) 0%, hsl(38, 92%, 50%) 100%);
-    --gradient-dark: linear-gradient(180deg, hsl(0, 0%, 0%) 0%, hsl(40, 20%, 4%) 100%);
-    --gradient-glow: radial-gradient(ellipse at center, hsl(45, 100%, 50%, 0.15) 0%, transparent 70%);
+    /* Rainbow Gradients */
+    --gradient-rainbow: linear-gradient(135deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF);
+    --gradient-primary: linear-gradient(135deg, hsl(157, 100%, 50%) 0%, hsl(195, 100%, 50%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(45, 100%, 50%) 0%, hsl(35, 100%, 50%) 100%);
     
-    /* Glass effect */
-    --glass-bg: hsl(0 0% 100% / 0.7);
-    --glass-border: hsl(0 0% 100% / 0.2);
+    /* Light glass effect */
+    --glass-bg: rgba(255, 255, 255, 0.9);
+    --glass-border: rgba(0, 255, 127, 0.2);
   }
 
-  /* Default Dark Theme: Cosmic Golden Age */
+  /* Dark mode disabled - keep for compatibility but not used */
   .dark {
-    --background: 0 0% 0%;
-    --foreground: 45 20% 95%;
-
-    --card: 40 15% 6%;
-    --card-foreground: 45 20% 95%;
-
-    --popover: 40 15% 6%;
-    --popover-foreground: 45 20% 95%;
-
-    --primary: 45 100% 50%;
-    --primary-foreground: 0 0% 0%;
-
-    --secondary: 40 95% 55%;
-    --secondary-foreground: 0 0% 0%;
-
-    --muted: 40 10% 12%;
-    --muted-foreground: 45 15% 55%;
-
-    --accent: 38 92% 50%;
-    --accent-foreground: 0 0% 0%;
-
-    --success: 152 76% 45%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 0%;
-
-    --destructive: 0 62% 45%;
+    --background: 0 0% 98%;
+    --foreground: 180 50% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 180 50% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 50% 20%;
+    --primary: 157 100% 50%;
+    --primary-foreground: 180 60% 15%;
+    --secondary: 195 100% 50%;
+    --secondary-foreground: 195 60% 15%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 180 30% 40%;
+    --accent: 45 100% 50%;
+    --accent-foreground: 45 60% 15%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 45 30% 20%;
-    --input: 45 30% 20%;
-    --ring: 45 100% 50%;
-    
-    /* Glow color for theme */
-    --glow-color: 45 100% 50%;
-
-    /* Dark mode glass with gold tint */
-    --glass-bg: hsl(40 15% 6% / 0.85);
-    --glass-border: hsl(45 50% 50% / 0.15);
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 157 100% 50%;
+    --glow-color: 157 100% 50%;
+    --glass-bg: rgba(255, 255, 255, 0.9);
+    --glass-border: rgba(0, 255, 127, 0.2);
   }
 
   * {
@@ -112,7 +93,7 @@
   }
 
   html {
-    @apply dark;
+    /* Light mode default - no dark class */
   }
 
   body {
@@ -126,7 +107,7 @@
 }
 
 @layer components {
-  /* Glassmorphism card */
+  /* Light glassmorphism card */
   .glass-card {
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
@@ -142,6 +123,21 @@
     background-clip: text;
   }
 
+  /* Rainbow text gradient */
+  .rainbow-text {
+    background: var(--gradient-rainbow);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 400% 100%;
+    animation: rainbow-shift 8s ease infinite;
+  }
+
+  @keyframes rainbow-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
   /* Gradient border */
   .gradient-border {
     position: relative;
@@ -155,7 +151,7 @@
     inset: 0;
     padding: 1px;
     border-radius: inherit;
-    background: var(--gradient-primary);
+    background: var(--gradient-rainbow);
     -webkit-mask: 
       linear-gradient(#fff 0 0) content-box, 
       linear-gradient(#fff 0 0);
@@ -167,7 +163,7 @@
     pointer-events: none;
   }
 
-  /* Glow effect - uses theme color */
+  /* Spring Green glow effect */
   .glow {
     box-shadow: 
       0 0 20px hsl(var(--glow-color) / 0.3),
@@ -181,18 +177,41 @@
       0 0 40px hsl(var(--secondary) / 0.2);
   }
   
-  /* Divine glow for Cosmic Golden Age */
-  .glow-divine {
-    box-shadow: 
-      0 0 30px hsl(var(--glow-color) / 0.4),
-      0 0 60px hsl(var(--glow-color) / 0.25),
-      0 0 90px hsl(var(--glow-color) / 0.15),
-      inset 0 0 20px hsl(var(--glow-color) / 0.1);
+  /* Rainbow glow effect - animated */
+  .glow-rainbow {
+    animation: rainbow-glow 4s ease-in-out infinite;
+  }
+
+  @keyframes rainbow-glow {
+    0%, 100% { 
+      box-shadow: 
+        0 0 25px rgba(255, 0, 0, 0.4),
+        0 0 50px rgba(255, 165, 0, 0.3),
+        0 0 75px rgba(255, 255, 0, 0.2);
+    }
+    25% { 
+      box-shadow: 
+        0 0 25px rgba(0, 255, 127, 0.5),
+        0 0 50px rgba(0, 191, 255, 0.4),
+        0 0 75px rgba(0, 255, 127, 0.2);
+    }
+    50% { 
+      box-shadow: 
+        0 0 25px rgba(0, 191, 255, 0.4),
+        0 0 50px rgba(75, 0, 130, 0.3),
+        0 0 75px rgba(255, 0, 255, 0.2);
+    }
+    75% { 
+      box-shadow: 
+        0 0 25px rgba(255, 0, 255, 0.4),
+        0 0 50px rgba(255, 0, 0, 0.3),
+        0 0 75px rgba(255, 165, 0, 0.2);
+    }
   }
 
   /* Animated gradient background */
   .animate-gradient {
-    background-size: 200% 200%;
+    background-size: 400% 400%;
     animation: gradient 8s ease infinite;
   }
 
@@ -211,7 +230,7 @@
     50% { transform: translateY(-20px); }
   }
 
-  /* Pulse glow animation - uses theme color */
+  /* Pulse glow animation - Spring Green */
   .animate-pulse-glow {
     animation: pulse-glow 2s ease-in-out infinite;
   }
@@ -225,7 +244,7 @@
     }
   }
   
-  /* Shimmer animation for gold theme */
+  /* Shimmer animation */
   .animate-shimmer {
     animation: shimmer 3s ease-in-out infinite;
     background-size: 200% 100%;
@@ -234,6 +253,21 @@
   @keyframes shimmer {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
+  }
+
+  /* Rainbow border animation */
+  .rainbow-border {
+    position: relative;
+    border: 2px solid transparent;
+    background: linear-gradient(white, white) padding-box,
+                var(--gradient-rainbow) border-box;
+    background-size: 100% 100%, 400% 100%;
+    animation: rainbow-border-shift 6s linear infinite;
+  }
+
+  @keyframes rainbow-border-shift {
+    0% { background-position: 0% 0%, 0% 0%; }
+    100% { background-position: 0% 0%, 400% 0%; }
   }
 }
 
