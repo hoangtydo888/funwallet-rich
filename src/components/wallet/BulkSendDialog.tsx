@@ -468,8 +468,8 @@ export const BulkSendDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="font-heading flex items-center gap-2">
             <Users className="h-5 w-5" />
             Chuyển Tiền Hàng Loạt
@@ -479,331 +479,282 @@ export const BulkSendDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-3 text-center">
-            <Coins className="h-5 w-5 mx-auto mb-1 text-primary" />
-            <p className="text-lg font-bold">{formatBalance(stats.totalAmount.toString())}</p>
-            <p className="text-xs text-muted-foreground">Tổng đã chuyển</p>
-          </div>
-          <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl p-3 text-center">
-            <TrendingUp className="h-5 w-5 mx-auto mb-1 text-success" />
-            <p className="text-lg font-bold">{stats.totalTransfers}</p>
-            <p className="text-xs text-muted-foreground">Số lần chuyển</p>
-          </div>
-          <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 rounded-xl p-3 text-center">
-            <Users className="h-5 w-5 mx-auto mb-1 text-accent-foreground" />
-            <p className="text-lg font-bold">{stats.totalRecipients}</p>
-            <p className="text-xs text-muted-foreground">Người nhận</p>
-          </div>
-        </div>
+        {/* Main Scrollable Content */}
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-4">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-3 text-center">
+                <Coins className="h-5 w-5 mx-auto mb-1 text-primary" />
+                <p className="text-lg font-bold">{formatBalance(stats.totalAmount.toString())}</p>
+                <p className="text-xs text-muted-foreground">Tổng đã chuyển</p>
+              </div>
+              <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl p-3 text-center">
+                <TrendingUp className="h-5 w-5 mx-auto mb-1 text-success" />
+                <p className="text-lg font-bold">{stats.totalTransfers}</p>
+                <p className="text-xs text-muted-foreground">Số lần chuyển</p>
+              </div>
+              <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 rounded-xl p-3 text-center">
+                <Users className="h-5 w-5 mx-auto mb-1 text-accent-foreground" />
+                <p className="text-lg font-bold">{stats.totalRecipients}</p>
+                <p className="text-xs text-muted-foreground">Người nhận</p>
+              </div>
+            </div>
 
-        {/* Tab Toggle */}
-        <div className="flex gap-2 border-b pb-2">
-          <Button
-            variant={activeTab === "send" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("send")}
-            className="flex-1"
-          >
-            <Upload className="h-4 w-4 mr-1" />
-            Gửi mới
-          </Button>
-          <Button
-            variant={activeTab === "history" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("history")}
-            className="flex-1"
-          >
-            <History className="h-4 w-4 mr-1" />
-            Lịch sử ({history.length})
-          </Button>
-        </div>
+            {/* Tab Toggle */}
+            <div className="flex gap-2 border-b pb-2">
+              <Button
+                variant={activeTab === "send" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setActiveTab("send")}
+                className="flex-1"
+              >
+                <Upload className="h-4 w-4 mr-1" />
+                Gửi mới
+              </Button>
+              <Button
+                variant={activeTab === "history" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setActiveTab("history")}
+                className="flex-1"
+              >
+                <History className="h-4 w-4 mr-1" />
+                Lịch sử ({history.length})
+              </Button>
+            </div>
 
-        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          {activeTab === "send" ? (
-            <>
-              {/* Token Selection */}
-              <div className="space-y-2">
-                <Label>Chọn token</Label>
-                <Select value={selectedToken} onValueChange={setSelectedToken} disabled={isProcessing}>
-                  <SelectTrigger>
-                    <SelectValue>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={selectedBalance?.logo}
-                          alt={selectedToken}
-                          className="w-5 h-5 rounded-full"
-                        />
-                        <span>{selectedToken}</span>
-                        <span className="text-muted-foreground text-xs">
-                          (Có: {formatBalance(maxAmount.toString())})
-                        </span>
-                      </div>
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {balances.map((token) => (
-                      <SelectItem key={token.symbol} value={token.symbol}>
+            {activeTab === "send" ? (
+              <div className="space-y-4">
+                {/* Token Selection */}
+                <div className="space-y-2">
+                  <Label>Chọn token</Label>
+                  <Select value={selectedToken} onValueChange={setSelectedToken} disabled={isProcessing}>
+                    <SelectTrigger>
+                      <SelectValue>
                         <div className="flex items-center gap-2">
                           <img
-                            src={token.logo}
-                            alt={token.symbol}
+                            src={selectedBalance?.logo}
+                            alt={selectedToken}
                             className="w-5 h-5 rounded-full"
                           />
-                          <span>{token.symbol}</span>
+                          <span>{selectedToken}</span>
                           <span className="text-muted-foreground text-xs">
-                            ({formatBalance(token.balance)})
+                            (Có: {formatBalance(maxAmount.toString())})
                           </span>
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Input Mode Toggle */}
-              {items.length === 0 && !isProcessing && (
-                <>
-                  {/* Uniform Amount Input */}
-                  <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Số tiền mỗi địa chỉ</Label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Dùng cùng số tiền</span>
-                        <Switch 
-                          checked={useUniformAmount} 
-                          onCheckedChange={setUseUniformAmount}
-                        />
-                      </div>
-                    </div>
-                    {useUniformAmount && (
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          placeholder="VD: 100"
-                          value={uniformAmount}
-                          onChange={(e) => setUniformAmount(e.target.value)}
-                          className="flex-1"
-                        />
-                        <span className="flex items-center px-3 bg-muted rounded-md text-sm font-medium">
-                          {selectedToken}
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {useUniformAmount 
-                        ? "Nhập số tiền chung, sau đó paste danh sách địa chỉ (mỗi dòng 1 địa chỉ)" 
-                        : "Nhập theo định dạng: address,amount (mỗi dòng)"}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant={inputMode === "manual" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setInputMode("manual")}
-                      className="flex-1"
-                    >
-                      <FileText className="h-4 w-4 mr-1" />
-                      Nhập thủ công
-                    </Button>
-                    <Button
-                      variant={inputMode === "csv" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setInputMode("csv")}
-                      className="flex-1"
-                    >
-                      <Upload className="h-4 w-4 mr-1" />
-                      Tải file CSV
-                    </Button>
-                  </div>
-
-                  {inputMode === "manual" ? (
-                    <div className="space-y-2">
-                      <Label>
-                        {useUniformAmount 
-                          ? `Nhập danh sách địa chỉ (mỗi dòng 1 địa chỉ) - Tối đa ${MAX_RECIPIENTS}`
-                          : `Nhập danh sách (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
-                      </Label>
-                      <Textarea
-                        value={manualInput}
-                        onChange={(e) => setManualInput(e.target.value)}
-                        placeholder={useUniformAmount 
-                          ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12\n0x9876543210fedcba9876543210fedcba98765432`
-                          : `0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
-                        rows={10}
-                        className="font-mono text-sm"
-                      />
-                      <Button 
-                        onClick={handleParseManual} 
-                        className="w-full" 
-                        disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount)}
-                      >
-                        Phân tích danh sách
-                      </Button>
-                    </div>
-                  ) : (
-                    <div
-                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
-                        useUniformAmount && !uniformAmount 
-                          ? "border-muted cursor-not-allowed opacity-50" 
-                          : "border-primary/30 hover:border-primary/50"
-                      }`}
-                      onClick={() => {
-                        if (useUniformAmount && !uniformAmount) {
-                          toast({
-                            title: "Chưa nhập số tiền",
-                            description: "Vui lòng nhập số tiền mỗi địa chỉ trước",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-                        fileInputRef.current?.click();
-                      }}
-                    >
-                      <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
-                      <p className="font-medium">Kéo thả hoặc click để upload</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {useUniformAmount 
-                          ? `File chứa danh sách địa chỉ - Tối đa ${MAX_RECIPIENTS} địa chỉ`
-                          : `Định dạng: CSV (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
-                      </p>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv,.txt"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Items List */}
-              {items.length > 0 && (
-                <>
-                  {/* Summary */}
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    <div className="bg-muted rounded-lg p-2">
-                      <p className="text-lg font-bold">{items.length}</p>
-                      <p className="text-xs text-muted-foreground">Tổng</p>
-                    </div>
-                    <div className="bg-muted rounded-lg p-2">
-                      <p className="text-lg font-bold text-muted-foreground">{MAX_RECIPIENTS}</p>
-                      <p className="text-xs text-muted-foreground">Tối đa</p>
-                    </div>
-                    <div className="bg-success/10 rounded-lg p-2">
-                      <p className="text-lg font-bold text-success">{successCount}</p>
-                      <p className="text-xs text-muted-foreground">Thành công</p>
-                    </div>
-                    <div className="bg-destructive/10 rounded-lg p-2">
-                      <p className="text-lg font-bold text-destructive">{failCount}</p>
-                      <p className="text-xs text-muted-foreground">Thất bại</p>
-                    </div>
-                  </div>
-
-                  {/* Total Amount Warning */}
-                  {totalAmount > 0 && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <p>
-                        Tổng cần gửi: <strong>{formatBalance(totalAmount.toString())} {selectedToken}</strong>
-                        {totalAmount > maxAmount && " (Không đủ số dư!)"}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Progress */}
-                  {isProcessing && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Đang xử lý...</span>
-                        <span>{progress.processed}/{progress.total}</span>
-                      </div>
-                      <Progress value={(progress.processed / progress.total) * 100} />
-                    </div>
-                  )}
-
-                  {/* Items Scroll */}
-                  <ScrollArea className="flex-1 max-h-60 border rounded-lg">
-                    <div className="p-2 space-y-1">
-                      {items.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-2 text-xs p-2 rounded bg-muted/50"
-                        >
-                          {item.status === "success" && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
-                          {item.status === "failed" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
-                          {item.status === "pending" && <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
-                          {item.status === "processing" && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
-                          <span className="font-mono truncate flex-1">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
-                          <span className="font-medium">{item.amount}</span>
-                        </div>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {balances.map((token) => (
+                        <SelectItem key={token.symbol} value={token.symbol}>
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={token.logo}
+                              alt={token.symbol}
+                              className="w-5 h-5 rounded-full"
+                            />
+                            <span>{token.symbol}</span>
+                            <span className="text-muted-foreground text-xs">
+                              ({formatBalance(token.balance)})
+                            </span>
+                          </div>
+                        </SelectItem>
                       ))}
-                    </div>
-                  </ScrollArea>
-                </>
-              )}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-2">
-                {items.length > 0 && !isProcessing && (
+                {/* Input Mode Toggle */}
+                {items.length === 0 && !isProcessing && (
                   <>
-                    <Button variant="outline" onClick={() => setItems([])} className="flex-1">
-                      Xóa danh sách
-                    </Button>
-                    {failCount > 0 && (
-                      <Button variant="outline" onClick={exportFailed}>
-                        <Download className="h-4 w-4 mr-1" />
-                        Xuất lỗi
+                    {/* Uniform Amount Input */}
+                    <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Số tiền mỗi địa chỉ</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Dùng cùng số tiền</span>
+                          <Switch 
+                            checked={useUniformAmount} 
+                            onCheckedChange={setUseUniformAmount}
+                          />
+                        </div>
+                      </div>
+                      {useUniformAmount && (
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            placeholder="VD: 100"
+                            value={uniformAmount}
+                            onChange={(e) => setUniformAmount(e.target.value)}
+                            className="flex-1"
+                          />
+                          <span className="flex items-center px-3 bg-muted rounded-md text-sm font-medium">
+                            {selectedToken}
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {useUniformAmount 
+                          ? "Nhập số tiền chung, sau đó paste danh sách địa chỉ (mỗi dòng 1 địa chỉ)" 
+                          : "Nhập theo định dạng: address,amount (mỗi dòng)"}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant={inputMode === "manual" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setInputMode("manual")}
+                        className="flex-1"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        Nhập thủ công
                       </Button>
+                      <Button
+                        variant={inputMode === "csv" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setInputMode("csv")}
+                        className="flex-1"
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        Tải file CSV
+                      </Button>
+                    </div>
+
+                    {inputMode === "manual" ? (
+                      <div className="space-y-2">
+                        <Label>
+                          {useUniformAmount 
+                            ? `Nhập danh sách địa chỉ (mỗi dòng 1 địa chỉ) - Tối đa ${MAX_RECIPIENTS}`
+                            : `Nhập danh sách (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
+                        </Label>
+                        <Textarea
+                          value={manualInput}
+                          onChange={(e) => setManualInput(e.target.value)}
+                          placeholder={useUniformAmount 
+                            ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12\n0x9876543210fedcba9876543210fedcba98765432`
+                            : `0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
+                          rows={6}
+                          className="font-mono text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                          useUniformAmount && !uniformAmount 
+                            ? "border-muted cursor-not-allowed opacity-50" 
+                            : "border-primary/30 hover:border-primary/50"
+                        }`}
+                        onClick={() => {
+                          if (useUniformAmount && !uniformAmount) {
+                            toast({
+                              title: "Chưa nhập số tiền",
+                              description: "Vui lòng nhập số tiền mỗi địa chỉ trước",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
+                        <p className="font-medium">Kéo thả hoặc click để upload</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {useUniformAmount 
+                            ? `File chứa danh sách địa chỉ - Tối đa ${MAX_RECIPIENTS} địa chỉ`
+                            : `Định dạng: CSV (address,amount) - Tối đa ${MAX_RECIPIENTS} địa chỉ`}
+                        </p>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".csv,.txt"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </div>
                     )}
                   </>
                 )}
-                
-                {items.length > 0 && items.some((i) => i.status === "pending") && (
-                  <Button
-                    onClick={handleBulkSend}
-                    disabled={isProcessing || totalAmount > maxAmount}
-                    className="flex-1"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Đang gửi...
-                      </>
-                    ) : (
-                      <>
-                        <Users className="h-4 w-4 mr-2" />
-                        Gửi {items.filter((i) => i.status === "pending").length} địa chỉ
-                      </>
-                    )}
-                  </Button>
-                )}
 
-                {items.length > 0 && !items.some((i) => i.status === "pending") && !isProcessing && (
-                  <Button onClick={handleClose} className="flex-1">
-                    Đóng
-                  </Button>
+                {/* Items List */}
+                {items.length > 0 && (
+                  <>
+                    {/* Summary */}
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="bg-muted rounded-lg p-2">
+                        <p className="text-lg font-bold">{items.length}</p>
+                        <p className="text-xs text-muted-foreground">Tổng</p>
+                      </div>
+                      <div className="bg-muted rounded-lg p-2">
+                        <p className="text-lg font-bold text-muted-foreground">{MAX_RECIPIENTS}</p>
+                        <p className="text-xs text-muted-foreground">Tối đa</p>
+                      </div>
+                      <div className="bg-success/10 rounded-lg p-2">
+                        <p className="text-lg font-bold text-success">{successCount}</p>
+                        <p className="text-xs text-muted-foreground">Thành công</p>
+                      </div>
+                      <div className="bg-destructive/10 rounded-lg p-2">
+                        <p className="text-lg font-bold text-destructive">{failCount}</p>
+                        <p className="text-xs text-muted-foreground">Thất bại</p>
+                      </div>
+                    </div>
+
+                    {/* Total Amount Warning */}
+                    {totalAmount > 0 && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <p>
+                          Tổng cần gửi: <strong>{formatBalance(totalAmount.toString())} {selectedToken}</strong>
+                          {totalAmount > maxAmount && " (Không đủ số dư!)"}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Progress */}
+                    {isProcessing && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Đang xử lý...</span>
+                          <span>{progress.processed}/{progress.total}</span>
+                        </div>
+                        <Progress value={(progress.processed / progress.total) * 100} />
+                      </div>
+                    )}
+
+                    {/* Items List with ScrollArea */}
+                    <div className="border rounded-lg max-h-60 overflow-y-auto">
+                      <div className="p-2 space-y-1">
+                        {items.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 text-xs p-2 rounded bg-muted/50"
+                          >
+                            {item.status === "success" && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
+                            {item.status === "failed" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                            {item.status === "pending" && <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
+                            {item.status === "processing" && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+                            <span className="font-mono truncate flex-1">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
+                            <span className="font-medium">{item.amount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
-            </>
-          ) : (
-            /* History Tab */
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {history.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                  <div className="text-center">
-                    <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Chưa có lịch sử chuyển tiền</p>
+            ) : (
+              /* History Tab */
+              <div className="space-y-3">
+                {history.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground">
+                    <div className="text-center">
+                      <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>Chưa có lịch sử chuyển tiền</p>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <>
-                  <ScrollArea className="flex-1 max-h-80">
-                    <div className="space-y-2">
+                ) : (
+                  <>
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
                       {history.map((h) => (
                         <div key={h.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                           <div className="flex flex-col gap-1">
@@ -824,16 +775,79 @@ export const BulkSendDialog = ({
                         </div>
                       ))}
                     </div>
-                  </ScrollArea>
-                  <Button variant="outline" onClick={exportHistory} className="mt-3 w-full">
-                    <Download className="h-4 w-4 mr-2" />
-                    Xuất lịch sử CSV
+                    <Button variant="outline" onClick={exportHistory} className="w-full">
+                      <Download className="h-4 w-4 mr-2" />
+                      Xuất lịch sử CSV
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Sticky Action Buttons - Always visible at bottom */}
+        {activeTab === "send" && (
+          <div className="shrink-0 border-t pt-4 mt-4 space-y-2 bg-background">
+            {/* Parse button when input is entered but not parsed yet */}
+            {items.length === 0 && !isProcessing && inputMode === "manual" && manualInput.trim() && (
+              <Button 
+                onClick={handleParseManual} 
+                className="w-full" 
+                disabled={useUniformAmount && !uniformAmount}
+                size="lg"
+              >
+                Phân tích danh sách
+              </Button>
+            )}
+
+            {/* Action buttons when items are loaded */}
+            {items.length > 0 && (
+              <div className="flex gap-2">
+                {!isProcessing && (
+                  <>
+                    <Button variant="outline" onClick={() => setItems([])} className="flex-1">
+                      Xóa danh sách
+                    </Button>
+                    {failCount > 0 && (
+                      <Button variant="outline" onClick={exportFailed}>
+                        <Download className="h-4 w-4 mr-1" />
+                        Xuất lỗi
+                      </Button>
+                    )}
+                  </>
+                )}
+                
+                {items.some((i) => i.status === "pending") && (
+                  <Button
+                    onClick={handleBulkSend}
+                    disabled={isProcessing || totalAmount > maxAmount}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Đang gửi...
+                      </>
+                    ) : (
+                      <>
+                        <Users className="h-4 w-4 mr-2" />
+                        Gửi {items.filter((i) => i.status === "pending").length} địa chỉ
+                      </>
+                    )}
                   </Button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+                )}
+
+                {!items.some((i) => i.status === "pending") && !isProcessing && (
+                  <Button onClick={handleClose} className="flex-1" size="lg">
+                    Đóng
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
