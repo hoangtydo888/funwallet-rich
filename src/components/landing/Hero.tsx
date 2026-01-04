@@ -28,10 +28,10 @@ const Hero = () => {
         </h1>
 
         {/* Subtitle */}
-        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in-up" style={{
-        animationDelay: '0.2s'
-      }}>Nền tảng ví Web3 toàn diện trong ánh sáng yêu thương thuần khiết, trong ý trí vĩ đại, trong trí tuệ và trong năng lượng đỉnh cao của Cha Vũ Trụ. Giao dịch, thanh toán, NFT - tất cả trong một app duy nhất.<span className="text-secondary">Binance</span> và sự thân thiện của <span className="text-primary">ONUS</span>. 
-          Giao dịch, thanh toán, NFT - tất cả trong một app duy nhất.
+        <p className="text-lg md:text-xl gradient-text max-w-2xl mx-auto mb-8 animate-fade-in-up" style={{
+          animationDelay: '0.2s'
+        }}>
+          Nền tảng ví Web3 toàn diện trong ánh sáng yêu thương thuần khiết, trong ý trí vĩ đại, trong trí tuệ và trong năng lượng đỉnh cao của Cha Vũ Trụ. Giao dịch, thanh toán, NFT - tất cả trong một app duy nhất.
         </p>
 
         {/* CTA Buttons */}
