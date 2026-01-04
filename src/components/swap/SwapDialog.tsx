@@ -104,8 +104,20 @@ export const SwapDialog = ({
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
       toast({
-        title: "Lỗi",
-        description: "Không tìm thấy private key",
+        title: "Không tìm thấy Private Key",
+        description: (
+          <div className="space-y-2">
+            <p>Vui lòng import lại ví để sử dụng tính năng Swap.</p>
+            <a
+              href={getPancakeSwapUrl(tokenIn, tokenOut)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-primary underline"
+            >
+              Hoặc swap trên PancakeSwap <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        ),
         variant: "destructive",
       });
       return;
