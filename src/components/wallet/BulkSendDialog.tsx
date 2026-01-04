@@ -311,12 +311,12 @@ export const BulkSendDialog = ({
     };
   }, []);
 
-  // Validate items
-  const validateItems = (): { valid: TransferItem[]; invalid: TransferItem[] } => {
+  // Validate items - accepts items list as parameter
+  const validateItemsList = (itemsList: TransferItem[]): { valid: TransferItem[]; invalid: TransferItem[] } => {
     const valid: TransferItem[] = [];
     const invalid: TransferItem[] = [];
 
-    for (const item of items) {
+    for (const item of itemsList) {
       if (!isValidAddress(item.address)) {
         invalid.push({ ...item, status: "failed", error: "Địa chỉ không hợp lệ" });
       } else if (isNaN(parseFloat(item.amount)) || parseFloat(item.amount) <= 0) {
@@ -331,8 +331,8 @@ export const BulkSendDialog = ({
   // Calculate total amount
   const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
 
-  // Execute bulk transfer with database logging
-  const handleBulkSend = async () => {
+  // Execute bulk transfer with database logging - accepts items as parameter
+  const handleBulkSendWithItems = async (itemsToSend: TransferItem[]) => {
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
       toast({
@@ -343,7 +343,7 @@ export const BulkSendDialog = ({
       return;
     }
 
-    const { valid, invalid } = validateItems();
+    const { valid, invalid } = validateItemsList(itemsToSend);
     if (valid.length === 0) {
       toast({
         title: "Không có địa chỉ hợp lệ",
@@ -353,15 +353,18 @@ export const BulkSendDialog = ({
       return;
     }
 
-    if (totalAmount > maxAmount) {
+    const totalAmt = valid.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+    if (totalAmt > maxAmount) {
       toast({
         title: "Số dư không đủ",
-        description: `Cần ${totalAmount} ${selectedToken}, có ${formatBalance(maxAmount.toString())} ${selectedToken}`,
+        description: `Cần ${totalAmt} ${selectedToken}, có ${formatBalance(maxAmount.toString())} ${selectedToken}`,
         variant: "destructive",
       });
       return;
     }
 
+    // Set items to show progress
+    setItems(itemsToSend);
     setIsProcessing(true);
     setProgress({ processed: 0, total: valid.length });
 
@@ -376,7 +379,7 @@ export const BulkSendDialog = ({
           token_symbol: selectedToken,
           token_address: token?.address || null,
           total_recipients: valid.length,
-          total_amount: totalAmount.toString(),
+          total_amount: totalAmt.toString(),
           status: 'processing',
         })
         .select()
@@ -477,6 +480,31 @@ export const BulkSendDialog = ({
       fetchStats();
       fetchHistory();
     }
+  };
+
+  // Direct send - parse and send in one step
+  const handleDirectSend = async () => {
+    const amtToUse = useUniformAmount ? uniformAmount : undefined;
+    const parsed = parseCSV(manualInput, amtToUse);
+    
+    if (parsed.length === 0) {
+      toast({
+        title: "Không tìm thấy dữ liệu hợp lệ",
+        description: useUniformAmount && !uniformAmount 
+          ? "Vui lòng nhập số tiền mỗi địa chỉ trước" 
+          : "Định dạng: address hoặc address,amount (mỗi dòng một người nhận)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPreviewData(null);
+    await handleBulkSendWithItems(parsed);
+  };
+
+  // Legacy handleBulkSend for items already in state
+  const handleBulkSend = async () => {
+    await handleBulkSendWithItems(items);
   };
 
   // Export failed items
@@ -743,16 +771,17 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Nút Phân tích - LUÔN HIỂN THỊ */}
+                    {/* Nút GỬI NGAY - Parse và gửi 1 bước */}
                     <Button 
-                      onClick={handleParseManual} 
-                      className="w-full" 
-                      disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0}
+                      onClick={handleDirectSend} 
+                      className="w-full bg-primary hover:bg-primary/90" 
+                      disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
                       size="lg"
                     >
+                      <Users className="h-4 w-4 mr-2" />
                       {previewData && previewData.count > 0 
-                        ? `Xác nhận ${previewData.count} địa chỉ → Tiếp tục gửi`
-                        : `Phân tích danh sách ${manualInput.trim() ? `(${manualInput.split('\n').filter(l => l.trim()).length} dòng)` : ''}`
+                        ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
+                        : `Nhập địa chỉ để gửi`
                       }
                     </Button>
                   </>
