@@ -11,6 +11,7 @@ import {
 } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import { loadCustomTokens, type CustomToken } from "@/components/wallet/ImportTokenDialog";
+import { type TokenPrice } from "@/lib/priceTracker";
 
 export interface WalletData {
   id: string;
@@ -371,16 +372,24 @@ export const useWallet = () => {
     }
   };
 
-  // Calculate total USD value
-  const getTotalBalance = (): number => {
-    // Simple calculation - in production use real prices
-    const bnbPrice = 600; // Example price
-    const bnbBalance = balances.find((b) => b.symbol === "BNB");
-    const stableBalance = balances
-      .filter((b) => ["USDT", "USDC", "BUSD"].includes(b.symbol))
-      .reduce((sum, b) => sum + parseFloat(b.balance), 0);
+  // Calculate total USD value using realtime prices
+  const getTotalBalance = (prices?: TokenPrice[]): number => {
+    if (!prices || prices.length === 0) {
+      // Fallback: only count stablecoins at $1.00
+      return balances
+        .filter((b) => ["USDT", "USDC", "BUSD", "DAI"].includes(b.symbol.toUpperCase()))
+        .reduce((sum, b) => sum + parseFloat(b.balance), 0);
+    }
 
-    return (parseFloat(bnbBalance?.balance || "0") * bnbPrice) + stableBalance;
+    // Calculate with realtime prices for ALL tokens
+    return balances.reduce((sum, token) => {
+      const price = prices.find(
+        (p) => p.symbol.toUpperCase() === token.symbol.toUpperCase()
+      );
+      const balance = parseFloat(token.balance) || 0;
+      const priceValue = price?.price ?? 0;
+      return sum + balance * priceValue;
+    }, 0);
   };
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useNFT } from "@/hooks/useNFT";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Wallet, 
   ArrowUpRight, 
@@ -36,6 +37,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
+import { fetchTokenPrices, type TokenPrice } from "@/lib/priceTracker";
 
 // Components
 import { CreateWalletDialog } from "@/components/wallet/CreateWalletDialog";
@@ -104,6 +106,10 @@ const Dashboard = () => {
   const [walletManagerOpen, setWalletManagerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
   
+  // Realtime prices state for synchronized total balance
+  const [prices, setPrices] = useState<TokenPrice[]>([]);
+  const [pricesLoading, setPricesLoading] = useState(true);
+  
   // Balance visibility state
   const [balanceHidden, setBalanceHidden] = useState(() => {
     return localStorage.getItem("fun_wallet_balance_hidden") === "true";
@@ -151,6 +157,29 @@ const Dashboard = () => {
     localStorage.setItem("fun_wallet_pin_hash", hash.toString(16));
     localStorage.setItem("fun_wallet_pin_enabled", "true");
   };
+
+  // Fetch realtime prices for total balance calculation
+  useEffect(() => {
+    const fetchPrices = async () => {
+      if (balances.length === 0) {
+        setPricesLoading(false);
+        return;
+      }
+      setPricesLoading(true);
+      try {
+        const symbols = balances.map((b) => b.symbol);
+        const data = await fetchTokenPrices(symbols);
+        setPrices(data);
+      } catch (error) {
+        console.error("Error fetching prices:", error);
+      } finally {
+        setPricesLoading(false);
+      }
+    };
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, [balances]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -203,7 +232,7 @@ const Dashboard = () => {
     return null;
   }
 
-  const totalBalance = getTotalBalance();
+  const totalBalance = getTotalBalance(prices);
   const hasWallet = wallets.length > 0 && activeWallet;
 
   // Rainbow colors for quick action buttons
@@ -258,9 +287,13 @@ const Dashboard = () => {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tổng tài sản</p>
               <div className="flex items-center gap-2">
-                <h2 className="font-heading text-4xl font-bold rainbow-text">
-                  {balanceHidden ? "••••••" : `$${formatBalance(totalBalance.toFixed(2), 2)}`}
-                </h2>
+                {pricesLoading && balances.length > 0 ? (
+                  <Skeleton className="h-10 w-32" />
+                ) : (
+                  <h2 className="font-heading text-4xl font-bold rainbow-text">
+                    {balanceHidden ? "••••••" : `$${formatBalance(totalBalance.toFixed(2), 2)}`}
+                  </h2>
+                )}
                 <Button variant="ghost" size="icon" onClick={toggleBalanceVisibility} className="h-8 w-8">
                   {balanceHidden ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </Button>
