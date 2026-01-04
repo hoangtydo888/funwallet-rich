@@ -100,6 +100,48 @@ export type Database = {
         }
         Relationships: []
       }
+      rewards: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          reward_amount: string
+          reward_symbol: string | null
+          reward_type: string
+          sent_at: string | null
+          status: string
+          user_id: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          reward_amount: string
+          reward_symbol?: string | null
+          reward_type: string
+          sent_at?: string | null
+          status?: string
+          user_id: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          reward_amount?: string
+          reward_symbol?: string | null
+          reward_type?: string
+          sent_at?: string | null
+          status?: string
+          user_id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: string
