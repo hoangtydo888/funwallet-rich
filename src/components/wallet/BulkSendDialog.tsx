@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -97,7 +97,13 @@ export const BulkSendDialog = ({
   const [activeTab, setActiveTab] = useState<"send" | "history">("send");
   const [uniformAmount, setUniformAmount] = useState<string>("");
   const [useUniformAmount, setUseUniformAmount] = useState<boolean>(true);
+  const [previewData, setPreviewData] = useState<{ count: number; total: number; estimatedGas: number } | null>(null);
+  const [isAutoParsing, setIsAutoParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Gas price estimate (in BNB) - average gas per transfer
+  const GAS_PER_TRANSFER = 0.00021; // ~21000 gas * 10 gwei
 
   const selectedBalance = balances.find((b) => b.symbol === selectedToken);
   const maxAmount = parseFloat(selectedBalance?.balance || "0");
@@ -236,11 +242,74 @@ export const BulkSendDialog = ({
       return;
     }
     setItems(parsed);
+    setPreviewData(null); // Clear preview after parsing
     toast({
       title: "Đã phân tích",
       description: `${parsed.length} địa chỉ đã được thêm`,
     });
   };
+
+  // Auto-parse with debounce when input changes
+  const autoParsePreview = useCallback((input: string, uniformAmt?: string) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      if (!input.trim()) {
+        setPreviewData(null);
+        return;
+      }
+
+      setIsAutoParsing(true);
+      
+      const lines = input.trim().split("\n");
+      let count = 0;
+      let total = 0;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.toLowerCase().startsWith("address")) continue;
+
+        const parts = trimmed.split(/[,;\t]/).map((p) => p.trim());
+        const address = parts[0];
+        
+        if (!address || !isValidAddress(address)) continue;
+
+        // Has both address and amount
+        if (parts.length >= 2 && parts[1] && !isNaN(parseFloat(parts[1]))) {
+          count++;
+          total += parseFloat(parts[1]);
+        } 
+        // Only address - use uniform amount
+        else if (uniformAmt && parseFloat(uniformAmt) > 0) {
+          count++;
+          total += parseFloat(uniformAmt);
+        }
+      }
+
+      const estimatedGas = count * GAS_PER_TRANSFER;
+      setPreviewData(count > 0 ? { count, total, estimatedGas } : null);
+      setIsAutoParsing(false);
+    }, 300);
+  }, []);
+
+  // Trigger auto-parse when input or uniform amount changes
+  useEffect(() => {
+    if (items.length === 0) {
+      const uniformAmt = useUniformAmount ? uniformAmount : undefined;
+      autoParsePreview(manualInput, uniformAmt);
+    }
+  }, [manualInput, uniformAmount, useUniformAmount, items.length, autoParsePreview]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   // Validate items
   const validateItems = (): { valid: TransferItem[]; invalid: TransferItem[] } => {
@@ -445,6 +514,7 @@ export const BulkSendDialog = ({
     setItems([]);
     setManualInput("");
     setUniformAmount("");
+    setPreviewData(null);
     setProgress({ processed: 0, total: 0 });
     setActiveTab("send");
     onOpenChange(false);
@@ -636,14 +706,54 @@ export const BulkSendDialog = ({
                       />
                     </div>
 
+                    {/* Preview Panel - Hiển thị khi có dữ liệu hợp lệ */}
+                    {previewData && previewData.count > 0 && (
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                          <TrendingUp className="h-4 w-4" />
+                          Xem trước giao dịch
+                          {isAutoParsing && <Loader2 className="h-3 w-3 animate-spin" />}
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 text-center">
+                          <div className="bg-background rounded-lg p-2">
+                            <p className="text-lg font-bold">{previewData.count}</p>
+                            <p className="text-xs text-muted-foreground">Địa chỉ hợp lệ</p>
+                          </div>
+                          <div className="bg-background rounded-lg p-2">
+                            <p className="text-lg font-bold">{formatBalance(previewData.total.toFixed(6))}</p>
+                            <p className="text-xs text-muted-foreground">{selectedToken}</p>
+                          </div>
+                          <div className="bg-background rounded-lg p-2">
+                            <p className="text-lg font-bold text-warning">~{previewData.estimatedGas.toFixed(4)}</p>
+                            <p className="text-xs text-muted-foreground">Gas (BNB)</p>
+                          </div>
+                        </div>
+                        {previewData.total > maxAmount && (
+                          <div className="flex items-center gap-2 text-destructive text-xs">
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Không đủ số dư! Cần {formatBalance(previewData.total.toFixed(6))} {selectedToken}, hiện có {formatBalance(maxAmount.toFixed(6))}</span>
+                          </div>
+                        )}
+                        {previewData.estimatedGas > parseFloat(balances.find(b => b.symbol === 'BNB')?.balance || '0') && (
+                          <div className="flex items-center gap-2 text-warning text-xs">
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Có thể không đủ BNB cho gas fee</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Nút Phân tích - LUÔN HIỂN THỊ */}
                     <Button 
                       onClick={handleParseManual} 
                       className="w-full" 
-                      disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount)}
+                      disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0}
                       size="lg"
                     >
-                      Phân tích danh sách {manualInput.trim() && `(${manualInput.split('\n').filter(l => l.trim()).length} dòng)`}
+                      {previewData && previewData.count > 0 
+                        ? `Xác nhận ${previewData.count} địa chỉ → Tiếp tục gửi`
+                        : `Phân tích danh sách ${manualInput.trim() ? `(${manualInput.split('\n').filter(l => l.trim()).length} dòng)` : ''}`
+                      }
                     </Button>
                   </>
                 )}
