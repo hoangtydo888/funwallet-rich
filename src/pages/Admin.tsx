@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Wallet, Gift, TrendingUp, ArrowLeft, LogOut, ShieldCheck } from 'lucide-react';
+import { Users, Wallet, Gift, TrendingUp, ArrowLeft, LogOut, ShieldCheck, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,14 +9,16 @@ import { AdminStatsCard } from '@/components/admin/AdminStatsCard';
 import { UsersTable } from '@/components/admin/UsersTable';
 import { RewardsTable } from '@/components/admin/RewardsTable';
 import { CreateRewardDialog } from '@/components/admin/CreateRewardDialog';
+import StatisticsChart from '@/components/admin/StatisticsChart';
 import { toast } from 'sonner';
 
 const Admin = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isAdmin, loading, users, rewards, stats, createReward, updateRewardStatus } = useAdmin();
+  const { isAdmin, loading, users, rewards, stats, createReward, updateRewardStatus, allWallets } = useAdmin();
   const [selectedUser, setSelectedUser] = useState<UserWithWallets | null>(null);
   const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
+  const [statsDays, setStatsDays] = useState(7);
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -58,6 +60,11 @@ const Admin = () => {
   if (!isAdmin) {
     return null;
   }
+
+  // Prepare data for statistics
+  const usersForStats = users.map((u) => ({ created_at: u.created_at }));
+  const walletsForStats = allWallets.map((w) => ({ created_at: w.created_at }));
+  const rewardsForStats = rewards.map((r) => ({ created_at: r.created_at }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -126,6 +133,10 @@ const Admin = () => {
               <Gift className="h-4 w-4" />
               Rewards
             </TabsTrigger>
+            <TabsTrigger value="statistics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Thống kê
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-4">
@@ -145,6 +156,46 @@ const Admin = () => {
                 Quản lý Rewards
               </h2>
               <RewardsTable rewards={rewards} onUpdateStatus={handleUpdateStatus} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="statistics" className="space-y-4">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Thống kê theo thời gian
+                </h2>
+                <div className="flex gap-2">
+                  <Button
+                    variant={statsDays === 7 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatsDays(7)}
+                  >
+                    7 ngày
+                  </Button>
+                  <Button
+                    variant={statsDays === 30 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatsDays(30)}
+                  >
+                    30 ngày
+                  </Button>
+                  <Button
+                    variant={statsDays === 90 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatsDays(90)}
+                  >
+                    90 ngày
+                  </Button>
+                </div>
+              </div>
+              <StatisticsChart
+                users={usersForStats}
+                wallets={walletsForStats}
+                rewards={rewardsForStats}
+                days={statsDays}
+              />
             </div>
           </TabsContent>
         </Tabs>

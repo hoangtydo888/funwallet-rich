@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useChain } from "@/contexts/ChainContext";
 import { useWallet } from "@/hooks/useWallet";
 import { useNFT } from "@/hooks/useNFT";
+import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,7 +34,8 @@ import {
   Link2,
   Eye,
   EyeOff,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -63,6 +65,7 @@ import { PinDialog } from "@/components/wallet/PinDialog";
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const { currentChain } = useChain();
+  const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   
   const {
@@ -262,6 +265,17 @@ const Dashboard = () => {
           </Link>
           <div className="flex items-center gap-2">
             <ChainSelector compact />
+            {isAdmin && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate("/admin")}
+                className="gap-1 border-primary/50 text-primary hover:bg-primary/10"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">Admin</span>
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
               <Settings className="h-5 w-5" />
             </Button>
