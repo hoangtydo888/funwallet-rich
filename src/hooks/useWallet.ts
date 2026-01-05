@@ -8,6 +8,7 @@ import {
   getAllBalances,
   getTokenBalance,
   COMMON_TOKENS,
+  formatAddress,
 } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import { loadCustomTokens, type CustomToken } from "@/components/wallet/ImportTokenDialog";
@@ -379,6 +380,41 @@ export const useWallet = () => {
     }
   };
 
+  // Link private key to existing wallet (for cross-device sync)
+  const linkPrivateKey = async (walletAddress: string, privateKey: string): Promise<boolean> => {
+    const wallet = importWalletFromPrivateKey(privateKey);
+    if (!wallet) {
+      toast({
+        title: "❌ Private Key không hợp lệ",
+        description: "Vui lòng kiểm tra lại private key",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Verify address matches
+    if (wallet.address.toLowerCase() !== walletAddress.toLowerCase()) {
+      toast({
+        title: "❌ Địa chỉ không khớp",
+        description: `Private key này thuộc về ví ${formatAddress(wallet.address)}, không phải ${formatAddress(walletAddress)}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Save private key to localStorage
+    const existingKeys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
+    existingKeys[wallet.address] = privateKey;
+    localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(existingKeys));
+
+    toast({
+      title: "✅ Import thành công!",
+      description: "Private key đã được lưu trên thiết bị này. Giờ bạn có thể chuyển tiền.",
+    });
+
+    return true;
+  };
+
   // Calculate total USD value using realtime prices
   const getTotalBalance = (prices?: TokenPrice[]): number => {
     if (!prices || prices.length === 0) {
@@ -418,6 +454,7 @@ export const useWallet = () => {
     importFromMnemonic,
     importFromPrivateKey,
     getPrivateKey,
+    linkPrivateKey,
     deleteWallet,
     setPrimaryWallet,
     renameWallet,
