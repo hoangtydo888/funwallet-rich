@@ -607,7 +607,7 @@ export const BulkSendDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="w-full max-w-full sm:max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden p-4 sm:p-6">
         <DialogHeader className="shrink-0">
           <DialogTitle className="font-heading flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -622,10 +622,10 @@ export const BulkSendDialog = ({
         </DialogHeader>
 
         {/* Main Scrollable Content - fixed height */}
-        <ScrollArea className="flex-1 min-h-0 max-h-[50vh] pr-4">
+        <ScrollArea className="flex-1 min-h-0 max-h-[60vh] sm:max-h-[50vh] pr-2 sm:pr-4">
           <div className="space-y-3">
             {/* Stats Cards - Compact */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
               <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-2 text-center">
                 <p className="text-sm font-bold">{formatBalance(stats.totalAmount.toString())}</p>
                 <p className="text-[10px] text-muted-foreground">Đã chuyển</p>
@@ -756,8 +756,8 @@ export const BulkSendDialog = ({
                         placeholder={useUniformAmount 
                           ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12`
                           : `0x1234...5678,0.01\n0xabcd...efgh,0.02`}
-                        rows={8}
-                        className="font-mono text-xs min-h-[160px]"
+                        rows={6}
+                        className="font-mono text-[10px] sm:text-xs min-h-[120px] sm:min-h-[160px] touch-pan-y"
                       />
                       <input
                         ref={fileInputRef}
@@ -801,7 +801,7 @@ export const BulkSendDialog = ({
                 {items.length > 0 && (
                   <>
                     {/* Summary */}
-                    <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                       <div className="bg-muted rounded-lg p-2">
                         <p className="text-lg font-bold">{items.length}</p>
                         <p className="text-xs text-muted-foreground">Tổng</p>
@@ -843,21 +843,25 @@ export const BulkSendDialog = ({
                     )}
 
                     {/* Items List with ScrollArea */}
-                    <ScrollArea className="h-48 border rounded-lg">
-                      <div className="p-2 space-y-1">
+                    <ScrollArea className="h-40 sm:h-48 border rounded-lg">
+                      <div className="p-1.5 sm:p-2 space-y-1">
                         {items.map((item, idx) => (
                           <div
                             key={idx}
-                            className="flex items-center gap-2 text-xs p-2 rounded bg-muted/50"
+                            className={`flex items-center gap-1 sm:gap-2 text-xs p-1.5 sm:p-2 rounded ${
+                              item.status === "success" 
+                                ? "bg-[#00FF7F]/10 border border-[#00FF7F]/30" 
+                                : "bg-muted/50"
+                            }`}
                           >
-                            {item.status === "success" && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
-                            {item.status === "failed" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
-                            {item.status === "pending" && <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
-                            {item.status === "processing" && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
-                            <span className="font-mono truncate flex-1">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
-                            <span className="font-medium shrink-0">{item.amount}</span>
+                            {item.status === "success" && <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-success shrink-0" />}
+                            {item.status === "failed" && <XCircle className="h-3 w-3 sm:h-4 sm:w-4 text-destructive shrink-0" />}
+                            {item.status === "pending" && <div className="w-3 h-3 sm:w-4 sm:h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
+                            {item.status === "processing" && <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin shrink-0" />}
+                            <span className="font-mono truncate flex-1 text-[10px] sm:text-xs">{item.address.slice(0, 8)}...{item.address.slice(-4)}</span>
+                            <span className="font-medium shrink-0 text-[10px] sm:text-xs">{item.amount}</span>
                             {item.error && (
-                              <span className="text-destructive text-xs shrink-0 max-w-24 truncate" title={item.error}>
+                              <span className="text-destructive text-[10px] sm:text-xs shrink-0 max-w-16 sm:max-w-24 truncate" title={item.error}>
                                 {translateError(item.error)}
                               </span>
                             )}
@@ -926,15 +930,23 @@ export const BulkSendDialog = ({
               </Button>
               <Button 
                 onClick={handleDirectSend} 
-                className="flex-[2] bg-primary hover:bg-primary/90" 
+                className="flex-1 sm:flex-[2] bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-black font-bold" 
                 disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
                 size="lg"
               >
-                <Users className="h-4 w-4 mr-2" />
-                {previewData && previewData.count > 0 
-                  ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
-                  : `Nhập địa chỉ để gửi`
-                }
+                <Users className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">
+                  {previewData && previewData.count > 0 
+                    ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
+                    : `Nhập địa chỉ để gửi`
+                  }
+                </span>
+                <span className="sm:hidden">
+                  {previewData && previewData.count > 0 
+                    ? `GỬI ${previewData.count} địa chỉ`
+                    : `Gửi`
+                  }
+                </span>
               </Button>
             </div>
           )}
