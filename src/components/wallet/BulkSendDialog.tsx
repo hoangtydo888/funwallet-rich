@@ -450,7 +450,8 @@ export const BulkSendDialog = ({
         result = await sendBNB(privateKey, item.address, item.amount);
       } else {
         if (!token?.address) continue;
-        result = await sendToken(privateKey, token.address, item.address, item.amount, token.decimals);
+        // sendToken tự động lấy decimals từ blockchain
+        result = await sendToken(privateKey, token.address, item.address, item.amount);
       }
 
       if ("error" in result) {
