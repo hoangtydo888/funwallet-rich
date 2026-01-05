@@ -32,8 +32,7 @@ import {
   FileText,
   TrendingUp,
   History,
-  Coins,
-  RefreshCw
+  Coins
 } from "lucide-react";
 import { sendBNB, sendToken, isValidAddress, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
@@ -580,18 +579,13 @@ export const BulkSendDialog = ({
     URL.revokeObjectURL(url);
   };
 
-  // Reset form to start fresh
-  const resetForm = () => {
+  const handleClose = () => {
+    if (isProcessing) return;
     setItems([]);
     setManualInput("");
     setUniformAmount("");
     setPreviewData(null);
     setProgress({ processed: 0, total: 0 });
-  };
-
-  const handleClose = () => {
-    if (isProcessing) return;
-    resetForm();
     setActiveTab("send");
     onOpenChange(false);
   };
@@ -652,10 +646,7 @@ export const BulkSendDialog = ({
               <Button
                 variant={activeTab === "send" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => {
-                  resetForm();
-                  setActiveTab("send");
-                }}
+                onClick={() => setActiveTab("send")}
                 className="flex-1"
               >
                 <Upload className="h-4 w-4 mr-1" />
@@ -810,18 +801,6 @@ export const BulkSendDialog = ({
                 {/* Items List */}
                 {items.length > 0 && (
                   <>
-                    {/* Reset Button */}
-                    {!isProcessing && (
-                      <Button 
-                        variant="outline" 
-                        onClick={resetForm}
-                        className="w-full"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Nhập danh sách mới
-                      </Button>
-                    )}
-
                     {/* Summary - Responsive */}
                     <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
                       <div className="bg-muted rounded-lg p-2 sm:p-3">
