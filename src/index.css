@@ -275,4 +275,46 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Custom Scrollbar Styling - Rainbow Fresh Green */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #00FF7F transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #00FF7F 0%, #00BFFF 100%);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #00FF7F 0%, #00FF7F 100%);
+    box-shadow: 0 0 10px rgba(0, 255, 127, 0.5);
+  }
+
+  /* Textarea specific scrollbar */
+  textarea.scrollbar-thin::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  textarea.scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #00FF7F;
+    border-radius: 10px;
+  }
+
+  textarea.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #00FF7F 0%, #00BFFF 100%);
+  }
 }

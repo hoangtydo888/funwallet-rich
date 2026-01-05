@@ -795,42 +795,84 @@ export const BulkSendDialog = ({
                       )}
                     </div>
 
-                    {/* Textarea - LUÔN HIỂN THỊ - MOBILE FRIENDLY */}
-                    <div className="space-y-2">
+                    {/* Textarea - STYLED LIKE "Số tiền mỗi địa chỉ" FRAME */}
+                    <div className="space-y-3 p-4 rounded-xl border-2 border-primary/30 bg-gradient-to-br from-[#E0FFF0] to-[#D0F5FF] rainbow-border">
+                      {/* Header with icon and CSV button */}
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">
-                          {useUniformAmount ? `📋 Danh sách địa chỉ` : `📋 Danh sách (address,amount)`}
+                        <Label className="text-base font-semibold flex items-center gap-2 text-foreground">
+                          <FileText className="h-5 w-5 text-primary" />
+                          {useUniformAmount ? `Danh sách địa chỉ` : `Danh sách (address,amount)`}
                         </Label>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="default"
                           size="sm"
-                          className="bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-[#0a4a3a] border-[#00FF7F] font-medium"
+                          className="bg-[#00FF7F] hover:bg-[#00FF7F]/80 text-[#0a4a3a] border-0 font-bold shadow-lg hover:shadow-xl transition-all px-4 py-2"
                           onClick={() => fileInputRef.current?.click()}
                         >
-                          <Upload className="h-4 w-4 mr-1" />
+                          <Upload className="h-4 w-4 mr-2" />
                           Tải CSV
                         </Button>
                       </div>
                       
-                      {/* Helper text */}
-                      <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
-                        💡 Mỗi dòng một địa chỉ ví. {useUniformAmount ? "Số tiền sẽ tự động áp dụng cho tất cả." : "Format: 0x...,100"}
+                      {/* Helper text - inline hint */}
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        💡 {useUniformAmount 
+                          ? "Chỉ cần paste danh sách địa chỉ, mỗi dòng một ví" 
+                          : "Mỗi dòng: địa_chỉ,số_lượng (VD: 0x123...,1000)"}
                       </p>
                       
-                      <Textarea
-                        value={manualInput}
-                        onChange={(e) => setManualInput(e.target.value)}
-                        placeholder={useUniformAmount 
-                          ? `0x1234567890abcdef1234567890abcdef12345678
+                      {/* Beautiful TextArea with custom scrollbar */}
+                      <div className="relative">
+                        <Textarea
+                          value={manualInput}
+                          onChange={(e) => setManualInput(e.target.value)}
+                          placeholder={useUniformAmount 
+                            ? `Mỗi dòng một địa chỉ ví. Ví dụ:
+
+0x1234567890abcdef1234567890abcdef12345678
 0xabcdef1234567890abcdef1234567890abcdef12
-0x9876543210fedcba9876543210fedcba98765432`
-                          : `0x1234567890abcdef1234567890abcdef12345678,1000
+0x9876543210fedcba9876543210fedcba98765432
+0xfedcba9876543210fedcba9876543210fedcba98
+...
+
+(Hỗ trợ tối đa 1000 địa chỉ)`
+                            : `Mỗi dòng một địa chỉ và số lượng. Ví dụ:
+
+0x1234567890abcdef1234567890abcdef12345678,1000
 0xabcdef1234567890abcdef1234567890abcdef12,500
-0x9876543210fedcba9876543210fedcba98765432,250`}
-                        className="font-mono text-sm min-h-[250px] md:min-h-[300px] leading-relaxed resize-y border-2 border-primary/30 focus:border-primary"
-                        style={{ fontSize: '14px', lineHeight: '1.8' }}
-                      />
+0x9876543210fedcba9876543210fedcba98765432,250
+...
+
+(Hỗ trợ tối đa 1000 địa chỉ)`}
+                          className="font-mono w-full min-h-[300px] max-h-[500px] resize-y 
+                            bg-white/90 backdrop-blur-sm
+                            border-2 border-primary/20 rounded-xl
+                            focus:border-[#00FF7F] focus:ring-2 focus:ring-[#00FF7F]/30
+                            text-foreground placeholder:text-muted-foreground/60
+                            p-4 overflow-y-auto
+                            scrollbar-thin scrollbar-thumb-[#00FF7F] scrollbar-track-transparent
+                            hover:scrollbar-thumb-[#00FF7F]/80
+                            transition-all duration-200"
+                          style={{ 
+                            fontSize: '16px', 
+                            lineHeight: '1.8',
+                            scrollbarWidth: 'thin',
+                            scrollbarColor: '#00FF7F transparent'
+                          }}
+                        />
+                      </div>
+                      
+                      {/* Quick stats inline */}
+                      {manualInput.trim() && (
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            {manualInput.trim().split('\n').filter(l => l.trim()).length} dòng
+                          </span>
+                        </div>
+                      )}
+                      
                       <input
                         ref={fileInputRef}
                         type="file"
