@@ -12,7 +12,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { loadCustomTokens, type CustomToken } from "@/components/wallet/ImportTokenDialog";
 import { type TokenPrice } from "@/lib/priceTracker";
-import { encryptPrivateKey, decryptPrivateKey } from "@/lib/encryption";
+// WalletConnect is now the primary method for signing transactions
 
 export interface WalletData {
   id: string;
@@ -286,136 +286,8 @@ export const useWallet = () => {
     }
   };
 
-  // Sync private key to cloud (encrypted with PIN)
-  const syncPrivateKeyToCloud = async (
-    address: string,
-    pin: string
-  ): Promise<boolean> => {
-    if (!user) return false;
-
-    const privateKey = getPrivateKey(address);
-    if (!privateKey) {
-      toast({
-        title: "Lỗi",
-        description: "Không tìm thấy private key để đồng bộ",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    try {
-      const { encrypted, salt, iv } = await encryptPrivateKey(privateKey, pin);
-
-      // Check if already exists
-      const { data: existing } = await supabase
-        .from("encrypted_wallet_keys")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("wallet_address", address.toLowerCase())
-        .single();
-
-      if (existing) {
-        // Update existing
-        const { error } = await supabase
-          .from("encrypted_wallet_keys")
-          .update({
-            encrypted_key: encrypted,
-            key_salt: salt,
-            key_iv: iv,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
-
-        if (error) throw error;
-      } else {
-        // Insert new
-        const { error } = await supabase.from("encrypted_wallet_keys").insert({
-          user_id: user.id,
-          wallet_address: address.toLowerCase(),
-          encrypted_key: encrypted,
-          key_salt: salt,
-          key_iv: iv,
-        });
-
-        if (error) throw error;
-      }
-
-      toast({
-        title: "Đã đồng bộ lên cloud ☁️",
-        description: "Private key đã được mã hóa và lưu an toàn",
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Error syncing to cloud:", error);
-      toast({
-        title: "Lỗi đồng bộ",
-        description: "Không thể lưu lên cloud. Vui lòng thử lại.",
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
-
-  // Restore private key from cloud
-  const restorePrivateKeyFromCloud = async (
-    address: string,
-    pin: string
-  ): Promise<string | null> => {
-    if (!user) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from("encrypted_wallet_keys")
-        .select("encrypted_key, key_salt, key_iv")
-        .eq("user_id", user.id)
-        .eq("wallet_address", address.toLowerCase())
-        .single();
-
-      if (error || !data) {
-        console.log("No cloud key found for address:", address);
-        return null;
-      }
-
-      const privateKey = await decryptPrivateKey(
-        data.encrypted_key,
-        data.key_salt,
-        data.key_iv,
-        pin
-      );
-
-      // Save to localStorage for future use
-      const existingKeys = JSON.parse(
-        localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}"
-      );
-      existingKeys[address] = privateKey;
-      localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(existingKeys));
-
-      toast({
-        title: "Đã khôi phục từ cloud 🌈",
-        description: "Private key đã được giải mã thành công",
-      });
-
-      return privateKey;
-    } catch (error) {
-      console.error("Error restoring from cloud:", error);
-      throw error;
-    }
-  };
-
-  // Check if wallet has cloud backup
-  const hasCloudBackup = async (address: string): Promise<boolean> => {
-    if (!user) return false;
-
-    const { data } = await supabase
-      .from("encrypted_wallet_keys")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("wallet_address", address.toLowerCase())
-      .single();
-
-    return !!data;
-  };
+  // Note: Cloud sync functions have been removed in favor of WalletConnect
+  // WalletConnect v2 is now the primary and only method for signing transactions
 
   // Delete wallet
   const deleteWallet = async (walletId: string): Promise<boolean> => {
@@ -555,8 +427,5 @@ export const useWallet = () => {
     renameWallet,
     getTotalBalance,
     refreshBalances: fetchBalances,
-    syncPrivateKeyToCloud,
-    restorePrivateKeyFromCloud,
-    hasCloudBackup,
   };
 };
