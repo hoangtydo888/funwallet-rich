@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,10 +28,9 @@ import {
   Download,
   AlertCircle,
   Users,
-  FileText,
-  TrendingUp,
   History,
-  Coins
+  Cloud,
+  Sparkles
 } from "lucide-react";
 import { sendBNB, sendToken, isValidAddress, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
@@ -40,6 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { TokenBalance } from "@/hooks/useWallet";
+import { PinEntryDialog } from "./PinEntryDialog";
 
 const MAX_RECIPIENTS = 1000;
 
@@ -74,6 +73,7 @@ interface BulkSendDialogProps {
   walletAddress: string;
   balances: TokenBalance[];
   getPrivateKey: (address: string) => string | null;
+  restorePrivateKeyFromCloud?: (address: string, pin: string) => Promise<string | null>;
   onSuccess: () => void;
 }
 
@@ -83,6 +83,7 @@ export const BulkSendDialog = ({
   walletAddress,
   balances,
   getPrivateKey,
+  restorePrivateKeyFromCloud,
   onSuccess,
 }: BulkSendDialogProps) => {
   const { user } = useAuth();
@@ -99,6 +100,8 @@ export const BulkSendDialog = ({
   const [useUniformAmount, setUseUniformAmount] = useState<boolean>(true);
   const [previewData, setPreviewData] = useState<{ count: number; total: number; estimatedGas: number } | null>(null);
   const [isAutoParsing, setIsAutoParsing] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pendingItemsToSend, setPendingItemsToSend] = useState<TransferItem[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -352,12 +355,20 @@ export const BulkSendDialog = ({
   };
 
   // Execute bulk transfer with database logging - accepts items as parameter
-  const handleBulkSendWithItems = async (itemsToSend: TransferItem[]) => {
-    const privateKey = getPrivateKey(walletAddress);
+  const handleBulkSendWithItems = async (itemsToSend: TransferItem[], privateKeyOverride?: string) => {
+    let privateKey = privateKeyOverride || getPrivateKey(walletAddress);
+    
+    // If no private key in localStorage, try cloud
+    if (!privateKey && restorePrivateKeyFromCloud) {
+      setPendingItemsToSend(itemsToSend);
+      setShowPinDialog(true);
+      return;
+    }
+    
     if (!privateKey) {
       toast({
-        title: "Lỗi",
-        description: "Không tìm thấy private key",
+        title: "Không tìm thấy private key",
+        description: "Vui lòng import lại ví hoặc đồng bộ từ cloud",
         variant: "destructive",
       });
       return;
@@ -832,14 +843,24 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Progress */}
+                    {/* Rainbow Progress Bar */}
                     {isProcessing && (
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span>Đang xử lý...</span>
-                          <span>{progress.processed}/{progress.total}</span>
+                          <span className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                            Đang chia sẻ phước lành...
+                          </span>
+                          <span className="font-bold">{progress.processed}/{progress.total}</span>
                         </div>
-                        <Progress value={(progress.processed / progress.total) * 100} />
+                        {/* Rainbow Gradient Progress Bar */}
+                        <div className="relative h-3 rounded-full overflow-hidden bg-muted">
+                          <div 
+                            className="h-full bg-gradient-to-r from-red-500 via-yellow-400 via-green-500 via-blue-500 to-purple-500 transition-all duration-300 ease-out"
+                            style={{ width: `${(progress.processed / progress.total) * 100}%` }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse" />
+                        </div>
                       </div>
                     )}
 
@@ -994,6 +1015,33 @@ export const BulkSendDialog = ({
           )}
         </div>
       </DialogContent>
+
+      {/* PIN Entry Dialog for cloud restore */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={(open) => {
+          setShowPinDialog(open);
+          if (!open) setPendingItemsToSend(null);
+        }}
+        mode="restore"
+        onSubmit={async (pin) => {
+          if (!restorePrivateKeyFromCloud || !pendingItemsToSend) return false;
+          
+          try {
+            const privateKey = await restorePrivateKeyFromCloud(walletAddress, pin);
+            if (privateKey) {
+              setShowPinDialog(false);
+              // Continue with bulk send using the restored key
+              await handleBulkSendWithItems(pendingItemsToSend, privateKey);
+              setPendingItemsToSend(null);
+              return true;
+            }
+            return false;
+          } catch (error) {
+            return false;
+          }
+        }}
+      />
     </Dialog>
   );
 };

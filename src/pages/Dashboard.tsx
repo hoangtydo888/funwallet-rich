@@ -85,6 +85,9 @@ const Dashboard = () => {
     renameWallet,
     getTotalBalance,
     refreshBalances,
+    syncPrivateKeyToCloud,
+    restorePrivateKeyFromCloud,
+    hasCloudBackup,
   } = useWallet();
 
   const {
@@ -618,6 +621,7 @@ const Dashboard = () => {
             walletAddress={activeWallet.address}
             balances={balances}
             getPrivateKey={getPrivateKey}
+            restorePrivateKeyFromCloud={restorePrivateKeyFromCloud}
             onSuccess={refreshBalances}
           />
 
@@ -723,6 +727,7 @@ const Dashboard = () => {
           walletAddress={activeWallet.address}
           balances={balances}
           getPrivateKey={getPrivateKey}
+          restorePrivateKeyFromCloud={restorePrivateKeyFromCloud}
           onSuccess={refreshBalances}
         />
       )}

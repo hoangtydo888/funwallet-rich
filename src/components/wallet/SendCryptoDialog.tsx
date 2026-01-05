@@ -20,6 +20,7 @@ import { ArrowUpRight, Loader2, ExternalLink, AlertCircle, Fuel } from "lucide-r
 import { sendBNB, sendToken, isValidAddress, BSC_MAINNET, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import type { TokenBalance } from "@/hooks/useWallet";
+import { PinEntryDialog } from "./PinEntryDialog";
 
 interface SendCryptoDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface SendCryptoDialogProps {
   walletAddress: string;
   balances: TokenBalance[];
   getPrivateKey: (address: string) => string | null;
+  restorePrivateKeyFromCloud?: (address: string, pin: string) => Promise<string | null>;
   onSuccess: () => void;
 }
 
@@ -36,6 +38,7 @@ export const SendCryptoDialog = ({
   walletAddress,
   balances,
   getPrivateKey,
+  restorePrivateKeyFromCloud,
   onSuccess,
 }: SendCryptoDialogProps) => {
   const [selectedToken, setSelectedToken] = useState("BNB");
@@ -43,6 +46,7 @@ export const SendCryptoDialog = ({
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState("");
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   const selectedBalance = balances.find((b) => b.symbol === selectedToken);
   const maxAmount = parseFloat(selectedBalance?.balance || "0");
@@ -94,16 +98,30 @@ export const SendCryptoDialog = ({
       return;
     }
 
-    const privateKey = getPrivateKey(walletAddress);
+    let privateKey = getPrivateKey(walletAddress);
+    
+    // If no private key in localStorage, try cloud
+    if (!privateKey && restorePrivateKeyFromCloud) {
+      setLoading(false);
+      setShowPinDialog(true);
+      return;
+    }
+    
     if (!privateKey) {
       setLoading(false);
       toast({
-        title: "Lỗi",
-        description: "Không tìm thấy private key. Vui lòng import lại ví.",
+        title: "Không tìm thấy private key",
+        description: "Vui lòng import lại ví hoặc đồng bộ từ cloud",
         variant: "destructive",
       });
       return;
     }
+
+    await executeSend(privateKey);
+  };
+
+  const executeSend = async (privateKey: string) => {
+    setLoading(true);
 
     let result;
     if (selectedToken === "BNB") {
@@ -303,6 +321,28 @@ export const SendCryptoDialog = ({
           </Button>
         </div>
       </DialogContent>
+
+      {/* PIN Entry Dialog for cloud restore */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        mode="restore"
+        onSubmit={async (pin) => {
+          if (!restorePrivateKeyFromCloud) return false;
+          
+          try {
+            const privateKey = await restorePrivateKeyFromCloud(walletAddress, pin);
+            if (privateKey) {
+              setShowPinDialog(false);
+              await executeSend(privateKey);
+              return true;
+            }
+            return false;
+          } catch (error) {
+            return false;
+          }
+        }}
+      />
     </Dialog>
   );
 };
