@@ -84,9 +84,10 @@ export const SendCryptoDialog = ({
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
       toast({
-        title: "Lỗi",
-        description: "Không tìm thấy private key. Vui lòng import lại ví.",
+        title: "❌ Không tìm thấy Private Key",
+        description: "Ví này chưa được import trên thiết bị này. Hãy vào Quản lý ví → Import ví → Dán Private Key từ thiết bị đã tạo ví.",
         variant: "destructive",
+        duration: 10000,
       });
       return;
     }
