@@ -100,6 +100,7 @@ export const BulkSendDialog = ({
   const [useUniformAmount, setUseUniformAmount] = useState<boolean>(true);
   const [previewData, setPreviewData] = useState<{ count: number; total: number; estimatedGas: number } | null>(null);
   const [isAutoParsing, setIsAutoParsing] = useState(false);
+  const [hasPrivateKey, setHasPrivateKey] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -109,13 +110,25 @@ export const BulkSendDialog = ({
   const selectedBalance = balances.find((b) => b.symbol === selectedToken);
   const maxAmount = parseFloat(selectedBalance?.balance || "0");
 
-  // Fetch user stats and history
+  // Fetch user stats and history + check private key
   useEffect(() => {
     if (open && user) {
       fetchStats();
       fetchHistory();
+      
+      // Check if private key exists on this device
+      const pk = getPrivateKey(walletAddress);
+      setHasPrivateKey(!!pk);
+      
+      if (!pk) {
+        toast({
+          title: "Cảnh báo",
+          description: "Ví này chưa có private key trên thiết bị. Vui lòng import ví từ mục 'Quản lý Ví' trước khi gửi.",
+          variant: "destructive",
+        });
+      }
     }
-  }, [open, user]);
+  }, [open, user, walletAddress, getPrivateKey]);
 
   const fetchStats = async () => {
     if (!user) return;
@@ -713,8 +726,16 @@ export const BulkSendDialog = ({
                   </Select>
                 </div>
 
-                {/* Input Mode Toggle */}
-                {items.length === 0 && !isProcessing && (
+                {/* Private Key Warning */}
+                {!hasPrivateKey && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <p>Ví này chưa có private key trên thiết bị. Vui lòng import ví từ mục "Quản lý Ví".</p>
+                  </div>
+                )}
+
+                {/* Input Section - Always show when not processing */}
+                {!isProcessing && (
                   <>
                     {/* Uniform Amount Input - Responsive */}
                     <div className="space-y-2 sm:space-y-3 p-2 sm:p-4 rounded-lg border border-primary/20 bg-primary/5">
@@ -810,19 +831,6 @@ export const BulkSendDialog = ({
                 {/* Items List */}
                 {items.length > 0 && (
                   <>
-                    {/* Reset Button */}
-                    {!isProcessing && (
-                      <Button 
-                        variant="outline" 
-                        onClick={resetForm}
-                        className="w-full"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Nhập danh sách mới
-                      </Button>
-                    )}
-
-                    {/* Summary - Responsive */}
                     <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
                       <div className="bg-muted rounded-lg p-2 sm:p-3">
                         <p className="text-lg sm:text-xl font-bold">{items.length}</p>
