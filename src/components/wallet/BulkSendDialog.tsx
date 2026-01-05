@@ -86,7 +86,11 @@ export const BulkSendDialog = ({
   onSuccess,
 }: BulkSendDialogProps) => {
   const { user } = useAuth();
-  const [selectedToken, setSelectedToken] = useState("BNB");
+  // Ưu tiên CAMLY làm token mặc định
+  const [selectedToken, setSelectedToken] = useState(() => {
+    const camly = balances.find(b => b.symbol === "CAMLY");
+    return camly ? "CAMLY" : "BNB";
+  });
   const [items, setItems] = useState<TransferItem[]>([]);
   const [manualInput, setManualInput] = useState("");
   
@@ -512,8 +516,11 @@ export const BulkSendDialog = ({
     const failCount = updatedItems.filter((i) => i.status === "failed").length;
 
     toast({
-      title: "Hoàn tất chuyển tiền hàng loạt",
-      description: `Thành công: ${successCount}, Thất bại: ${failCount}`,
+      title: successCount > 0 ? "Phước lành đã được chia sẻ! ❤️🌈" : "Có lỗi xảy ra",
+      description: successCount > 0 
+        ? `${successCount} tâm hồn đã nhận được năng lượng yêu thương! 💚 ${failCount > 0 ? `(${failCount} lỗi)` : ""}`
+        : `Thất bại: ${failCount}`,
+      variant: successCount > 0 ? "default" : "destructive",
     });
 
     if (successCount > 0) {
@@ -609,12 +616,12 @@ export const BulkSendDialog = ({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="w-full max-w-full sm:max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden p-4 sm:p-6">
         <DialogHeader className="shrink-0">
-          <DialogTitle className="font-heading flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Chuyển Tiền Hàng Loạt
+          <DialogTitle className="font-heading flex items-center gap-2 text-[#00FF7F]">
+            <span className="text-2xl">🎁</span>
+            Chia Sẻ Phước Lành Hàng Loạt
           </DialogTitle>
           <DialogDescription className="space-y-1">
-            <span>Gửi đến tối đa {MAX_RECIPIENTS} địa chỉ cùng lúc</span>
+            <span className="text-sm">Gửi năng lượng yêu thương đến tối đa <strong className="text-[#00FF7F]">{MAX_RECIPIENTS}</strong> tâm hồn 💚</span>
             <div className="text-xs font-mono text-muted-foreground truncate">
               Ví gửi: {walletAddress}
             </div>
@@ -684,7 +691,14 @@ export const BulkSendDialog = ({
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {balances.map((token) => (
+                      {/* Sắp xếp: CAMLY đầu tiên */}
+                      {[...balances]
+                        .sort((a, b) => {
+                          if (a.symbol === "CAMLY") return -1;
+                          if (b.symbol === "CAMLY") return 1;
+                          return parseFloat(b.balance) - parseFloat(a.balance);
+                        })
+                        .map((token) => (
                         <SelectItem key={token.symbol} value={token.symbol}>
                           <div className="flex items-center gap-2">
                             <img
@@ -693,6 +707,9 @@ export const BulkSendDialog = ({
                               className="w-5 h-5 rounded-full"
                             />
                             <span>{token.symbol}</span>
+                            {token.symbol === "CAMLY" && (
+                              <span className="text-[10px] px-1 py-0.5 rounded bg-[#00FF7F]/20 text-[#00FF7F]">⭐</span>
+                            )}
                             <span className="text-muted-foreground text-xs">
                               ({formatBalance(token.balance)})
                             </span>
@@ -768,27 +785,38 @@ export const BulkSendDialog = ({
                       />
                     </div>
 
-                    {/* Preview Panel - Compact */}
+                    {/* Preview Panel with Rainbow Theme */}
                     {previewData && previewData.count > 0 && (
-                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-2">
+                      <div className="rounded-lg border-2 border-[#00FF7F]/50 bg-gradient-to-r from-[#00FF7F]/10 via-yellow-500/5 to-pink-500/10 p-3 space-y-2">
+                        <div className="flex items-center gap-2 text-[#00FF7F] font-medium text-sm mb-2">
+                          <span className="animate-pulse">🌈</span>
+                          <span>Chuẩn bị chia sẻ phước lành</span>
+                        </div>
                         <div className="grid grid-cols-3 gap-2 text-center">
-                          <div className="bg-background rounded p-1.5">
-                            <p className="text-sm font-bold">{previewData.count}</p>
-                            <p className="text-[10px] text-muted-foreground">Địa chỉ</p>
+                          <div className="bg-background/80 rounded-lg p-2 border border-[#00FF7F]/20">
+                            <p className="text-lg font-bold text-[#00FF7F]">{previewData.count}</p>
+                            <p className="text-[10px] text-muted-foreground">Tâm hồn 💚</p>
                           </div>
-                          <div className="bg-background rounded p-1.5">
-                            <p className="text-sm font-bold">{formatBalance(previewData.total.toFixed(4))}</p>
+                          <div className="bg-background/80 rounded-lg p-2 border border-yellow-500/20">
+                            <p className="text-lg font-bold text-yellow-500">{formatBalance(previewData.total.toFixed(4))}</p>
                             <p className="text-[10px] text-muted-foreground">{selectedToken}</p>
                           </div>
-                          <div className="bg-background rounded p-1.5">
-                            <p className="text-sm font-bold text-warning">~{previewData.estimatedGas.toFixed(4)}</p>
+                          <div className="bg-background/80 rounded-lg p-2 border border-orange-500/20">
+                            <p className="text-lg font-bold text-orange-500">~{previewData.estimatedGas.toFixed(4)}</p>
                             <p className="text-[10px] text-muted-foreground">Gas BNB</p>
                           </div>
                         </div>
+                        
+                        {/* Safety Warning */}
+                        <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 text-[11px]">
+                          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                          <span>Bạn sắp chia sẻ phước lành đến <strong>{previewData.count}</strong> người – hãy kiểm tra kỹ danh sách! 🙏</span>
+                        </div>
+                        
                         {previewData.total > maxAmount && (
-                          <div className="flex items-center gap-1 text-destructive text-[10px]">
-                            <AlertCircle className="h-3 w-3" />
-                            <span>Không đủ số dư!</span>
+                          <div className="flex items-center gap-1 text-destructive text-xs font-medium p-2 bg-destructive/10 rounded-lg">
+                            <AlertCircle className="h-4 w-4" />
+                            <span>Không đủ số dư! Cần {formatBalance(previewData.total.toFixed(4))} {selectedToken}, có {formatBalance(maxAmount.toString())}</span>
                           </div>
                         )}
                       </div>
@@ -831,14 +859,20 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Progress */}
+                    {/* Rainbow Progress */}
                     {isProcessing && (
-                      <div className="space-y-2">
+                      <div className="space-y-3 p-3 rounded-lg bg-gradient-to-r from-[#00FF7F]/10 via-yellow-500/10 to-pink-500/10 border border-[#00FF7F]/30">
                         <div className="flex justify-between text-sm">
-                          <span>Đang xử lý...</span>
-                          <span>{progress.processed}/{progress.total}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="animate-bounce">💚</span>
+                            Đang chia sẻ phước lành...
+                          </span>
+                          <span className="font-bold text-[#00FF7F]">{progress.processed}/{progress.total}</span>
                         </div>
-                        <Progress value={(progress.processed / progress.total) * 100} />
+                        <Progress value={(progress.processed / progress.total) * 100} className="h-3 bg-muted" />
+                        <p className="text-center text-xs text-muted-foreground animate-pulse">
+                          🌈 Năng lượng yêu thương đang lan tỏa... 🌈
+                        </p>
                       </div>
                     )}
 
@@ -930,20 +964,20 @@ export const BulkSendDialog = ({
               </Button>
               <Button 
                 onClick={handleDirectSend} 
-                className="flex-1 sm:flex-[2] bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-black font-bold" 
+                className="flex-1 sm:flex-[2] bg-gradient-to-r from-[#00FF7F] via-emerald-400 to-[#00FF7F] hover:from-[#00FF7F] hover:via-emerald-500 hover:to-[#00FF7F] text-black font-bold shadow-lg shadow-[#00FF7F]/30 animate-pulse-glow" 
                 disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
                 size="lg"
               >
-                <Users className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="text-xl mr-2">💚</span>
                 <span className="hidden sm:inline">
                   {previewData && previewData.count > 0 
-                    ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
+                    ? `Chia sẻ phước lành đến ${previewData.count} tâm hồn ✨`
                     : `Nhập địa chỉ để gửi`
                   }
                 </span>
                 <span className="sm:hidden">
                   {previewData && previewData.count > 0 
-                    ? `GỬI ${previewData.count} địa chỉ`
+                    ? `Gửi ${previewData.count} 💚`
                     : `Gửi`
                   }
                 </span>
@@ -972,18 +1006,18 @@ export const BulkSendDialog = ({
                 <Button
                   onClick={handleBulkSend}
                   disabled={isProcessing || totalAmount > maxAmount}
-                  className="flex-1"
+                  className="flex-1 bg-gradient-to-r from-[#00FF7F] to-emerald-400 hover:from-[#00FF7F] hover:to-emerald-500 text-black font-bold"
                   size="lg"
                 >
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Đang gửi...
+                      Đang chia sẻ phước lành...
                     </>
                   ) : (
                     <>
-                      <Users className="h-4 w-4 mr-2" />
-                      Gửi {items.filter((i) => i.status === "pending").length} địa chỉ
+                      <span className="mr-2">💚</span>
+                      Gửi {items.filter((i) => i.status === "pending").length} tâm hồn
                     </>
                   )}
                 </Button>

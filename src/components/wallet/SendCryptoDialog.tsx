@@ -41,7 +41,11 @@ export const SendCryptoDialog = ({
   getPrivateKey,
   onSuccess,
 }: SendCryptoDialogProps) => {
-  const [selectedToken, setSelectedToken] = useState("BNB");
+  // Ưu tiên CAMLY làm token mặc định nếu có trong balances
+  const [selectedToken, setSelectedToken] = useState(() => {
+    const camly = balances.find(b => b.symbol === "CAMLY");
+    return camly ? "CAMLY" : "BNB";
+  });
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -236,7 +240,14 @@ export const SendCryptoDialog = ({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent className="max-h-80">
-                {balances.map((token) => (
+                {/* Sắp xếp: CAMLY đầu tiên, sau đó theo thứ tự có số dư */}
+                {[...balances]
+                  .sort((a, b) => {
+                    if (a.symbol === "CAMLY") return -1;
+                    if (b.symbol === "CAMLY") return 1;
+                    return parseFloat(b.balance) - parseFloat(a.balance);
+                  })
+                  .map((token) => (
                   <SelectItem key={token.symbol} value={token.symbol}>
                     <div className="flex items-center gap-2">
                       <img 
@@ -245,6 +256,9 @@ export const SendCryptoDialog = ({
                         className="w-5 h-5 rounded-full"
                       />
                       <span className="font-medium">{token.symbol}</span>
+                      {token.symbol === "CAMLY" && (
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-[#00FF7F]/20 text-[#00FF7F]">⭐</span>
+                      )}
                       <span className="text-muted-foreground text-xs">
                         ({formatBalance(token.balance)})
                       </span>
