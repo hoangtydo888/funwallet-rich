@@ -101,7 +101,7 @@ export const BulkSendDialog = ({
   onSuccess,
 }: BulkSendDialogProps) => {
   const { user } = useAuth();
-  const [selectedToken, setSelectedToken] = useState("BNB");
+  const [selectedToken, setSelectedToken] = useState("CAMLY");
   const [items, setItems] = useState<TransferItem[]>([]);
   const [manualInput, setManualInput] = useState("");
   

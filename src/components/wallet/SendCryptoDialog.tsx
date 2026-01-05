@@ -50,7 +50,7 @@ export const SendCryptoDialog = ({
   getPrivateKey,
   onSuccess,
 }: SendCryptoDialogProps) => {
-  const [selectedToken, setSelectedToken] = useState("BNB");
+  const [selectedToken, setSelectedToken] = useState("CAMLY");
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);

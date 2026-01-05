@@ -62,6 +62,7 @@ import { ImportTokenDialog, type CustomToken } from "@/components/wallet/ImportT
 import { WalletManagerDialog } from "@/components/wallet/WalletManagerDialog";
 import { PinDialog } from "@/components/wallet/PinDialog";
 import { BulkSendDialog } from "@/components/wallet/BulkSendDialog";
+import { BulkReceiveTracker } from "@/components/wallet/BulkReceiveTracker";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -109,6 +110,7 @@ const Dashboard = () => {
   const [importTokenOpen, setImportTokenOpen] = useState(false);
   const [walletManagerOpen, setWalletManagerOpen] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
+  const [bulkReceiveOpen, setBulkReceiveOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
   
   // Realtime prices state for synchronized total balance
@@ -379,7 +381,7 @@ const Dashboard = () => {
           </div>
 
           {/* Quick actions - Row 1 with Rainbow Colors */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-3 mb-2">
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 sm:gap-3 mb-2">
             <QuickAction 
               icon={<ArrowUpRight />} 
               label="Gửi" 
@@ -400,6 +402,12 @@ const Dashboard = () => {
               onClick={() => setReceiveOpen(true)}
               disabled={!hasWallet}
               colorClass={RAINBOW_BUTTON_COLORS[1]}
+            />
+            <QuickAction 
+              icon={<Eye />} 
+              label="Nhận nhiều" 
+              onClick={() => setBulkReceiveOpen(true)}
+              colorClass="bg-gradient-to-r from-[#00BFFF] to-[#FF00FF] text-white"
             />
             <QuickAction 
               icon={<ArrowDownUp />} 
@@ -726,6 +734,12 @@ const Dashboard = () => {
           onSuccess={refreshBalances}
         />
       )}
+
+      {/* Bulk Receive Tracker - Available without wallet */}
+      <BulkReceiveTracker
+        open={bulkReceiveOpen}
+        onOpenChange={setBulkReceiveOpen}
+      />
     </div>
   );
 };
