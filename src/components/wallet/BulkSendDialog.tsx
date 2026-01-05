@@ -42,6 +42,9 @@ import { format } from "date-fns";
 import type { TokenBalance } from "@/hooks/useWallet";
 
 const MAX_RECIPIENTS = 1000;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+const TRANSACTION_DELAY_MS = 1500; // Delay between transactions to avoid nonce errors
 
 interface TransferItem {
   address: string;
@@ -49,6 +52,7 @@ interface TransferItem {
   status: "pending" | "processing" | "success" | "failed";
   txHash?: string;
   error?: string;
+  retryCount?: number;
 }
 
 interface BulkTransferHistory {
@@ -99,6 +103,7 @@ export const BulkSendDialog = ({
   const [useUniformAmount, setUseUniformAmount] = useState<boolean>(true);
   const [previewData, setPreviewData] = useState<{ count: number; total: number; estimatedGas: number } | null>(null);
   const [isAutoParsing, setIsAutoParsing] = useState(false);
+  const [completedMessage, setCompletedMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -442,43 +447,88 @@ export const BulkSendDialog = ({
     const updatedItems = [...invalid];
     // Reuse token from earlier
 
+    // Sequential queue with retry logic for mobile compatibility
     for (let i = 0; i < valid.length; i++) {
       const item = valid[i];
-      
-      let result;
-      if (selectedToken === "BNB") {
-        result = await sendBNB(privateKey, item.address, item.amount);
-      } else {
-        if (!token?.address) continue;
-        // sendToken tự động lấy decimals từ blockchain
-        result = await sendToken(privateKey, token.address, item.address, item.amount);
+      let retryCount = 0;
+      let success = false;
+      let lastError = "";
+      let txHash = "";
+
+      // Update UI to show processing
+      setItems(prev => prev.map((it, idx) => 
+        it.address === item.address ? { ...it, status: "processing" as const } : it
+      ));
+
+      // Retry loop - try up to MAX_RETRIES times
+      while (retryCount < MAX_RETRIES && !success) {
+        try {
+          console.log(`[Bulk Transfer] Sending to ${item.address}, attempt ${retryCount + 1}/${MAX_RETRIES}`);
+          
+          let result;
+          if (selectedToken === "BNB") {
+            result = await sendBNB(privateKey, item.address, item.amount);
+          } else {
+            if (!token?.address) break;
+            // sendToken tự động lấy decimals từ blockchain
+            result = await sendToken(privateKey, token.address, item.address, item.amount);
+          }
+
+          if ("error" in result) {
+            lastError = result.error;
+            console.warn(`[Bulk Transfer] Failed attempt ${retryCount + 1}: ${lastError}`);
+            
+            // Don't retry for balance/gas errors - they won't succeed
+            if (lastError.includes("insufficient") || lastError.includes("exceeds balance")) {
+              break;
+            }
+            
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+            }
+          } else {
+            success = true;
+            txHash = result.hash;
+            console.log(`[Bulk Transfer] Success: ${txHash}`);
+          }
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : "Unknown error";
+          console.error(`[Bulk Transfer] Exception: ${lastError}`);
+          retryCount++;
+          if (retryCount < MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+          }
+        }
       }
 
-      if ("error" in result) {
+      if (success) {
         updatedItems.push({
           ...item,
-          status: "failed",
-          error: result.error,
+          status: "success",
+          txHash,
+          retryCount,
         });
         // Update item status in DB
         if (bulkTransferId) {
           await supabase
             .from('bulk_transfer_items')
-            .update({ status: 'failed', error_message: result.error })
+            .update({ status: 'success', tx_hash: txHash })
             .eq('bulk_transfer_id', bulkTransferId)
             .eq('recipient_address', item.address);
         }
       } else {
         updatedItems.push({
           ...item,
-          status: "success",
-          txHash: result.hash,
+          status: "failed",
+          error: lastError,
+          retryCount,
         });
         // Update item status in DB
         if (bulkTransferId) {
           await supabase
             .from('bulk_transfer_items')
-            .update({ status: 'success', tx_hash: result.hash })
+            .update({ status: 'failed', error_message: lastError })
             .eq('bulk_transfer_id', bulkTransferId)
             .eq('recipient_address', item.address);
         }
@@ -487,9 +537,9 @@ export const BulkSendDialog = ({
       setProgress({ processed: i + 1, total: valid.length });
       setItems([...updatedItems, ...valid.slice(i + 1)]);
       
-      // Delay between transactions
+      // Delay between transactions to avoid nonce errors
       if (i < valid.length - 1) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, TRANSACTION_DELAY_MS));
       }
     }
 
@@ -509,15 +559,20 @@ export const BulkSendDialog = ({
     }
 
     setIsProcessing(false);
-    const successCount = updatedItems.filter((i) => i.status === "success").length;
-    const failCount = updatedItems.filter((i) => i.status === "failed").length;
+    const finalSuccessCount = updatedItems.filter((i) => i.status === "success").length;
+    const finalFailCount = updatedItems.filter((i) => i.status === "failed").length;
+
+    // Set completion message
+    if (finalSuccessCount > 0) {
+      setCompletedMessage(`🌈 Phước lành ${selectedToken} đã lan tỏa đến ${finalSuccessCount} tâm hồn! ❤️`);
+    }
 
     toast({
-      title: "Hoàn tất chuyển tiền hàng loạt",
-      description: `Thành công: ${successCount}, Thất bại: ${failCount}`,
+      title: finalSuccessCount > 0 ? "🎉 Hoàn tất chia sẻ phước lành!" : "Hoàn tất",
+      description: `Thành công: ${finalSuccessCount} | Thất bại: ${finalFailCount}`,
     });
 
-    if (successCount > 0) {
+    if (finalSuccessCount > 0) {
       onSuccess();
       fetchStats();
       fetchHistory();
@@ -587,6 +642,7 @@ export const BulkSendDialog = ({
     setPreviewData(null);
     setProgress({ processed: 0, total: 0 });
     setActiveTab("send");
+    setCompletedMessage(null);
     onOpenChange(false);
   };
 
@@ -707,16 +763,19 @@ export const BulkSendDialog = ({
                 {/* Input Mode Toggle */}
                 {items.length === 0 && !isProcessing && (
                   <>
-                    {/* Uniform Amount Input - Compact */}
-                    <div className="space-y-2 p-2 rounded-lg border border-primary/20 bg-primary/5">
+                    {/* Uniform Amount Input - Rainbow themed */}
+                    <div className="space-y-3 p-3 rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-secondary/10 rainbow-border">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs font-medium">Số tiền mỗi địa chỉ</Label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground">Cùng số tiền</span>
+                        <Label className="text-sm font-semibold flex items-center gap-2">
+                          <Coins className="h-4 w-4 text-primary" />
+                          Số tiền mỗi địa chỉ
+                        </Label>
+                        <div className="flex items-center gap-2 bg-background/80 rounded-full px-3 py-1">
+                          <span className="text-xs text-muted-foreground">Cùng số tiền</span>
                           <Switch 
                             checked={useUniformAmount} 
                             onCheckedChange={setUseUniformAmount}
-                            className="scale-75"
+                            className="data-[state=checked]:bg-[#00FF7F]"
                           />
                         </div>
                       </div>
@@ -724,41 +783,53 @@ export const BulkSendDialog = ({
                         <div className="flex gap-2">
                           <Input
                             type="number"
-                            placeholder="VD: 100"
+                            placeholder="VD: 1000"
                             value={uniformAmount}
                             onChange={(e) => setUniformAmount(e.target.value)}
-                            className="flex-1 h-8 text-sm"
+                            className="flex-1 h-10 text-base font-medium border-2 border-primary/30 focus:border-primary"
                           />
-                          <span className="flex items-center px-2 bg-muted rounded-md text-xs font-medium">
+                          <span className="flex items-center px-4 bg-[#00FF7F] text-[#0a4a3a] rounded-lg text-sm font-bold">
                             {selectedToken}
                           </span>
                         </div>
                       )}
                     </div>
 
-                    {/* Textarea - LUÔN HIỂN THỊ */}
-                    <div className="space-y-1">
+                    {/* Textarea - LUÔN HIỂN THỊ - MOBILE FRIENDLY */}
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs">
-                          {useUniformAmount ? `Danh sách địa chỉ` : `Danh sách (address,amount)`}
+                        <Label className="text-sm font-medium">
+                          {useUniformAmount ? `📋 Danh sách địa chỉ` : `📋 Danh sách (address,amount)`}
                         </Label>
-                        <button 
+                        <Button
                           type="button"
-                          className="text-primary hover:underline flex items-center gap-1 text-[10px]" 
+                          variant="outline"
+                          size="sm"
+                          className="bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-[#0a4a3a] border-[#00FF7F] font-medium"
                           onClick={() => fileInputRef.current?.click()}
                         >
-                          <Upload className="h-3 w-3" />
+                          <Upload className="h-4 w-4 mr-1" />
                           Tải CSV
-                        </button>
+                        </Button>
                       </div>
+                      
+                      {/* Helper text */}
+                      <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
+                        💡 Mỗi dòng một địa chỉ ví. {useUniformAmount ? "Số tiền sẽ tự động áp dụng cho tất cả." : "Format: 0x...,100"}
+                      </p>
+                      
                       <Textarea
                         value={manualInput}
                         onChange={(e) => setManualInput(e.target.value)}
                         placeholder={useUniformAmount 
-                          ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12`
-                          : `0x1234...5678,0.01\n0xabcd...efgh,0.02`}
-                        rows={8}
-                        className="font-mono text-xs min-h-[160px]"
+                          ? `0x1234567890abcdef1234567890abcdef12345678
+0xabcdef1234567890abcdef1234567890abcdef12
+0x9876543210fedcba9876543210fedcba98765432`
+                          : `0x1234567890abcdef1234567890abcdef12345678,1000
+0xabcdef1234567890abcdef1234567890abcdef12,500
+0x9876543210fedcba9876543210fedcba98765432,250`}
+                        className="font-mono text-sm min-h-[250px] md:min-h-[300px] leading-relaxed resize-y border-2 border-primary/30 focus:border-primary"
+                        style={{ fontSize: '14px', lineHeight: '1.8' }}
                       />
                       <input
                         ref={fileInputRef}
@@ -832,14 +903,38 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Progress */}
+                    {/* Rainbow Progress */}
                     {isProcessing && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Đang xử lý...</span>
-                          <span>{progress.processed}/{progress.total}</span>
+                      <div className="space-y-3 p-4 rounded-xl bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 border border-primary/30">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            Đang chia sẻ phước lành...
+                          </span>
+                          <span className="text-sm font-bold rainbow-text">{progress.processed}/{progress.total}</span>
                         </div>
-                        <Progress value={(progress.processed / progress.total) * 100} />
+                        {/* Rainbow progress bar */}
+                        <div className="relative h-4 rounded-full overflow-hidden bg-muted">
+                          <div 
+                            className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 ease-out"
+                            style={{
+                              width: `${(progress.processed / progress.total) * 100}%`,
+                              background: 'linear-gradient(90deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)',
+                              backgroundSize: '200% 100%',
+                              animation: 'rainbow-shift 2s linear infinite',
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-center text-muted-foreground">
+                          ⏳ Vui lòng không đóng cửa sổ này...
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Completion Message */}
+                    {completedMessage && !isProcessing && (
+                      <div className="p-4 rounded-xl bg-gradient-to-r from-[#00FF7F]/20 via-[#00BFFF]/20 to-[#FF00FF]/20 border-2 border-[#00FF7F] text-center glow-rainbow">
+                        <p className="text-lg font-bold rainbow-text">{completedMessage}</p>
                       </div>
                     )}
 
@@ -927,13 +1022,13 @@ export const BulkSendDialog = ({
               </Button>
               <Button 
                 onClick={handleDirectSend} 
-                className="flex-[2] bg-primary hover:bg-primary/90" 
+                className="flex-[2] bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-[#0a4a3a] font-bold text-base glow" 
                 disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
                 size="lg"
               >
-                <Users className="h-4 w-4 mr-2" />
+                <Users className="h-5 w-5 mr-2" />
                 {previewData && previewData.count > 0 
-                  ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
+                  ? `🚀 GỬI NGAY ${previewData.count} địa chỉ`
                   : `Nhập địa chỉ để gửi`
                 }
               </Button>
