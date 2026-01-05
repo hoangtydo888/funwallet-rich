@@ -696,6 +696,7 @@ const Dashboard = () => {
             onDeleteWallet={deleteWallet}
             onSetPrimary={setPrimaryWallet}
             onRenameWallet={renameWallet}
+            getPrivateKey={getPrivateKey}
           />
         </>
       )}
