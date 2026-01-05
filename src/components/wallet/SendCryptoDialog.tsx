@@ -29,7 +29,6 @@ interface SendCryptoDialogProps {
   balances: TokenBalance[];
   getPrivateKey: (address: string) => string | null;
   restorePrivateKeyFromCloud?: (address: string, pin: string) => Promise<string | null>;
-  hasCloudBackup?: (address: string) => Promise<boolean>;
   onSuccess: () => void;
 }
 
@@ -40,7 +39,6 @@ export const SendCryptoDialog = ({
   balances,
   getPrivateKey,
   restorePrivateKeyFromCloud,
-  hasCloudBackup,
   onSuccess,
 }: SendCryptoDialogProps) => {
   const [selectedToken, setSelectedToken] = useState("BNB");
@@ -102,21 +100,8 @@ export const SendCryptoDialog = ({
 
     let privateKey = getPrivateKey(walletAddress);
     
-    // If no private key in localStorage, check cloud backup first
+    // If no private key in localStorage, try cloud
     if (!privateKey && restorePrivateKeyFromCloud) {
-      // Check if cloud backup exists before showing PIN dialog
-      if (hasCloudBackup) {
-        const hasBackup = await hasCloudBackup(walletAddress);
-        if (!hasBackup) {
-          setLoading(false);
-          toast({
-            title: "Chưa có backup cloud",
-            description: "Ví này chưa được đồng bộ lên cloud. Vui lòng import lại ví bằng seed phrase trên thiết bị này.",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
       setLoading(false);
       setShowPinDialog(true);
       return;
