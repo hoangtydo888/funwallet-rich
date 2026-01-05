@@ -16,10 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpRight, Loader2, ExternalLink, AlertCircle } from "lucide-react";
-import { sendBNB, sendToken, isValidAddress, BSC_MAINNET, formatBalance } from "@/lib/wallet";
+import { ArrowUpRight, Loader2, ExternalLink, AlertCircle, Heart, Sparkles } from "lucide-react";
+import { sendBNB, sendToken, isValidAddress, BSC_MAINNET, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import type { TokenBalance } from "@/hooks/useWallet";
+
+// Gas estimate for a single transfer
+const GAS_PER_TRANSFER = 0.00021; // ~21000 gas * 10 gwei
 
 interface SendCryptoDialogProps {
   open: boolean;
@@ -67,15 +70,6 @@ export const SendCryptoDialog = ({
       return;
     }
 
-    if (sendAmount > maxAmount) {
-      toast({
-        title: "Số dư không đủ",
-        description: `Bạn chỉ có ${formatBalance(maxAmount.toString())} ${selectedToken}`,
-        variant: "destructive",
-      });
-      return;
-    }
-
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
       toast({
@@ -88,16 +82,49 @@ export const SendCryptoDialog = ({
 
     setLoading(true);
 
+    // Kiểm tra số dư thực tế từ blockchain trước khi gửi
+    const tokenData = balances.find((b) => b.symbol === selectedToken);
+    const realBalance = selectedToken === "BNB"
+      ? await getBNBBalance(walletAddress)
+      : await getTokenBalance(tokenData?.address || "", walletAddress);
+    
+    const realBalanceNum = parseFloat(realBalance);
+    console.log(`[SEND] Token: ${selectedToken}, Real balance: ${realBalance}, Amount: ${amount}`);
+
+    if (sendAmount > realBalanceNum) {
+      setLoading(false);
+      toast({
+        title: "Số dư thực tế không đủ!",
+        description: `Blockchain balance: ${formatBalance(realBalance)} ${selectedToken}. Bạn muốn gửi: ${amount}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Kiểm tra BNB cho gas nếu gửi token
+    if (selectedToken !== "BNB") {
+      const bnbBalance = await getBNBBalance(walletAddress);
+      if (parseFloat(bnbBalance) < GAS_PER_TRANSFER) {
+        setLoading(false);
+        toast({
+          title: "Không đủ BNB cho phí gas",
+          description: `Cần ít nhất ${GAS_PER_TRANSFER} BNB. Hiện có: ${parseFloat(bnbBalance).toFixed(6)} BNB`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     let result;
     if (selectedToken === "BNB") {
       result = await sendBNB(privateKey, recipient, amount);
     } else {
-      const token = balances.find((b) => b.symbol === selectedToken);
-      if (!token?.address) {
+      if (!tokenData?.address) {
         setLoading(false);
         return;
       }
-      result = await sendToken(privateKey, token.address, recipient, amount, token.decimals);
+      // sendToken now auto-fetches decimals from blockchain
+      result = await sendToken(privateKey, tokenData.address, recipient, amount, tokenData.decimals);
     }
 
     setLoading(false);
@@ -111,7 +138,7 @@ export const SendCryptoDialog = ({
     } else {
       setTxHash(result.hash);
       toast({
-        title: "Gửi thành công!",
+        title: "Phước lành đã được chia sẻ! ❤️🌈",
         description: `Đã gửi ${amount} ${selectedToken}`,
       });
       onSuccess();
@@ -141,32 +168,40 @@ export const SendCryptoDialog = ({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-heading text-success">Gửi thành công! 🎉</DialogTitle>
+            <DialogTitle className="font-heading text-[#00FF7F] flex items-center gap-2">
+              <Heart className="h-5 w-5 text-pink-500 animate-pulse" />
+              Phước lành đã được chia sẻ! ❤️🌈
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 pt-4">
             <div className="text-center py-6">
-              <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4">
-                <ArrowUpRight className="h-8 w-8 text-success" />
+              <div className="w-20 h-20 rounded-full bg-gradient-to-r from-[#00FF7F]/30 via-yellow-500/30 to-pink-500/30 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <Sparkles className="h-10 w-10 text-[#00FF7F]" />
               </div>
-              <p className="text-2xl font-bold">
+              <p className="text-3xl font-bold bg-gradient-to-r from-[#00FF7F] to-emerald-400 bg-clip-text text-transparent">
                 {amount} {selectedToken}
               </p>
-              <p className="text-muted-foreground text-sm mt-1">đã được gửi</p>
+              <p className="text-muted-foreground text-sm mt-2">
+                Năng lượng yêu thương đã được gửi đi! 💚
+              </p>
             </div>
 
             <a
               href={`${BSC_MAINNET.explorer}/tx/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 text-primary hover:underline"
+              className="flex items-center justify-center gap-2 text-[#00FF7F] hover:underline font-medium"
             >
               <ExternalLink className="h-4 w-4" />
               Xem trên BscScan
             </a>
 
-            <Button onClick={handleClose} className="w-full">
-              Đóng
+            <Button 
+              onClick={handleClose} 
+              className="w-full bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-black font-bold"
+            >
+              Tuyệt vời! ✨
             </Button>
           </div>
         </DialogContent>
@@ -250,6 +285,14 @@ export const SendCryptoDialog = ({
             />
           </div>
 
+          {/* Gas estimate */}
+          {parseFloat(amount) > 0 && (
+            <div className="flex items-center justify-between text-sm text-muted-foreground p-2 bg-muted/50 rounded-lg">
+              <span>Phí gas ước tính:</span>
+              <span className="font-mono">~{GAS_PER_TRANSFER} BNB</span>
+            </div>
+          )}
+
           {selectedToken === "BNB" && parseFloat(amount) > 0 && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -260,7 +303,7 @@ export const SendCryptoDialog = ({
           <Button
             onClick={handleSend}
             disabled={loading || !recipient || !amount}
-            className="w-full"
+            className="w-full bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-black font-bold"
           >
             {loading ? (
               <>
@@ -269,8 +312,8 @@ export const SendCryptoDialog = ({
               </>
             ) : (
               <>
-                <ArrowUpRight className="h-4 w-4 mr-2" />
-                Gửi {selectedToken}
+                <Heart className="h-4 w-4 mr-2" />
+                Chia sẻ phước lành 💚
               </>
             )}
           </Button>
