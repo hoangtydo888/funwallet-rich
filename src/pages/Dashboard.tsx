@@ -385,14 +385,14 @@ const Dashboard = () => {
               label="Gửi" 
               onClick={() => setSendOpen(true)}
               disabled={!hasWallet}
-              colorClass="bg-[#00FF7F] hover:bg-[#00CC66] text-white"
+              colorClass={RAINBOW_BUTTON_COLORS[0]}
             />
             <QuickAction 
               icon={<Users />} 
               label="Gửi nhiều" 
               onClick={() => setBulkSendOpen(true)}
               disabled={!hasWallet}
-              colorClass="bg-gradient-to-r from-[#FF0000] via-[#FFFF00] via-[#00FF7F] via-[#00BFFF] to-[#FF00FF] text-white"
+              colorClass="bg-[#FF6347] hover:bg-[#CC4F39] text-white"
             />
             <QuickAction 
               icon={<ArrowDownLeft />} 
