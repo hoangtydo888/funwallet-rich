@@ -34,12 +34,23 @@ import {
   History,
   Coins
 } from "lucide-react";
-import { sendBNB, sendToken, isValidAddress, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
+import { 
+  sendBNB, 
+  sendToken, 
+  sendBNBWithSigner, 
+  sendTokenWithSigner, 
+  isValidAddress, 
+  formatBalance, 
+  getBNBBalance, 
+  getTokenBalance 
+} from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { TokenBalance } from "@/hooks/useWallet";
+import { SigningModeSelector, type SigningMode } from "./SigningModeSelector";
+import { useWalletConnect } from "@/hooks/useWalletConnect";
 
 const MAX_RECIPIENTS = 1000;
 const MAX_RETRIES = 3;
@@ -106,6 +117,20 @@ export const BulkSendDialog = ({
   const [completedMessage, setCompletedMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Signing mode
+  const [signingMode, setSigningMode] = useState<SigningMode>("internal");
+  const { getSigner, isConnected, address: wcAddress, chainId, switchToBSC } = useWalletConnect();
+  const hasPrivateKey = !!getPrivateKey(walletAddress);
+  
+  // Auto-select signing mode
+  useEffect(() => {
+    if (!hasPrivateKey && isConnected) {
+      setSigningMode("walletconnect");
+    } else if (hasPrivateKey) {
+      setSigningMode("internal");
+    }
+  }, [hasPrivateKey, isConnected]);
 
   // Gas price estimate (in BNB) - average gas per transfer
   const GAS_PER_TRANSFER = 0.00021; // ~21000 gas * 10 gwei
@@ -358,14 +383,49 @@ export const BulkSendDialog = ({
 
   // Execute bulk transfer with database logging - accepts items as parameter
   const handleBulkSendWithItems = async (itemsToSend: TransferItem[]) => {
-    const privateKey = getPrivateKey(walletAddress);
-    if (!privateKey) {
-      toast({
-        title: "Lỗi",
-        description: "Không tìm thấy private key",
-        variant: "destructive",
-      });
-      return;
+    // Validate signing method
+    if (signingMode === "internal") {
+      const privateKey = getPrivateKey(walletAddress);
+      if (!privateKey) {
+        toast({
+          title: "Không tìm thấy Private Key",
+          description: "Vui lòng import ví trên thiết bị này hoặc dùng 'Ví ngoài' để ký giao dịch.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else if (signingMode === "walletconnect") {
+      if (!isConnected) {
+        toast({
+          title: "Chưa kết nối ví",
+          description: "Vui lòng kết nối ví ngoài (MetaMask/Trust Wallet) trước.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check if connected to BSC
+      if (chainId !== 56) {
+        const switched = await switchToBSC();
+        if (!switched) {
+          toast({
+            title: "Sai mạng",
+            description: "Vui lòng chuyển sang BNB Smart Chain trong ví của bạn.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      
+      // Check if wallet address matches
+      if (wcAddress?.toLowerCase() !== walletAddress.toLowerCase()) {
+        toast({
+          title: "Địa chỉ không khớp",
+          description: `Ví kết nối (${wcAddress?.slice(0, 8)}...) khác với ví trong app (${walletAddress.slice(0, 8)}...).`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const { valid, invalid } = validateItemsList(itemsToSend);
@@ -445,7 +505,29 @@ export const BulkSendDialog = ({
     }
 
     const updatedItems = [...invalid];
-    // Reuse token from earlier
+    
+    // Get signer once for WalletConnect mode
+    let signer: any = null;
+    if (signingMode === "walletconnect") {
+      signer = await getSigner();
+      if (!signer) {
+        toast({
+          title: "Lỗi lấy signer",
+          description: "Không thể lấy signer từ ví. Vui lòng thử lại.",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
+      toast({
+        title: "Bắt đầu gửi...",
+        description: `Bạn sẽ cần xác nhận ${valid.length} giao dịch trong ví 📱`,
+      });
+    }
+    
+    // Get private key once for internal mode
+    const privateKey = signingMode === "internal" ? getPrivateKey(walletAddress) : null;
 
     // Sequential queue with retry logic for mobile compatibility
     for (let i = 0; i < valid.length; i++) {
@@ -463,23 +545,35 @@ export const BulkSendDialog = ({
       // Retry loop - try up to MAX_RETRIES times
       while (retryCount < MAX_RETRIES && !success) {
         try {
-          console.log(`[Bulk Transfer] Sending to ${item.address}, attempt ${retryCount + 1}/${MAX_RETRIES}`);
+          console.log(`[Bulk Transfer] Sending to ${item.address}, attempt ${retryCount + 1}/${MAX_RETRIES}, mode: ${signingMode}`);
           
-          let result;
-          if (selectedToken === "BNB") {
-            result = await sendBNB(privateKey, item.address, item.amount);
+          let result: { hash: string } | { error: string };
+          
+          if (signingMode === "walletconnect" && signer) {
+            // Use WalletConnect signer
+            if (selectedToken === "BNB") {
+              result = await sendBNBWithSigner(signer, item.address, item.amount);
+            } else {
+              if (!token?.address) break;
+              result = await sendTokenWithSigner(signer, token.address, item.address, item.amount);
+            }
           } else {
-            if (!token?.address) break;
-            // sendToken tự động lấy decimals từ blockchain
-            result = await sendToken(privateKey, token.address, item.address, item.amount);
+            // Use internal private key
+            if (selectedToken === "BNB") {
+              result = await sendBNB(privateKey!, item.address, item.amount);
+            } else {
+              if (!token?.address) break;
+              result = await sendToken(privateKey!, token.address, item.address, item.amount);
+            }
           }
 
           if ("error" in result) {
             lastError = result.error;
             console.warn(`[Bulk Transfer] Failed attempt ${retryCount + 1}: ${lastError}`);
             
-            // Don't retry for balance/gas errors - they won't succeed
-            if (lastError.includes("insufficient") || lastError.includes("exceeds balance")) {
+            // Don't retry for balance/gas errors or user rejection
+            if (lastError.includes("insufficient") || lastError.includes("exceeds balance") || 
+                lastError.includes("rejected") || lastError.includes("denied")) {
               break;
             }
             
@@ -495,6 +589,12 @@ export const BulkSendDialog = ({
         } catch (error) {
           lastError = error instanceof Error ? error.message : "Unknown error";
           console.error(`[Bulk Transfer] Exception: ${lastError}`);
+          
+          // Don't retry for user rejection
+          if (lastError.includes("rejected") || lastError.includes("denied")) {
+            break;
+          }
+          
           retryCount++;
           if (retryCount < MAX_RETRIES) {
             await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
@@ -759,6 +859,14 @@ export const BulkSendDialog = ({
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Signing Mode Selector */}
+                <SigningModeSelector
+                  mode={signingMode}
+                  onModeChange={setSigningMode}
+                  hasPrivateKey={hasPrivateKey}
+                  walletAddress={walletAddress}
+                />
 
                 {/* Input Mode Toggle */}
                 {items.length === 0 && !isProcessing && (
@@ -1097,14 +1205,14 @@ export const BulkSendDialog = ({
               {items.some((i) => i.status === "pending") && (
                 <Button
                   onClick={handleBulkSend}
-                  disabled={isProcessing || totalAmount > maxAmount}
-                  className="flex-1"
+                  disabled={isProcessing || totalAmount > maxAmount || (signingMode === "walletconnect" && !isConnected)}
+                  className="flex-1 bg-gradient-to-r from-[#00FF7F] to-[#00D4AA] hover:from-[#00FF7F]/90 hover:to-[#00D4AA]/90 text-black font-semibold"
                   size="lg"
                 >
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Đang gửi...
+                      {signingMode === "walletconnect" ? "Chờ xác nhận từ ví..." : "Đang gửi..."}
                     </>
                   ) : (
                     <>
