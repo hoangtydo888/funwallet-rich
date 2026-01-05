@@ -11,8 +11,8 @@ export const BSC_MAINNET = {
 
 // 19 Common BEP-20 tokens on BSC with logo paths
 export const COMMON_TOKENS = [
-  // 4 Token chính theo thứ tự ưu tiên
-  { symbol: "CAMLY", name: "CAMLY COIN", address: "0x0910320181889fefde0bb1ca63962b0a8882e413", decimals: 18, logo: "/tokens/camly.png" },
+  // 4 Token chính theo thứ tự ưu tiên - CAMLY có decimals = 3!
+  { symbol: "CAMLY", name: "CAMLY COIN", address: "0x0910320181889fefde0bb1ca63962b0a8882e413", decimals: 3, logo: "/tokens/camly.png" },
   { symbol: "BTCB", name: "Bitcoin BEP-20", address: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c", decimals: 18, logo: "/tokens/btc.svg" },
   { symbol: "USDT", name: "Tether USD", address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18, logo: "/tokens/usdt.svg" },
   { symbol: "BNB", name: "BNB", address: null, decimals: 18, logo: "/tokens/bnb.png" },
@@ -161,24 +161,43 @@ export const sendBNB = async (
   }
 };
 
-// Send BEP-20 token
+// Get token decimals from blockchain (safer than hardcoded)
+export const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
+  try {
+    const provider = getProvider();
+    const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    const decimals = await contract.decimals();
+    return Number(decimals);
+  } catch {
+    return 18; // fallback
+  }
+};
+
+// Send BEP-20 token - now auto-fetches decimals from blockchain for safety
 export const sendToken = async (
   privateKey: string,
   tokenAddress: string,
   toAddress: string,
   amount: string,
-  decimals: number = 18
+  decimals?: number
 ): Promise<{ hash: string } | { error: string }> => {
   try {
     const provider = getProvider();
     const wallet = new ethers.Wallet(privateKey, provider);
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
     
-    const tx = await contract.transfer(toAddress, ethers.parseUnits(amount, decimals));
+    // Lấy decimals thực tế từ blockchain để đảm bảo chính xác 100%
+    const actualDecimals = await contract.decimals();
+    const useDecimals = Number(actualDecimals);
+    
+    console.log(`[SEND TOKEN] Amount: ${amount}, Blockchain decimals: ${useDecimals}, Passed decimals: ${decimals}`);
+    
+    const tx = await contract.transfer(toAddress, ethers.parseUnits(amount, useDecimals));
     
     return { hash: tx.hash };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Transaction failed";
+    console.error("[SEND TOKEN ERROR]", errorMessage);
     return { error: errorMessage };
   }
 };
