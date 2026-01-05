@@ -17,7 +17,10 @@ import {
   Star, 
   AlertTriangle,
   Key,
-  QrCode
+  QrCode,
+  KeyRound,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { formatAddress } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
@@ -51,6 +54,7 @@ interface WalletManagerDialogProps {
   onSetPrimary: (walletId: string) => Promise<boolean>;
   onRenameWallet: (walletId: string, newName: string) => Promise<boolean>;
   getPrivateKey: (address: string) => string | null;
+  onLinkPrivateKey: (walletAddress: string, privateKey: string) => Promise<boolean>;
 }
 
 export const WalletManagerDialog = ({
@@ -63,14 +67,35 @@ export const WalletManagerDialog = ({
   onSetPrimary,
   onRenameWallet,
   getPrivateKey,
+  onLinkPrivateKey,
 }: WalletManagerDialogProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showQRForWallet, setShowQRForWallet] = useState<string | null>(null);
+  
+  // Import key states
+  const [importKeyForWallet, setImportKeyForWallet] = useState<string | null>(null);
+  const [inputPrivateKey, setInputPrivateKey] = useState("");
+  const [showInputKey, setShowInputKey] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
 
   const qrPrivateKey = showQRForWallet ? getPrivateKey(showQRForWallet) : null;
+  
+  const handleImportKey = async () => {
+    if (!importKeyForWallet || !inputPrivateKey) return;
+    
+    setImportLoading(true);
+    const success = await onLinkPrivateKey(importKeyForWallet, inputPrivateKey.trim());
+    setImportLoading(false);
+    
+    if (success) {
+      setImportKeyForWallet(null);
+      setInputPrivateKey("");
+      setShowInputKey(false);
+    }
+  };
 
   const handleSelect = (wallet: WalletData) => {
     onSelectWallet(wallet);
@@ -270,6 +295,23 @@ export const WalletManagerDialog = ({
                       </div>
 
                       <div className="flex items-center gap-1">
+                        {/* Import Key button for wallets without private key */}
+                        {!hasPrivateKey && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-green-500 hover:text-green-400 hover:bg-green-500/10"
+                            onClick={() => {
+                              setImportKeyForWallet(wallet.address);
+                              setInputPrivateKey("");
+                              setShowInputKey(false);
+                            }}
+                            disabled={loading}
+                            title="Import Private Key"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                        )}
                         {hasPrivateKey && (
                           <Button
                             variant="ghost"
@@ -353,6 +395,80 @@ export const WalletManagerDialog = ({
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Private Key Dialog */}
+      <Dialog open={!!importKeyForWallet} onOpenChange={() => {
+        setImportKeyForWallet(null);
+        setInputPrivateKey("");
+        setShowInputKey(false);
+      }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-green-500" />
+              Import Private Key
+            </DialogTitle>
+            <DialogDescription>
+              Dán Private Key của ví này để đồng bộ với thiết bị hiện tại.
+              <br />
+              <span className="text-xs font-mono text-muted-foreground">
+                {importKeyForWallet && formatAddress(importKeyForWallet, 10)}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="relative">
+              <Input
+                type={showInputKey ? "text" : "password"}
+                value={inputPrivateKey}
+                onChange={(e) => setInputPrivateKey(e.target.value)}
+                placeholder="0x..."
+                className="font-mono pr-10"
+                autoComplete="off"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-1/2 right-1 -translate-y-1/2 h-8 w-8"
+                onClick={() => setShowInputKey(!showInputKey)}
+              >
+                {showInputKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            
+            <div className="bg-yellow-500/10 text-yellow-600 p-3 rounded-lg text-sm">
+              <p className="font-semibold mb-1">⚠️ Lưu ý bảo mật:</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>Chỉ dán private key của ví bạn sở hữu</li>
+                <li>Không bao giờ chia sẻ private key với ai</li>
+                <li>Private key sẽ được lưu cục bộ trên thiết bị này</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImportKeyForWallet(null);
+                setInputPrivateKey("");
+                setShowInputKey(false);
+              }}
+              className="flex-1"
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={handleImportKey}
+              disabled={!inputPrivateKey || importLoading}
+              className="flex-1 bg-green-500 hover:bg-green-600"
+            >
+              {importLoading ? "Đang xử lý..." : "✅ Import"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

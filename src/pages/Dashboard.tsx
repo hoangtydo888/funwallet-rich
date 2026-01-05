@@ -80,6 +80,7 @@ const Dashboard = () => {
     importFromMnemonic,
     importFromPrivateKey,
     getPrivateKey,
+    linkPrivateKey,
     deleteWallet,
     setPrimaryWallet,
     renameWallet,
@@ -697,6 +698,7 @@ const Dashboard = () => {
             onSetPrimary={setPrimaryWallet}
             onRenameWallet={renameWallet}
             getPrivateKey={getPrivateKey}
+            onLinkPrivateKey={linkPrivateKey}
           />
         </>
       )}
