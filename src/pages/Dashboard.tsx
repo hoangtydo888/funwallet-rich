@@ -622,6 +622,7 @@ const Dashboard = () => {
             balances={balances}
             getPrivateKey={getPrivateKey}
             restorePrivateKeyFromCloud={restorePrivateKeyFromCloud}
+            hasCloudBackup={hasCloudBackup}
             onSuccess={refreshBalances}
           />
 
@@ -728,6 +729,7 @@ const Dashboard = () => {
           balances={balances}
           getPrivateKey={getPrivateKey}
           restorePrivateKeyFromCloud={restorePrivateKeyFromCloud}
+          hasCloudBackup={hasCloudBackup}
           onSuccess={refreshBalances}
         />
       )}
