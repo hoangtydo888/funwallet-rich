@@ -16,8 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpRight, Loader2, ExternalLink, AlertCircle, Fuel } from "lucide-react";
-import { sendBNB, sendToken, isValidAddress, BSC_MAINNET, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
+import { ArrowUpRight, Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { sendBNB, sendToken, isValidAddress, BSC_MAINNET, formatBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import type { TokenBalance } from "@/hooks/useWallet";
 
@@ -67,28 +67,10 @@ export const SendCryptoDialog = ({
       return;
     }
 
-    // Kiểm tra balance thực tế từ blockchain
-    setLoading(true);
-    console.log("=== DEBUG SEND ===");
-    console.log("Wallet:", walletAddress);
-    console.log("Token:", selectedToken);
-    console.log("Token decimals from balances:", selectedBalance?.decimals);
-    console.log("Cached balance:", selectedBalance?.balance);
-
-    const realBalance = selectedToken === "BNB"
-      ? await getBNBBalance(walletAddress)
-      : await getTokenBalance(selectedBalance?.address || "", walletAddress);
-
-    console.log("Real balance from blockchain:", realBalance);
-    console.log("Amount to send:", amount);
-    console.log("==================");
-
-    const realBalanceNum = parseFloat(realBalance);
-    if (sendAmount > realBalanceNum) {
-      setLoading(false);
+    if (sendAmount > maxAmount) {
       toast({
-        title: "Số dư thực tế không đủ",
-        description: `Số dư trên blockchain: ${formatBalance(realBalance)} ${selectedToken}. Bạn muốn gửi: ${sendAmount}`,
+        title: "Số dư không đủ",
+        description: `Bạn chỉ có ${formatBalance(maxAmount.toString())} ${selectedToken}`,
         variant: "destructive",
       });
       return;
@@ -96,7 +78,6 @@ export const SendCryptoDialog = ({
 
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
-      setLoading(false);
       toast({
         title: "Lỗi",
         description: "Không tìm thấy private key. Vui lòng import lại ví.",
@@ -104,6 +85,8 @@ export const SendCryptoDialog = ({
       });
       return;
     }
+
+    setLoading(true);
 
     let result;
     if (selectedToken === "BNB") {
@@ -114,8 +97,7 @@ export const SendCryptoDialog = ({
         setLoading(false);
         return;
       }
-      // sendToken sẽ tự động lấy decimals từ blockchain
-      result = await sendToken(privateKey, token.address, recipient, amount);
+      result = await sendToken(privateKey, token.address, recipient, amount, token.decimals);
     }
 
     setLoading(false);
@@ -129,7 +111,7 @@ export const SendCryptoDialog = ({
     } else {
       setTxHash(result.hash);
       toast({
-        title: "Phước lành đã được chia sẻ! ❤️🌈",
+        title: "Gửi thành công!",
         description: `Đã gửi ${amount} ${selectedToken}`,
       });
       onSuccess();
@@ -159,7 +141,7 @@ export const SendCryptoDialog = ({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-heading text-success">Phước lành đã được chia sẻ! ❤️🌈</DialogTitle>
+            <DialogTitle className="font-heading text-success">Gửi thành công! 🎉</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 pt-4">
@@ -266,15 +248,6 @@ export const SendCryptoDialog = ({
               placeholder="0.0"
               step="any"
             />
-          </div>
-
-          {/* Gas estimate */}
-          <div className="flex items-center justify-between text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
-            <div className="flex items-center gap-2">
-              <Fuel className="h-4 w-4" />
-              <span>Phí gas ước tính:</span>
-            </div>
-            <span>~0.0002 BNB (~$0.12)</span>
           </div>
 
           {selectedToken === "BNB" && parseFloat(amount) > 0 && (
