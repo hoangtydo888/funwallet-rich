@@ -34,7 +34,7 @@ import {
   History,
   Coins
 } from "lucide-react";
-import { sendBNB, sendToken, isValidAddress, formatBalance } from "@/lib/wallet";
+import { sendBNB, sendToken, isValidAddress, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -331,6 +331,26 @@ export const BulkSendDialog = ({
   // Calculate total amount
   const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
 
+  // Translate blockchain errors to Vietnamese
+  const translateError = (error: string): string => {
+    if (error.includes("transfer amount exceeds balance")) {
+      return "Số dư không đủ";
+    }
+    if (error.includes("insufficient funds")) {
+      return "Không đủ BNB gas";
+    }
+    if (error.includes("nonce too low")) {
+      return "Giao dịch trùng";
+    }
+    if (error.includes("rejected") || error.includes("denied")) {
+      return "Từ chối";
+    }
+    if (error.includes("gas")) {
+      return "Lỗi gas";
+    }
+    return error.length > 25 ? error.slice(0, 25) + "..." : error;
+  };
+
   // Execute bulk transfer with database logging - accepts items as parameter
   const handleBulkSendWithItems = async (itemsToSend: TransferItem[]) => {
     const privateKey = getPrivateKey(walletAddress);
@@ -354,10 +374,31 @@ export const BulkSendDialog = ({
     }
 
     const totalAmt = valid.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-    if (totalAmt > maxAmount) {
+    
+    // Check real blockchain balance before sending
+    const token = balances.find((b) => b.symbol === selectedToken);
+    const realBalance = selectedToken === "BNB"
+      ? await getBNBBalance(walletAddress)
+      : await getTokenBalance(token?.address || "", walletAddress);
+    
+    const realBalanceNum = parseFloat(realBalance);
+    
+    if (totalAmt > realBalanceNum) {
       toast({
-        title: "Số dư không đủ",
-        description: `Cần ${totalAmt} ${selectedToken}, có ${formatBalance(maxAmount.toString())} ${selectedToken}`,
+        title: "Số dư thực tế không đủ!",
+        description: `Số dư trên blockchain: ${formatBalance(realBalance)} ${selectedToken}. Cần: ${totalAmt.toFixed(4)} ${selectedToken}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check BNB for gas
+    const bnbBalance = await getBNBBalance(walletAddress);
+    const estimatedGas = valid.length * GAS_PER_TRANSFER;
+    if (parseFloat(bnbBalance) < estimatedGas) {
+      toast({
+        title: "Không đủ BNB cho phí gas",
+        description: `Cần ít nhất ${estimatedGas.toFixed(4)} BNB cho ${valid.length} giao dịch. Có: ${parseFloat(bnbBalance).toFixed(4)} BNB`,
         variant: "destructive",
       });
       return;
@@ -371,13 +412,13 @@ export const BulkSendDialog = ({
     // Create bulk transfer record
     let bulkTransferId: string | null = null;
     if (user) {
-      const token = balances.find((b) => b.symbol === selectedToken);
+      const tokenData = balances.find((b) => b.symbol === selectedToken);
       const { data: bulkData } = await supabase
         .from('bulk_transfers')
         .insert({
           created_by: user.id,
           token_symbol: selectedToken,
-          token_address: token?.address || null,
+          token_address: tokenData?.address || null,
           total_recipients: valid.length,
           total_amount: totalAmt.toString(),
           status: 'processing',
@@ -399,7 +440,7 @@ export const BulkSendDialog = ({
     }
 
     const updatedItems = [...invalid];
-    const token = balances.find((b) => b.symbol === selectedToken);
+    // Reuse token from earlier
 
     for (let i = 0; i < valid.length; i++) {
       const item = valid[i];
@@ -572,8 +613,11 @@ export const BulkSendDialog = ({
             <Users className="h-5 w-5" />
             Chuyển Tiền Hàng Loạt
           </DialogTitle>
-          <DialogDescription>
-            Gửi đến tối đa {MAX_RECIPIENTS} địa chỉ cùng lúc
+          <DialogDescription className="space-y-1">
+            <span>Gửi đến tối đa {MAX_RECIPIENTS} địa chỉ cùng lúc</span>
+            <div className="text-xs font-mono text-muted-foreground truncate">
+              Ví gửi: {walletAddress}
+            </div>
           </DialogDescription>
         </DialogHeader>
 
@@ -799,7 +843,7 @@ export const BulkSendDialog = ({
                     )}
 
                     {/* Items List with ScrollArea */}
-                    <div className="border rounded-lg max-h-60 overflow-y-auto">
+                    <ScrollArea className="h-48 border rounded-lg">
                       <div className="p-2 space-y-1">
                         {items.map((item, idx) => (
                           <div
@@ -811,11 +855,16 @@ export const BulkSendDialog = ({
                             {item.status === "pending" && <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
                             {item.status === "processing" && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
                             <span className="font-mono truncate flex-1">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
-                            <span className="font-medium">{item.amount}</span>
+                            <span className="font-medium shrink-0">{item.amount}</span>
+                            {item.error && (
+                              <span className="text-destructive text-xs shrink-0 max-w-24 truncate" title={item.error}>
+                                {translateError(item.error)}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </ScrollArea>
                   </>
                 )}
               </div>
