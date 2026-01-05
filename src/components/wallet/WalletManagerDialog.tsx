@@ -15,7 +15,8 @@ import {
   Edit2, 
   Star, 
   AlertTriangle,
-  ChevronRight 
+  ChevronRight,
+  Key
 } from "lucide-react";
 import { formatAddress } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
@@ -47,6 +48,7 @@ interface WalletManagerDialogProps {
   onDeleteWallet: (walletId: string) => Promise<boolean>;
   onSetPrimary: (walletId: string) => Promise<boolean>;
   onRenameWallet: (walletId: string, newName: string) => Promise<boolean>;
+  getPrivateKey: (address: string) => string | null;
 }
 
 export const WalletManagerDialog = ({
@@ -58,6 +60,7 @@ export const WalletManagerDialog = ({
   onDeleteWallet,
   onSetPrimary,
   onRenameWallet,
+  getPrivateKey,
 }: WalletManagerDialogProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -126,6 +129,32 @@ export const WalletManagerDialog = ({
       toast({
         title: "Thành công",
         description: "Đã đặt làm ví chính",
+      });
+    }
+  };
+
+  const handleCopyPrivateKey = async (address: string) => {
+    const privateKey = getPrivateKey(address);
+    if (!privateKey) {
+      toast({
+        title: "Không tìm thấy Private Key",
+        description: "Private key không được lưu trên thiết bị này. Hãy import lại ví bằng seed phrase.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(privateKey);
+      toast({
+        title: "Đã copy Private Key! 🔑",
+        description: "Hãy giữ bí mật - không chia sẻ với ai!",
+      });
+    } catch {
+      toast({
+        title: "Lỗi",
+        description: "Không thể copy. Hãy thử lại.",
+        variant: "destructive",
       });
     }
   };
@@ -214,6 +243,16 @@ export const WalletManagerDialog = ({
                     </div>
 
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
+                        onClick={() => handleCopyPrivateKey(wallet.address)}
+                        disabled={loading}
+                        title="Copy Private Key"
+                      >
+                        <Key className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
