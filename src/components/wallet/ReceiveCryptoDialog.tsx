@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, Share2, Sparkles } from "lucide-react";
+import { Copy, Download, Share2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress } from "@/lib/wallet";
 
@@ -25,7 +25,7 @@ export const ReceiveCryptoDialog = ({
   const copyAddress = () => {
     navigator.clipboard.writeText(walletAddress);
     toast({
-      title: "Đã sao chép ❤️",
+      title: "Đã sao chép",
       description: "Địa chỉ ví đã được sao chép",
     });
   };
@@ -83,29 +83,19 @@ export const ReceiveCryptoDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-heading flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-[#00FF7F]" />
-            Nhận Phước Lành ❤️
-          </DialogTitle>
+          <DialogTitle className="font-heading">Nhận Crypto</DialogTitle>
           <DialogDescription>
-            Quét mã QR hoặc sao chép địa chỉ để nhận CAMLY và tokens
+            Quét mã QR hoặc sao chép địa chỉ để nhận BNB và tokens
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 pt-4">
-          {/* Friendly message */}
-          <div className="p-3 rounded-xl bg-gradient-to-r from-[#00FF7F]/20 to-[#00BFFF]/20 border border-[#00FF7F]/30 text-center">
-            <p className="text-sm font-medium rainbow-text">
-              🌈 Chia sẻ địa chỉ này để nhận phước lành CAMLY!
-            </p>
-          </div>
-
           {/* Supported tokens display */}
           <div className="flex justify-center gap-2">
             {supportedTokens.map((token) => (
               <div 
                 key={token.symbol}
-                className="w-10 h-10 rounded-full overflow-hidden bg-muted/50 p-0.5 border-2 border-[#00FF7F]/30 hover:scale-110 transition-transform"
+                className="w-8 h-8 rounded-full overflow-hidden bg-muted/50 p-0.5"
                 title={token.symbol}
               >
                 <img 
@@ -115,7 +105,7 @@ export const ReceiveCryptoDialog = ({
                 />
               </div>
             ))}
-            <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center text-xs text-muted-foreground border-2 border-dashed border-muted-foreground/30">
+            <div className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center text-xs text-muted-foreground">
               +13
             </div>
           </div>
@@ -137,8 +127,8 @@ export const ReceiveCryptoDialog = ({
 
           {/* Network badge */}
           <div className="flex justify-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#00FF7F]/10 text-[#00AA55] text-sm font-medium border border-[#00FF7F]/30">
-              <span className="w-2 h-2 rounded-full bg-[#00FF7F] animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-warning/10 text-warning text-sm">
+              <span className="w-2 h-2 rounded-full bg-warning" />
               BNB Smart Chain
             </div>
           </div>
@@ -146,15 +136,15 @@ export const ReceiveCryptoDialog = ({
           {/* Address */}
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground text-center">Địa chỉ ví của bạn</p>
-            <div className="p-3 rounded-xl bg-muted font-mono text-sm text-center break-all border-2 border-primary/20">
+            <div className="p-3 rounded-lg bg-muted font-mono text-sm text-center break-all">
               {walletAddress}
             </div>
           </div>
 
           {/* Warning */}
-          <div className="p-3 rounded-xl bg-warning/10 border border-warning/30 text-sm">
-            <p className="font-semibold mb-1 text-warning">⚠️ Chú ý:</p>
-            <p className="text-xs text-muted-foreground">
+          <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+            <p className="font-semibold mb-1">⚠️ Chú ý:</p>
+            <p className="text-xs">
               Chỉ gửi BNB hoặc tokens BEP-20 đến địa chỉ này. Gửi tài sản từ blockchain khác có thể
               dẫn đến mất mát vĩnh viễn.
             </p>
@@ -162,28 +152,16 @@ export const ReceiveCryptoDialog = ({
 
           {/* Actions */}
           <div className="grid grid-cols-3 gap-2">
-            <Button 
-              variant="outline" 
-              onClick={copyAddress} 
-              className="flex-col h-auto py-3 border-2 border-[#00FF7F]/30 hover:bg-[#00FF7F]/10"
-            >
-              <Copy className="h-5 w-5 mb-1 text-[#00FF7F]" />
+            <Button variant="outline" onClick={copyAddress} className="flex-col h-auto py-3">
+              <Copy className="h-5 w-5 mb-1" />
               <span className="text-xs">Sao chép</span>
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={downloadQR} 
-              className="flex-col h-auto py-3 border-2 border-[#00BFFF]/30 hover:bg-[#00BFFF]/10"
-            >
-              <Download className="h-5 w-5 mb-1 text-[#00BFFF]" />
+            <Button variant="outline" onClick={downloadQR} className="flex-col h-auto py-3">
+              <Download className="h-5 w-5 mb-1" />
               <span className="text-xs">Tải QR</span>
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={shareAddress} 
-              className="flex-col h-auto py-3 border-2 border-[#FF00FF]/30 hover:bg-[#FF00FF]/10"
-            >
-              <Share2 className="h-5 w-5 mb-1 text-[#FF00FF]" />
+            <Button variant="outline" onClick={shareAddress} className="flex-col h-auto py-3">
+              <Share2 className="h-5 w-5 mb-1" />
               <span className="text-xs">Chia sẻ</span>
             </Button>
           </div>

@@ -34,28 +34,14 @@ import {
   History,
   Coins
 } from "lucide-react";
-import { 
-  sendBNB, 
-  sendToken, 
-  sendBNBWithSigner, 
-  sendTokenWithSigner, 
-  isValidAddress, 
-  formatBalance, 
-  getBNBBalance, 
-  getTokenBalance 
-} from "@/lib/wallet";
+import { sendBNB, sendToken, isValidAddress, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { TokenBalance } from "@/hooks/useWallet";
-import { SigningModeSelector, type SigningMode } from "./SigningModeSelector";
-import { useWalletConnect } from "@/hooks/useWalletConnect";
 
 const MAX_RECIPIENTS = 1000;
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 2000;
-const TRANSACTION_DELAY_MS = 1500; // Delay between transactions to avoid nonce errors
 
 interface TransferItem {
   address: string;
@@ -63,7 +49,6 @@ interface TransferItem {
   status: "pending" | "processing" | "success" | "failed";
   txHash?: string;
   error?: string;
-  retryCount?: number;
 }
 
 interface BulkTransferHistory {
@@ -101,7 +86,7 @@ export const BulkSendDialog = ({
   onSuccess,
 }: BulkSendDialogProps) => {
   const { user } = useAuth();
-  const [selectedToken, setSelectedToken] = useState("CAMLY");
+  const [selectedToken, setSelectedToken] = useState("BNB");
   const [items, setItems] = useState<TransferItem[]>([]);
   const [manualInput, setManualInput] = useState("");
   
@@ -114,23 +99,8 @@ export const BulkSendDialog = ({
   const [useUniformAmount, setUseUniformAmount] = useState<boolean>(true);
   const [previewData, setPreviewData] = useState<{ count: number; total: number; estimatedGas: number } | null>(null);
   const [isAutoParsing, setIsAutoParsing] = useState(false);
-  const [completedMessage, setCompletedMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Signing mode
-  const [signingMode, setSigningMode] = useState<SigningMode>("internal");
-  const { getSigner, isConnected, address: wcAddress, chainId, switchToBSC } = useWalletConnect();
-  const hasPrivateKey = !!getPrivateKey(walletAddress);
-  
-  // Auto-select signing mode
-  useEffect(() => {
-    if (!hasPrivateKey && isConnected) {
-      setSigningMode("walletconnect");
-    } else if (hasPrivateKey) {
-      setSigningMode("internal");
-    }
-  }, [hasPrivateKey, isConnected]);
 
   // Gas price estimate (in BNB) - average gas per transfer
   const GAS_PER_TRANSFER = 0.00021; // ~21000 gas * 10 gwei
@@ -383,49 +353,14 @@ export const BulkSendDialog = ({
 
   // Execute bulk transfer with database logging - accepts items as parameter
   const handleBulkSendWithItems = async (itemsToSend: TransferItem[]) => {
-    // Validate signing method
-    if (signingMode === "internal") {
-      const privateKey = getPrivateKey(walletAddress);
-      if (!privateKey) {
-        toast({
-          title: "Không tìm thấy Private Key",
-          description: "Vui lòng import ví trên thiết bị này hoặc dùng 'Ví ngoài' để ký giao dịch.",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else if (signingMode === "walletconnect") {
-      if (!isConnected) {
-        toast({
-          title: "Chưa kết nối ví",
-          description: "Vui lòng kết nối ví ngoài (MetaMask/Trust Wallet) trước.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Check if connected to BSC
-      if (chainId !== 56) {
-        const switched = await switchToBSC();
-        if (!switched) {
-          toast({
-            title: "Sai mạng",
-            description: "Vui lòng chuyển sang BNB Smart Chain trong ví của bạn.",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-      
-      // Check if wallet address matches
-      if (wcAddress?.toLowerCase() !== walletAddress.toLowerCase()) {
-        toast({
-          title: "Địa chỉ không khớp",
-          description: `Ví kết nối (${wcAddress?.slice(0, 8)}...) khác với ví trong app (${walletAddress.slice(0, 8)}...).`,
-          variant: "destructive",
-        });
-        return;
-      }
+    const privateKey = getPrivateKey(walletAddress);
+    if (!privateKey) {
+      toast({
+        title: "Lỗi",
+        description: "Không tìm thấy private key",
+        variant: "destructive",
+      });
+      return;
     }
 
     const { valid, invalid } = validateItemsList(itemsToSend);
@@ -505,130 +440,45 @@ export const BulkSendDialog = ({
     }
 
     const updatedItems = [...invalid];
-    
-    // Get signer once for WalletConnect mode
-    let signer: any = null;
-    if (signingMode === "walletconnect") {
-      signer = await getSigner();
-      if (!signer) {
-        toast({
-          title: "Lỗi lấy signer",
-          description: "Không thể lấy signer từ ví. Vui lòng thử lại.",
-          variant: "destructive",
-        });
-        setIsProcessing(false);
-        return;
-      }
-      
-      toast({
-        title: "Bắt đầu gửi...",
-        description: `Bạn sẽ cần xác nhận ${valid.length} giao dịch trong ví 📱`,
-      });
-    }
-    
-    // Get private key once for internal mode
-    const privateKey = signingMode === "internal" ? getPrivateKey(walletAddress) : null;
+    // Reuse token from earlier
 
-    // Sequential queue with retry logic for mobile compatibility
     for (let i = 0; i < valid.length; i++) {
       const item = valid[i];
-      let retryCount = 0;
-      let success = false;
-      let lastError = "";
-      let txHash = "";
-
-      // Update UI to show processing
-      setItems(prev => prev.map((it, idx) => 
-        it.address === item.address ? { ...it, status: "processing" as const } : it
-      ));
-
-      // Retry loop - try up to MAX_RETRIES times
-      while (retryCount < MAX_RETRIES && !success) {
-        try {
-          console.log(`[Bulk Transfer] Sending to ${item.address}, attempt ${retryCount + 1}/${MAX_RETRIES}, mode: ${signingMode}`);
-          
-          let result: { hash: string } | { error: string };
-          
-          if (signingMode === "walletconnect" && signer) {
-            // Use WalletConnect signer
-            if (selectedToken === "BNB") {
-              result = await sendBNBWithSigner(signer, item.address, item.amount);
-            } else {
-              if (!token?.address) break;
-              result = await sendTokenWithSigner(signer, token.address, item.address, item.amount);
-            }
-          } else {
-            // Use internal private key
-            if (selectedToken === "BNB") {
-              result = await sendBNB(privateKey!, item.address, item.amount);
-            } else {
-              if (!token?.address) break;
-              result = await sendToken(privateKey!, token.address, item.address, item.amount);
-            }
-          }
-
-          if ("error" in result) {
-            lastError = result.error;
-            console.warn(`[Bulk Transfer] Failed attempt ${retryCount + 1}: ${lastError}`);
-            
-            // Don't retry for balance/gas errors or user rejection
-            if (lastError.includes("insufficient") || lastError.includes("exceeds balance") || 
-                lastError.includes("rejected") || lastError.includes("denied")) {
-              break;
-            }
-            
-            retryCount++;
-            if (retryCount < MAX_RETRIES) {
-              await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
-            }
-          } else {
-            success = true;
-            txHash = result.hash;
-            console.log(`[Bulk Transfer] Success: ${txHash}`);
-          }
-        } catch (error) {
-          lastError = error instanceof Error ? error.message : "Unknown error";
-          console.error(`[Bulk Transfer] Exception: ${lastError}`);
-          
-          // Don't retry for user rejection
-          if (lastError.includes("rejected") || lastError.includes("denied")) {
-            break;
-          }
-          
-          retryCount++;
-          if (retryCount < MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
-          }
-        }
+      
+      let result;
+      if (selectedToken === "BNB") {
+        result = await sendBNB(privateKey, item.address, item.amount);
+      } else {
+        if (!token?.address) continue;
+        // sendToken tự động lấy decimals từ blockchain
+        result = await sendToken(privateKey, token.address, item.address, item.amount);
       }
 
-      if (success) {
+      if ("error" in result) {
         updatedItems.push({
           ...item,
-          status: "success",
-          txHash,
-          retryCount,
+          status: "failed",
+          error: result.error,
         });
         // Update item status in DB
         if (bulkTransferId) {
           await supabase
             .from('bulk_transfer_items')
-            .update({ status: 'success', tx_hash: txHash })
+            .update({ status: 'failed', error_message: result.error })
             .eq('bulk_transfer_id', bulkTransferId)
             .eq('recipient_address', item.address);
         }
       } else {
         updatedItems.push({
           ...item,
-          status: "failed",
-          error: lastError,
-          retryCount,
+          status: "success",
+          txHash: result.hash,
         });
         // Update item status in DB
         if (bulkTransferId) {
           await supabase
             .from('bulk_transfer_items')
-            .update({ status: 'failed', error_message: lastError })
+            .update({ status: 'success', tx_hash: result.hash })
             .eq('bulk_transfer_id', bulkTransferId)
             .eq('recipient_address', item.address);
         }
@@ -637,9 +487,9 @@ export const BulkSendDialog = ({
       setProgress({ processed: i + 1, total: valid.length });
       setItems([...updatedItems, ...valid.slice(i + 1)]);
       
-      // Delay between transactions to avoid nonce errors
+      // Delay between transactions
       if (i < valid.length - 1) {
-        await new Promise((r) => setTimeout(r, TRANSACTION_DELAY_MS));
+        await new Promise((r) => setTimeout(r, 1000));
       }
     }
 
@@ -659,20 +509,15 @@ export const BulkSendDialog = ({
     }
 
     setIsProcessing(false);
-    const finalSuccessCount = updatedItems.filter((i) => i.status === "success").length;
-    const finalFailCount = updatedItems.filter((i) => i.status === "failed").length;
-
-    // Set completion message
-    if (finalSuccessCount > 0) {
-      setCompletedMessage(`🌈 Phước lành ${selectedToken} đã lan tỏa đến ${finalSuccessCount} tâm hồn! ❤️`);
-    }
+    const successCount = updatedItems.filter((i) => i.status === "success").length;
+    const failCount = updatedItems.filter((i) => i.status === "failed").length;
 
     toast({
-      title: finalSuccessCount > 0 ? "🎉 Hoàn tất chia sẻ phước lành!" : "Hoàn tất",
-      description: `Thành công: ${finalSuccessCount} | Thất bại: ${finalFailCount}`,
+      title: "Hoàn tất chuyển tiền hàng loạt",
+      description: `Thành công: ${successCount}, Thất bại: ${failCount}`,
     });
 
-    if (finalSuccessCount > 0) {
+    if (successCount > 0) {
       onSuccess();
       fetchStats();
       fetchHistory();
@@ -742,7 +587,6 @@ export const BulkSendDialog = ({
     setPreviewData(null);
     setProgress({ processed: 0, total: 0 });
     setActiveTab("send");
-    setCompletedMessage(null);
     onOpenChange(false);
   };
 
@@ -860,30 +704,19 @@ export const BulkSendDialog = ({
                   </Select>
                 </div>
 
-                {/* Signing Mode Selector */}
-                <SigningModeSelector
-                  mode={signingMode}
-                  onModeChange={setSigningMode}
-                  hasPrivateKey={hasPrivateKey}
-                  walletAddress={walletAddress}
-                />
-
                 {/* Input Mode Toggle */}
                 {items.length === 0 && !isProcessing && (
                   <>
-                    {/* Uniform Amount Input - Rainbow themed */}
-                    <div className="space-y-3 p-3 rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-secondary/10 rainbow-border">
+                    {/* Uniform Amount Input - Compact */}
+                    <div className="space-y-2 p-2 rounded-lg border border-primary/20 bg-primary/5">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm font-semibold flex items-center gap-2">
-                          <Coins className="h-4 w-4 text-primary" />
-                          Số tiền mỗi địa chỉ
-                        </Label>
-                        <div className="flex items-center gap-2 bg-background/80 rounded-full px-3 py-1">
-                          <span className="text-xs text-muted-foreground">Cùng số tiền</span>
+                        <Label className="text-xs font-medium">Số tiền mỗi địa chỉ</Label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">Cùng số tiền</span>
                           <Switch 
                             checked={useUniformAmount} 
                             onCheckedChange={setUseUniformAmount}
-                            className="data-[state=checked]:bg-[#00FF7F]"
+                            className="scale-75"
                           />
                         </div>
                       </div>
@@ -891,96 +724,42 @@ export const BulkSendDialog = ({
                         <div className="flex gap-2">
                           <Input
                             type="number"
-                            placeholder="VD: 1000"
+                            placeholder="VD: 100"
                             value={uniformAmount}
                             onChange={(e) => setUniformAmount(e.target.value)}
-                            className="flex-1 h-10 text-base font-medium border-2 border-primary/30 focus:border-primary"
+                            className="flex-1 h-8 text-sm"
                           />
-                          <span className="flex items-center px-4 bg-[#00FF7F] text-[#0a4a3a] rounded-lg text-sm font-bold">
+                          <span className="flex items-center px-2 bg-muted rounded-md text-xs font-medium">
                             {selectedToken}
                           </span>
                         </div>
                       )}
                     </div>
 
-                    {/* Textarea - STYLED LIKE "Số tiền mỗi địa chỉ" FRAME */}
-                    <div className="space-y-3 p-4 rounded-xl border-2 border-primary/30 bg-gradient-to-br from-[#E0FFF0] to-[#D0F5FF] rainbow-border">
-                      {/* Header with icon and CSV button */}
+                    {/* Textarea - LUÔN HIỂN THỊ */}
+                    <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-base font-semibold flex items-center gap-2 text-foreground">
-                          <FileText className="h-5 w-5 text-primary" />
+                        <Label className="text-xs">
                           {useUniformAmount ? `Danh sách địa chỉ` : `Danh sách (address,amount)`}
                         </Label>
-                        <Button
+                        <button 
                           type="button"
-                          variant="default"
-                          size="sm"
-                          className="bg-[#00FF7F] hover:bg-[#00FF7F]/80 text-[#0a4a3a] border-0 font-bold shadow-lg hover:shadow-xl transition-all px-4 py-2"
+                          className="text-primary hover:underline flex items-center gap-1 text-[10px]" 
                           onClick={() => fileInputRef.current?.click()}
                         >
-                          <Upload className="h-4 w-4 mr-2" />
+                          <Upload className="h-3 w-3" />
                           Tải CSV
-                        </Button>
+                        </button>
                       </div>
-                      
-                      {/* Helper text - inline hint */}
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        💡 {useUniformAmount 
-                          ? "Chỉ cần paste danh sách địa chỉ, mỗi dòng một ví" 
-                          : "Mỗi dòng: địa_chỉ,số_lượng (VD: 0x123...,1000)"}
-                      </p>
-                      
-                      {/* Beautiful TextArea with custom scrollbar */}
-                      <div className="relative">
-                        <Textarea
-                          value={manualInput}
-                          onChange={(e) => setManualInput(e.target.value)}
-                          placeholder={useUniformAmount 
-                            ? `Mỗi dòng một địa chỉ ví. Ví dụ:
-
-0x1234567890abcdef1234567890abcdef12345678
-0xabcdef1234567890abcdef1234567890abcdef12
-0x9876543210fedcba9876543210fedcba98765432
-0xfedcba9876543210fedcba9876543210fedcba98
-...
-
-(Hỗ trợ tối đa 1000 địa chỉ)`
-                            : `Mỗi dòng một địa chỉ và số lượng. Ví dụ:
-
-0x1234567890abcdef1234567890abcdef12345678,1000
-0xabcdef1234567890abcdef1234567890abcdef12,500
-0x9876543210fedcba9876543210fedcba98765432,250
-...
-
-(Hỗ trợ tối đa 1000 địa chỉ)`}
-                          className="font-mono w-full min-h-[300px] max-h-[500px] resize-y 
-                            bg-white/90 backdrop-blur-sm
-                            border-2 border-primary/20 rounded-xl
-                            focus:border-[#00FF7F] focus:ring-2 focus:ring-[#00FF7F]/30
-                            text-foreground placeholder:text-muted-foreground/60
-                            p-4 overflow-y-auto
-                            scrollbar-thin scrollbar-thumb-[#00FF7F] scrollbar-track-transparent
-                            hover:scrollbar-thumb-[#00FF7F]/80
-                            transition-all duration-200"
-                          style={{ 
-                            fontSize: '16px', 
-                            lineHeight: '1.8',
-                            scrollbarWidth: 'thin',
-                            scrollbarColor: '#00FF7F transparent'
-                          }}
-                        />
-                      </div>
-                      
-                      {/* Quick stats inline */}
-                      {manualInput.trim() && (
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            {manualInput.trim().split('\n').filter(l => l.trim()).length} dòng
-                          </span>
-                        </div>
-                      )}
-                      
+                      <Textarea
+                        value={manualInput}
+                        onChange={(e) => setManualInput(e.target.value)}
+                        placeholder={useUniformAmount 
+                          ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12`
+                          : `0x1234...5678,0.01\n0xabcd...efgh,0.02`}
+                        rows={8}
+                        className="font-mono text-xs min-h-[160px]"
+                      />
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -1053,38 +832,14 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Rainbow Progress */}
+                    {/* Progress */}
                     {isProcessing && (
-                      <div className="space-y-3 p-4 rounded-xl bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 border border-primary/30">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                            Đang chia sẻ phước lành...
-                          </span>
-                          <span className="text-sm font-bold rainbow-text">{progress.processed}/{progress.total}</span>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Đang xử lý...</span>
+                          <span>{progress.processed}/{progress.total}</span>
                         </div>
-                        {/* Rainbow progress bar */}
-                        <div className="relative h-4 rounded-full overflow-hidden bg-muted">
-                          <div 
-                            className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 ease-out"
-                            style={{
-                              width: `${(progress.processed / progress.total) * 100}%`,
-                              background: 'linear-gradient(90deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)',
-                              backgroundSize: '200% 100%',
-                              animation: 'rainbow-shift 2s linear infinite',
-                            }}
-                          />
-                        </div>
-                        <p className="text-xs text-center text-muted-foreground">
-                          ⏳ Vui lòng không đóng cửa sổ này...
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Completion Message */}
-                    {completedMessage && !isProcessing && (
-                      <div className="p-4 rounded-xl bg-gradient-to-r from-[#00FF7F]/20 via-[#00BFFF]/20 to-[#FF00FF]/20 border-2 border-[#00FF7F] text-center glow-rainbow">
-                        <p className="text-lg font-bold rainbow-text">{completedMessage}</p>
+                        <Progress value={(progress.processed / progress.total) * 100} />
                       </div>
                     )}
 
@@ -1172,13 +927,13 @@ export const BulkSendDialog = ({
               </Button>
               <Button 
                 onClick={handleDirectSend} 
-                className="flex-[2] bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-[#0a4a3a] font-bold text-base glow" 
+                className="flex-[2] bg-primary hover:bg-primary/90" 
                 disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
                 size="lg"
               >
-                <Users className="h-5 w-5 mr-2" />
+                <Users className="h-4 w-4 mr-2" />
                 {previewData && previewData.count > 0 
-                  ? `🚀 GỬI NGAY ${previewData.count} địa chỉ`
+                  ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
                   : `Nhập địa chỉ để gửi`
                 }
               </Button>
@@ -1205,14 +960,14 @@ export const BulkSendDialog = ({
               {items.some((i) => i.status === "pending") && (
                 <Button
                   onClick={handleBulkSend}
-                  disabled={isProcessing || totalAmount > maxAmount || (signingMode === "walletconnect" && !isConnected)}
-                  className="flex-1 bg-gradient-to-r from-[#00FF7F] to-[#00D4AA] hover:from-[#00FF7F]/90 hover:to-[#00D4AA]/90 text-black font-semibold"
+                  disabled={isProcessing || totalAmount > maxAmount}
+                  className="flex-1"
                   size="lg"
                 >
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {signingMode === "walletconnect" ? "Chờ xác nhận từ ví..." : "Đang gửi..."}
+                      Đang gửi...
                     </>
                   ) : (
                     <>

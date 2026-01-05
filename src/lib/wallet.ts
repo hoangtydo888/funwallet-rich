@@ -202,52 +202,6 @@ export const sendToken = async (
   }
 };
 
-// Send BNB using external signer (WalletConnect)
-export const sendBNBWithSigner = async (
-  signer: ethers.Signer,
-  toAddress: string,
-  amount: string
-): Promise<{ hash: string } | { error: string }> => {
-  try {
-    const tx = await signer.sendTransaction({
-      to: toAddress,
-      value: ethers.parseEther(amount),
-    });
-    
-    return { hash: tx.hash };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Transaction failed";
-    console.error("[sendBNBWithSigner] Error:", errorMessage);
-    return { error: errorMessage };
-  }
-};
-
-// Send BEP-20 token using external signer (WalletConnect)
-export const sendTokenWithSigner = async (
-  signer: ethers.Signer,
-  tokenAddress: string,
-  toAddress: string,
-  amount: string
-): Promise<{ hash: string } | { error: string }> => {
-  try {
-    const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-    
-    // Lấy decimals thực tế từ blockchain để đảm bảo chính xác
-    const actualDecimals = await contract.decimals();
-    const useDecimals = Number(actualDecimals);
-    
-    console.log(`[sendTokenWithSigner] Sending ${amount} tokens with ${useDecimals} decimals`);
-    
-    const tx = await contract.transfer(toAddress, ethers.parseUnits(amount, useDecimals));
-    
-    return { hash: tx.hash };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Transaction failed";
-    console.error("[sendTokenWithSigner] Error:", errorMessage);
-    return { error: errorMessage };
-  }
-};
-
 // Validate address
 export const isValidAddress = (address: string): boolean => {
   try {
