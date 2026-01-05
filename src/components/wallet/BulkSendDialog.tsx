@@ -756,8 +756,8 @@ export const BulkSendDialog = ({
                         placeholder={useUniformAmount 
                           ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12`
                           : `0x1234...5678,0.01\n0xabcd...efgh,0.02`}
-                        rows={4}
-                        className="font-mono text-xs"
+                        rows={8}
+                        className="font-mono text-xs min-h-[160px]"
                       />
                       <input
                         ref={fileInputRef}
