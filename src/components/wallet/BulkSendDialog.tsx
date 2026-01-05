@@ -623,21 +623,21 @@ export const BulkSendDialog = ({
         </DialogHeader>
 
         {/* Main Scrollable Content - fixed height */}
-        <ScrollArea className="flex-1 min-h-0 max-h-[50vh] sm:max-h-[55vh] md:max-h-[60vh] pr-4">
-          <div className="space-y-3 sm:space-y-4">
-            {/* Stats Cards - Responsive */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-2 sm:p-4 text-center">
-                <p className="text-sm sm:text-lg font-bold">{formatBalance(stats.totalAmount.toString())}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Đã chuyển</p>
+        <ScrollArea className="flex-1 min-h-0 max-h-[50vh] pr-4">
+          <div className="space-y-3">
+            {/* Stats Cards - Compact */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-2 text-center">
+                <p className="text-sm font-bold">{formatBalance(stats.totalAmount.toString())}</p>
+                <p className="text-[10px] text-muted-foreground">Đã chuyển</p>
               </div>
-              <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-lg p-2 sm:p-4 text-center">
-                <p className="text-sm sm:text-lg font-bold">{stats.totalTransfers}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Số lần</p>
+              <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-lg p-2 text-center">
+                <p className="text-sm font-bold">{stats.totalTransfers}</p>
+                <p className="text-[10px] text-muted-foreground">Số lần</p>
               </div>
-              <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 rounded-lg p-2 sm:p-4 text-center">
-                <p className="text-sm sm:text-lg font-bold">{stats.totalRecipients}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Người nhận</p>
+              <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 rounded-lg p-2 text-center">
+                <p className="text-sm font-bold">{stats.totalRecipients}</p>
+                <p className="text-[10px] text-muted-foreground">Người nhận</p>
               </div>
             </div>
 
@@ -707,16 +707,16 @@ export const BulkSendDialog = ({
                 {/* Input Mode Toggle */}
                 {items.length === 0 && !isProcessing && (
                   <>
-                    {/* Uniform Amount Input - Responsive */}
-                    <div className="space-y-2 sm:space-y-3 p-2 sm:p-4 rounded-lg border border-primary/20 bg-primary/5">
+                    {/* Uniform Amount Input - Compact */}
+                    <div className="space-y-2 p-2 rounded-lg border border-primary/20 bg-primary/5">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs sm:text-sm font-medium">Số tiền mỗi địa chỉ</Label>
-                        <div className="flex items-center gap-1 sm:gap-2">
-                          <span className="text-[10px] sm:text-xs text-muted-foreground">Cùng số tiền</span>
+                        <Label className="text-xs font-medium">Số tiền mỗi địa chỉ</Label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">Cùng số tiền</span>
                           <Switch 
                             checked={useUniformAmount} 
                             onCheckedChange={setUseUniformAmount}
-                            className="scale-75 sm:scale-100"
+                            className="scale-75"
                           />
                         </div>
                       </div>
@@ -727,27 +727,27 @@ export const BulkSendDialog = ({
                             placeholder="VD: 100"
                             value={uniformAmount}
                             onChange={(e) => setUniformAmount(e.target.value)}
-                            className="flex-1 h-8 sm:h-10 text-sm sm:text-base"
+                            className="flex-1 h-8 text-sm"
                           />
-                          <span className="flex items-center px-2 sm:px-4 bg-muted rounded-md text-xs sm:text-sm font-medium">
+                          <span className="flex items-center px-2 bg-muted rounded-md text-xs font-medium">
                             {selectedToken}
                           </span>
                         </div>
                       )}
                     </div>
 
-                    {/* Textarea - LUÔN HIỂN THỊ - Responsive */}
-                    <div className="space-y-1 sm:space-y-2">
+                    {/* Textarea - LUÔN HIỂN THỊ */}
+                    <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs sm:text-sm">
+                        <Label className="text-xs">
                           {useUniformAmount ? `Danh sách địa chỉ` : `Danh sách (address,amount)`}
                         </Label>
                         <button 
                           type="button"
-                          className="text-primary hover:underline flex items-center gap-1 text-[10px] sm:text-xs" 
+                          className="text-primary hover:underline flex items-center gap-1 text-[10px]" 
                           onClick={() => fileInputRef.current?.click()}
                         >
-                          <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <Upload className="h-3 w-3" />
                           Tải CSV
                         </button>
                       </div>
@@ -758,7 +758,7 @@ export const BulkSendDialog = ({
                           ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12`
                           : `0x1234...5678,0.01\n0xabcd...efgh,0.02`}
                         rows={8}
-                        className="font-mono text-xs sm:text-sm min-h-[160px] sm:min-h-[200px] md:min-h-[250px]"
+                        className="font-mono text-xs min-h-[160px]"
                       />
                       <input
                         ref={fileInputRef}
@@ -769,26 +769,26 @@ export const BulkSendDialog = ({
                       />
                     </div>
 
-                    {/* Preview Panel - Responsive */}
+                    {/* Preview Panel - Compact */}
                     {previewData && previewData.count > 0 && (
-                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 sm:p-4 space-y-2">
-                        <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
-                          <div className="bg-background rounded p-1.5 sm:p-3">
-                            <p className="text-sm sm:text-lg font-bold">{previewData.count}</p>
-                            <p className="text-[10px] sm:text-xs text-muted-foreground">Địa chỉ</p>
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-2">
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-background rounded p-1.5">
+                            <p className="text-sm font-bold">{previewData.count}</p>
+                            <p className="text-[10px] text-muted-foreground">Địa chỉ</p>
                           </div>
-                          <div className="bg-background rounded p-1.5 sm:p-3">
-                            <p className="text-sm sm:text-lg font-bold">{formatBalance(previewData.total.toFixed(4))}</p>
-                            <p className="text-[10px] sm:text-xs text-muted-foreground">{selectedToken}</p>
+                          <div className="bg-background rounded p-1.5">
+                            <p className="text-sm font-bold">{formatBalance(previewData.total.toFixed(4))}</p>
+                            <p className="text-[10px] text-muted-foreground">{selectedToken}</p>
                           </div>
-                          <div className="bg-background rounded p-1.5 sm:p-3">
-                            <p className="text-sm sm:text-lg font-bold text-warning">~{previewData.estimatedGas.toFixed(4)}</p>
-                            <p className="text-[10px] sm:text-xs text-muted-foreground">Gas BNB</p>
+                          <div className="bg-background rounded p-1.5">
+                            <p className="text-sm font-bold text-warning">~{previewData.estimatedGas.toFixed(4)}</p>
+                            <p className="text-[10px] text-muted-foreground">Gas BNB</p>
                           </div>
                         </div>
                         {previewData.total > maxAmount && (
-                          <div className="flex items-center gap-1 sm:gap-2 text-destructive text-[10px] sm:text-xs">
-                            <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <div className="flex items-center gap-1 text-destructive text-[10px]">
+                            <AlertCircle className="h-3 w-3" />
                             <span>Không đủ số dư!</span>
                           </div>
                         )}
@@ -801,23 +801,23 @@ export const BulkSendDialog = ({
                 {/* Items List */}
                 {items.length > 0 && (
                   <>
-                    {/* Summary - Responsive */}
-                    <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
-                      <div className="bg-muted rounded-lg p-2 sm:p-3">
-                        <p className="text-lg sm:text-xl font-bold">{items.length}</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">Tổng</p>
+                    {/* Summary */}
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="bg-muted rounded-lg p-2">
+                        <p className="text-lg font-bold">{items.length}</p>
+                        <p className="text-xs text-muted-foreground">Tổng</p>
                       </div>
-                      <div className="bg-muted rounded-lg p-2 sm:p-3">
-                        <p className="text-lg sm:text-xl font-bold text-muted-foreground">{MAX_RECIPIENTS}</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">Tối đa</p>
+                      <div className="bg-muted rounded-lg p-2">
+                        <p className="text-lg font-bold text-muted-foreground">{MAX_RECIPIENTS}</p>
+                        <p className="text-xs text-muted-foreground">Tối đa</p>
                       </div>
-                      <div className="bg-success/10 rounded-lg p-2 sm:p-3">
-                        <p className="text-lg sm:text-xl font-bold text-success">{successCount}</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">Thành công</p>
+                      <div className="bg-success/10 rounded-lg p-2">
+                        <p className="text-lg font-bold text-success">{successCount}</p>
+                        <p className="text-xs text-muted-foreground">Thành công</p>
                       </div>
-                      <div className="bg-destructive/10 rounded-lg p-2 sm:p-3">
-                        <p className="text-lg sm:text-xl font-bold text-destructive">{failCount}</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">Thất bại</p>
+                      <div className="bg-destructive/10 rounded-lg p-2">
+                        <p className="text-lg font-bold text-destructive">{failCount}</p>
+                        <p className="text-xs text-muted-foreground">Thất bại</p>
                       </div>
                     </div>
 
@@ -843,22 +843,22 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Items List with ScrollArea - Responsive */}
-                    <ScrollArea className="h-48 sm:h-64 md:h-72 border rounded-lg">
-                      <div className="p-2 sm:p-3 space-y-1 sm:space-y-2">
+                    {/* Items List with ScrollArea */}
+                    <ScrollArea className="h-48 border rounded-lg">
+                      <div className="p-2 space-y-1">
                         {items.map((item, idx) => (
                           <div
                             key={idx}
-                            className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm p-2 sm:p-3 rounded bg-muted/50"
+                            className="flex items-center gap-2 text-xs p-2 rounded bg-muted/50"
                           >
-                            {item.status === "success" && <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-success shrink-0" />}
-                            {item.status === "failed" && <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-destructive shrink-0" />}
-                            {item.status === "pending" && <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-muted-foreground shrink-0" />}
-                            {item.status === "processing" && <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" />}
-                            <span className="font-mono truncate flex-1 sm:text-sm">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
+                            {item.status === "success" && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
+                            {item.status === "failed" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                            {item.status === "pending" && <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />}
+                            {item.status === "processing" && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+                            <span className="font-mono truncate flex-1">{item.address.slice(0, 10)}...{item.address.slice(-6)}</span>
                             <span className="font-medium shrink-0">{item.amount}</span>
                             {item.error && (
-                              <span className="text-destructive text-xs sm:text-sm shrink-0 max-w-24 sm:max-w-32 truncate" title={item.error}>
+                              <span className="text-destructive text-xs shrink-0 max-w-24 truncate" title={item.error}>
                                 {translateError(item.error)}
                               </span>
                             )}
@@ -915,23 +915,23 @@ export const BulkSendDialog = ({
 
         {/* Sticky Action Buttons - Always visible at bottom */}
         <div className="shrink-0 border-t pt-4 mt-2 space-y-2 bg-background">
-          {/* Nút GỬI NGAY khi chưa có items - Responsive */}
+          {/* Nút GỬI NGAY khi chưa có items */}
           {activeTab === "send" && items.length === 0 && !isProcessing && (
-            <div className="flex gap-2 sm:gap-3">
+            <div className="flex gap-2">
               <Button 
                 variant="outline" 
                 onClick={handleClose}
-                className="flex-1 h-10 sm:h-12"
+                className="flex-1"
               >
                 Đóng
               </Button>
               <Button 
                 onClick={handleDirectSend} 
-                className="flex-[2] bg-primary hover:bg-primary/90 h-10 sm:h-12 text-sm sm:text-base" 
+                className="flex-[2] bg-primary hover:bg-primary/90" 
                 disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
                 size="lg"
               >
-                <Users className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                <Users className="h-4 w-4 mr-2" />
                 {previewData && previewData.count > 0 
                   ? `GỬI NGAY ${previewData.count} địa chỉ (${formatBalance(previewData.total.toFixed(4))} ${selectedToken})`
                   : `Nhập địa chỉ để gửi`
