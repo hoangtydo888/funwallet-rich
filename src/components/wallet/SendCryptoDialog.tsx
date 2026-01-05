@@ -16,18 +16,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpRight, Loader2, ExternalLink, AlertCircle, Fuel, Wallet, Heart } from "lucide-react";
-import { isValidAddress, BSC_MAINNET, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
+import { ArrowUpRight, Loader2, ExternalLink, AlertCircle, Fuel } from "lucide-react";
+import { sendBNB, sendToken, isValidAddress, BSC_MAINNET, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import type { TokenBalance } from "@/hooks/useWallet";
-import { ConnectWalletModal } from "@/components/walletconnect/ConnectWalletModal";
-import { useWalletConnect } from "@/hooks/useWalletConnect";
+import { PinEntryDialog } from "./PinEntryDialog";
 
 interface SendCryptoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   walletAddress: string;
   balances: TokenBalance[];
+  getPrivateKey: (address: string) => string | null;
+  restorePrivateKeyFromCloud?: (address: string, pin: string) => Promise<string | null>;
+  hasCloudBackup?: (address: string) => Promise<boolean>;
   onSuccess: () => void;
 }
 
@@ -36,23 +38,20 @@ export const SendCryptoDialog = ({
   onOpenChange,
   walletAddress,
   balances,
+  getPrivateKey,
+  restorePrivateKeyFromCloud,
+  hasCloudBackup,
   onSuccess,
 }: SendCryptoDialogProps) => {
-  const walletConnect = useWalletConnect();
-  
   const [selectedToken, setSelectedToken] = useState("BNB");
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState("");
-  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   const selectedBalance = balances.find((b) => b.symbol === selectedToken);
   const maxAmount = parseFloat(selectedBalance?.balance || "0");
-
-  // Check if connected wallet matches
-  const isWalletConnected = walletConnect.isConnected && 
-    walletConnect.address?.toLowerCase() === walletAddress.toLowerCase();
 
   const handleSend = async () => {
     if (!isValidAddress(recipient)) {
@@ -74,18 +73,21 @@ export const SendCryptoDialog = ({
       return;
     }
 
-    // Check if wallet is connected
-    if (!isWalletConnected) {
-      setShowConnectModal(true);
-      return;
-    }
-
     // Kiểm tra balance thực tế từ blockchain
     setLoading(true);
+    console.log("=== DEBUG SEND ===");
+    console.log("Wallet:", walletAddress);
+    console.log("Token:", selectedToken);
+    console.log("Token decimals from balances:", selectedBalance?.decimals);
+    console.log("Cached balance:", selectedBalance?.balance);
 
     const realBalance = selectedToken === "BNB"
       ? await getBNBBalance(walletAddress)
       : await getTokenBalance(selectedBalance?.address || "", walletAddress);
+
+    console.log("Real balance from blockchain:", realBalance);
+    console.log("Amount to send:", amount);
+    console.log("==================");
 
     const realBalanceNum = parseFloat(realBalance);
     if (sendAmount > realBalanceNum) {
@@ -98,45 +100,72 @@ export const SendCryptoDialog = ({
       return;
     }
 
-    await executeSend();
-  };
-
-  const executeSend = async () => {
-    setLoading(true);
-
-    try {
-      let txHashResult: string | null = null;
-      
-      if (selectedToken === "BNB") {
-        txHashResult = await walletConnect.sendNative(recipient, amount);
-      } else {
-        const token = balances.find((b) => b.symbol === selectedToken);
-        if (!token?.address) {
+    let privateKey = getPrivateKey(walletAddress);
+    
+    // If no private key in localStorage, check cloud backup first
+    if (!privateKey && restorePrivateKeyFromCloud) {
+      // Check if cloud backup exists before showing PIN dialog
+      if (hasCloudBackup) {
+        const hasBackup = await hasCloudBackup(walletAddress);
+        if (!hasBackup) {
           setLoading(false);
+          toast({
+            title: "Chưa có backup cloud",
+            description: "Ví này chưa được đồng bộ lên cloud. Vui lòng import lại ví bằng seed phrase trên thiết bị này.",
+            variant: "destructive",
+          });
           return;
         }
-        const decimals = token.decimals || 18;
-        txHashResult = await walletConnect.sendToken(token.address, recipient, amount, decimals);
       }
-
       setLoading(false);
-
-      if (txHashResult) {
-        setTxHash(txHashResult);
-        toast({
-          title: "Phước lành đã được chia sẻ! ❤️🌈",
-          description: `Đã gửi ${amount} ${selectedToken}`,
-        });
-        onSuccess();
-      }
-    } catch (error: unknown) {
+      setShowPinDialog(true);
+      return;
+    }
+    
+    if (!privateKey) {
       setLoading(false);
-      const errorMessage = error instanceof Error ? error.message : "Lỗi không xác định";
       toast({
-        title: "Giao dịch thất bại",
-        description: errorMessage,
+        title: "Không tìm thấy private key",
+        description: "Vui lòng import lại ví hoặc đồng bộ từ cloud",
         variant: "destructive",
       });
+      return;
+    }
+
+    await executeSend(privateKey);
+  };
+
+  const executeSend = async (privateKey: string) => {
+    setLoading(true);
+
+    let result;
+    if (selectedToken === "BNB") {
+      result = await sendBNB(privateKey, recipient, amount);
+    } else {
+      const token = balances.find((b) => b.symbol === selectedToken);
+      if (!token?.address) {
+        setLoading(false);
+        return;
+      }
+      // sendToken sẽ tự động lấy decimals từ blockchain
+      result = await sendToken(privateKey, token.address, recipient, amount);
+    }
+
+    setLoading(false);
+
+    if ("error" in result) {
+      toast({
+        title: "Giao dịch thất bại",
+        description: result.error,
+        variant: "destructive",
+      });
+    } else {
+      setTxHash(result.hash);
+      toast({
+        title: "Phước lành đã được chia sẻ! ❤️🌈",
+        description: `Đã gửi ${amount} ${selectedToken}`,
+      });
+      onSuccess();
     }
   };
 
@@ -158,30 +187,18 @@ export const SendCryptoDialog = ({
     }
   };
 
-  // Handle connect wallet success
-  const handleWalletConnected = async () => {
-    setShowConnectModal(false);
-    // Continue with send after connecting
-    if (recipient && amount) {
-      await executeSend();
-    }
-  };
-
   if (txHash) {
     return (
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-heading text-success flex items-center gap-2">
-              Phước lành đã được chia sẻ! 
-              <Heart className="h-5 w-5 text-red-400 animate-pulse" />
-            </DialogTitle>
+            <DialogTitle className="font-heading text-success">Phước lành đã được chia sẻ! ❤️🌈</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 pt-4">
             <div className="text-center py-6">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mx-auto mb-4">
-                <ArrowUpRight className="h-8 w-8 text-emerald-500" />
+              <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4">
+                <ArrowUpRight className="h-8 w-8 text-success" />
               </div>
               <p className="text-2xl font-bold">
                 {amount} {selectedToken}
@@ -209,158 +226,138 @@ export const SendCryptoDialog = ({
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-heading flex items-center gap-2">
-              Gửi Crypto
-              <Heart className="h-4 w-4 text-red-400" />
-            </DialogTitle>
-            <DialogDescription>
-              Gửi BNB hoặc tokens trên BNB Chain
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-heading">Gửi Crypto</DialogTitle>
+          <DialogDescription>
+            Gửi BNB hoặc tokens trên BNB Chain
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-4 pt-4">
-            {/* Wallet Connection Status */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              {isWalletConnected ? (
-                <span className="flex items-center gap-2 text-sm text-emerald-500">
-                  <Wallet className="h-4 w-4" />
-                  Ví đã kết nối: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)} ❤️
-                </span>
-              ) : (
-                <>
-                  <span className="text-sm text-muted-foreground">Chưa kết nối ví</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowConnectModal(true)}
-                    className="border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10"
-                  >
-                    <Wallet className="h-4 w-4 mr-1" />
-                    Kết nối
-                  </Button>
-                </>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Chọn token</Label>
-              <Select value={selectedToken} onValueChange={setSelectedToken}>
-                <SelectTrigger>
-                  <SelectValue>
+        <div className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label>Chọn token</Label>
+            <Select value={selectedToken} onValueChange={setSelectedToken}>
+              <SelectTrigger>
+                <SelectValue>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={selectedBalance?.logo} 
+                      alt={selectedToken} 
+                      className="w-5 h-5 rounded-full"
+                    />
+                    <span>{selectedToken}</span>
+                  </div>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {balances.map((token) => (
+                  <SelectItem key={token.symbol} value={token.symbol}>
                     <div className="flex items-center gap-2">
                       <img 
-                        src={selectedBalance?.logo} 
-                        alt={selectedToken} 
+                        src={token.logo} 
+                        alt={token.symbol} 
                         className="w-5 h-5 rounded-full"
                       />
-                      <span>{selectedToken}</span>
+                      <span className="font-medium">{token.symbol}</span>
+                      <span className="text-muted-foreground text-xs">
+                        ({formatBalance(token.balance)})
+                      </span>
                     </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  {balances.map((token) => (
-                    <SelectItem key={token.symbol} value={token.symbol}>
-                      <div className="flex items-center gap-2">
-                        <img 
-                          src={token.logo} 
-                          alt={token.symbol} 
-                          className="w-5 h-5 rounded-full"
-                        />
-                        <span className="font-medium">{token.symbol}</span>
-                        <span className="text-muted-foreground text-xs">
-                          ({formatBalance(token.balance)})
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Địa chỉ người nhận</Label>
-              <Input
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                placeholder="0x..."
-                className="font-mono"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Số lượng</Label>
-                <button
-                  type="button"
-                  onClick={setMaxAmount}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Max: {formatBalance(maxAmount.toString())} {selectedToken}
-                </button>
-              </div>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.0"
-                step="any"
-              />
-            </div>
-
-            {/* Gas estimate */}
-            <div className="flex items-center justify-between text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2">
-                <Fuel className="h-4 w-4" />
-                <span>Phí gas ước tính:</span>
-              </div>
-              <span>~0.0002 BNB (~$0.12)</span>
-            </div>
-
-            {selectedToken === "BNB" && parseFloat(amount) > 0 && (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <p>Hãy giữ lại một ít BNB để trả phí gas cho các giao dịch sau</p>
-              </div>
-            )}
-
-            <Button
-              onClick={handleSend}
-              disabled={loading || !recipient || !amount}
-              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Đang xử lý...
-                </>
-              ) : (
-                <>
-                  <ArrowUpRight className="h-4 w-4 mr-2" />
-                  Gửi {selectedToken}
-                </>
-              )}
-            </Button>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* WalletConnect Modal */}
-      <ConnectWalletModal
-        open={showConnectModal}
-        onOpenChange={setShowConnectModal}
-        onConnect={async () => {
-          const address = await walletConnect.connect();
-          if (address) {
-            handleWalletConnected();
+          <div className="space-y-2">
+            <Label>Địa chỉ người nhận</Label>
+            <Input
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="0x..."
+              className="font-mono"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Số lượng</Label>
+              <button
+                type="button"
+                onClick={setMaxAmount}
+                className="text-xs text-primary hover:underline"
+              >
+                Max: {formatBalance(maxAmount.toString())} {selectedToken}
+              </button>
+            </div>
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.0"
+              step="any"
+            />
+          </div>
+
+          {/* Gas estimate */}
+          <div className="flex items-center justify-between text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <Fuel className="h-4 w-4" />
+              <span>Phí gas ước tính:</span>
+            </div>
+            <span>~0.0002 BNB (~$0.12)</span>
+          </div>
+
+          {selectedToken === "BNB" && parseFloat(amount) > 0 && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <p>Hãy giữ lại một ít BNB để trả phí gas cho các giao dịch sau</p>
+            </div>
+          )}
+
+          <Button
+            onClick={handleSend}
+            disabled={loading || !recipient || !amount}
+            className="w-full"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : (
+              <>
+                <ArrowUpRight className="h-4 w-4 mr-2" />
+                Gửi {selectedToken}
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+
+      {/* PIN Entry Dialog for cloud restore */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        mode="restore"
+        onSubmit={async (pin) => {
+          if (!restorePrivateKeyFromCloud) return false;
+          
+          try {
+            const privateKey = await restorePrivateKeyFromCloud(walletAddress, pin);
+            if (privateKey) {
+              setShowPinDialog(false);
+              await executeSend(privateKey);
+              return true;
+            }
+            return false;
+          } catch (error) {
+            return false;
           }
-          return address;
         }}
-        isConnecting={walletConnect.isConnecting}
       />
-    </>
+    </Dialog>
   );
 };
