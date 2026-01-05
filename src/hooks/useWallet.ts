@@ -268,11 +268,18 @@ export const useWallet = () => {
     }
   };
 
-  // Get private key for wallet
+  // Get private key for wallet (case-insensitive address matching)
   const getPrivateKey = (address: string): string | null => {
     try {
       const keys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
-      return keys[address] || null;
+      // So sánh không phân biệt hoa/thường vì Ethereum address có checksum
+      const normalizedAddress = address.toLowerCase();
+      for (const storedAddress of Object.keys(keys)) {
+        if (storedAddress.toLowerCase() === normalizedAddress) {
+          return keys[storedAddress];
+        }
+      }
+      return null;
     } catch {
       return null;
     }
