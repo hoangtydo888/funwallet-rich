@@ -15,10 +15,7 @@ import {
   Edit2, 
   Star, 
   AlertTriangle,
-  Key,
-  Eye,
-  EyeOff,
-  Copy
+  ChevronRight 
 } from "lucide-react";
 import { formatAddress } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
@@ -50,7 +47,6 @@ interface WalletManagerDialogProps {
   onDeleteWallet: (walletId: string) => Promise<boolean>;
   onSetPrimary: (walletId: string) => Promise<boolean>;
   onRenameWallet: (walletId: string, newName: string) => Promise<boolean>;
-  getPrivateKey: (address: string) => string | null;
 }
 
 export const WalletManagerDialog = ({
@@ -62,45 +58,11 @@ export const WalletManagerDialog = ({
   onDeleteWallet,
   onSetPrimary,
   onRenameWallet,
-  getPrivateKey,
 }: WalletManagerDialogProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showPrivateKeyFor, setShowPrivateKeyFor] = useState<string | null>(null);
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
-
-  const handleShowPrivateKey = (wallet: WalletData) => {
-    const pk = getPrivateKey(wallet.address);
-    if (pk) {
-      setShowPrivateKeyFor(wallet.id);
-      setRevealedKey(pk);
-    } else {
-      toast({
-        title: "Không tìm thấy Private Key",
-        description: "Private key không có trên thiết bị này. Hãy import ví bằng seed phrase hoặc private key.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCopyPrivateKey = (wallet: WalletData) => {
-    const pk = getPrivateKey(wallet.address);
-    if (pk) {
-      navigator.clipboard.writeText(pk);
-      toast({
-        title: "Đã copy Private Key!",
-        description: "Dùng key này để import ví trên thiết bị khác.",
-      });
-    } else {
-      toast({
-        title: "Không tìm thấy Private Key",
-        description: "Private key không có trên thiết bị này.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleSelect = (wallet: WalletData) => {
     onSelectWallet(wallet);
@@ -255,16 +217,6 @@ export const WalletManagerDialog = ({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-amber-500 hover:text-amber-400"
-                        onClick={() => handleCopyPrivateKey(wallet)}
-                        title="Copy Private Key"
-                        disabled={loading}
-                      >
-                        <Key className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
                         className="h-8 w-8"
                         onClick={() => handleStartEdit(wallet)}
                         disabled={loading}
@@ -292,48 +244,6 @@ export const WalletManagerDialog = ({
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-
-                    {/* Show Private Key Section */}
-                    {showPrivateKeyFor === wallet.id && revealedKey && (
-                      <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-amber-500 font-medium flex items-center gap-1">
-                            <Key className="h-3 w-3" />
-                            Private Key
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => {
-                                navigator.clipboard.writeText(revealedKey);
-                                toast({ title: "Đã copy!" });
-                              }}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => {
-                                setShowPrivateKeyFor(null);
-                                setRevealedKey(null);
-                              }}
-                            >
-                              <EyeOff className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <p className="text-xs font-mono break-all text-muted-foreground">
-                          {revealedKey}
-                        </p>
-                        <p className="text-xs text-destructive mt-2">
-                          ⚠️ Không chia sẻ key này với bất kỳ ai!
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))
