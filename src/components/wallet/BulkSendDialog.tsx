@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,19 +28,30 @@ import {
   Download,
   AlertCircle,
   Users,
-  FileText,
-  TrendingUp,
   History,
-  Coins
+  Wallet,
+  Link2,
+  RefreshCw
 } from "lucide-react";
 import { sendBNB, sendToken, isValidAddress, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { format } from "date-fns";
+import { ethers } from "ethers";
 import type { TokenBalance } from "@/hooks/useWallet";
 
 const MAX_RECIPIENTS = 1000;
+const MAX_RETRIES = 3;
+const DELAY_BETWEEN_TX = 1000; // 1 second
+
+// ERC20 ABI for token transfers
+const ERC20_ABI = [
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function decimals() view returns (uint8)",
+  "function balanceOf(address owner) view returns (uint256)",
+];
 
 interface TransferItem {
   address: string;
@@ -49,6 +59,7 @@ interface TransferItem {
   status: "pending" | "processing" | "success" | "failed";
   txHash?: string;
   error?: string;
+  retries?: number;
 }
 
 interface BulkTransferHistory {
@@ -77,6 +88,8 @@ interface BulkSendDialogProps {
   onSuccess: () => void;
 }
 
+type SigningMode = "internal" | "walletconnect";
+
 export const BulkSendDialog = ({
   open,
   onOpenChange,
@@ -86,12 +99,15 @@ export const BulkSendDialog = ({
   onSuccess,
 }: BulkSendDialogProps) => {
   const { user } = useAuth();
+  const walletConnect = useWalletConnect();
+  
   const [selectedToken, setSelectedToken] = useState("BNB");
   const [items, setItems] = useState<TransferItem[]>([]);
   const [manualInput, setManualInput] = useState("");
+  const [signingMode, setSigningMode] = useState<SigningMode>("internal");
   
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState({ processed: 0, total: 0 });
+  const [progress, setProgress] = useState({ processed: 0, total: 0, success: 0, failed: 0 });
   const [stats, setStats] = useState<UserStats>({ totalTransfers: 0, totalAmount: 0, totalRecipients: 0 });
   const [history, setHistory] = useState<BulkTransferHistory[]>([]);
   const [activeTab, setActiveTab] = useState<"send" | "history">("send");
@@ -107,6 +123,9 @@ export const BulkSendDialog = ({
 
   const selectedBalance = balances.find((b) => b.symbol === selectedToken);
   const maxAmount = parseFloat(selectedBalance?.balance || "0");
+
+  // Check if WalletConnect is connected
+  const isWalletConnectReady = walletConnect.state.isConnected && walletConnect.state.address;
 
   // Fetch user stats and history
   useEffect(() => {
@@ -172,6 +191,7 @@ export const BulkSendDialog = ({
           address,
           amount: parts[1],
           status: "pending",
+          retries: 0,
         });
       } 
       // Case 2: Only address - use uniform amount
@@ -180,6 +200,7 @@ export const BulkSendDialog = ({
           address,
           amount: uniformAmt,
           status: "pending",
+          retries: 0,
         });
       }
     }
@@ -242,7 +263,7 @@ export const BulkSendDialog = ({
       return;
     }
     setItems(parsed);
-    setPreviewData(null); // Clear preview after parsing
+    setPreviewData(null);
     toast({
       title: "Đã phân tích",
       description: `${parsed.length} địa chỉ đã được thêm`,
@@ -351,16 +372,109 @@ export const BulkSendDialog = ({
     return error.length > 25 ? error.slice(0, 25) + "..." : error;
   };
 
+  // Send with retry logic
+  const sendWithRetry = async (
+    item: TransferItem,
+    signer: ethers.Signer | null,
+    privateKey: string | null,
+    tokenAddress: string | null
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> => {
+    let lastError = "";
+    
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (signingMode === "walletconnect" && signer) {
+          // WalletConnect signing
+          const amountWei = ethers.parseUnits(item.amount, selectedToken === "BNB" ? 18 : 18);
+          
+          let tx: ethers.TransactionResponse;
+          if (selectedToken === "BNB") {
+            tx = await signer.sendTransaction({
+              to: item.address,
+              value: amountWei,
+            });
+          } else if (tokenAddress) {
+            const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+            const decimals = await contract.decimals();
+            const tokenAmount = ethers.parseUnits(item.amount, decimals);
+            tx = await contract.transfer(item.address, tokenAmount);
+          } else {
+            throw new Error("Token address not found");
+          }
+          
+          await tx.wait();
+          return { success: true, txHash: tx.hash };
+        } else if (privateKey) {
+          // Internal wallet signing
+          let result;
+          if (selectedToken === "BNB") {
+            result = await sendBNB(privateKey, item.address, item.amount);
+          } else if (tokenAddress) {
+            result = await sendToken(privateKey, tokenAddress, item.address, item.amount);
+          } else {
+            throw new Error("Token address not found");
+          }
+
+          if ("error" in result) {
+            throw new Error(result.error);
+          }
+          return { success: true, txHash: result.hash };
+        } else {
+          throw new Error("No signing method available");
+        }
+      } catch (error: any) {
+        lastError = error.message || "Unknown error";
+        console.error(`Transfer attempt ${attempt + 1} failed:`, lastError);
+        
+        // Don't retry for user rejection
+        if (lastError.includes("rejected") || lastError.includes("denied")) {
+          break;
+        }
+        
+        // Wait before retry
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+    }
+    
+    return { success: false, error: lastError };
+  };
+
   // Execute bulk transfer with database logging - accepts items as parameter
   const handleBulkSendWithItems = async (itemsToSend: TransferItem[]) => {
-    const privateKey = getPrivateKey(walletAddress);
-    if (!privateKey) {
-      toast({
-        title: "Lỗi",
-        description: "Không tìm thấy private key",
-        variant: "destructive",
-      });
-      return;
+    // Determine signing method
+    let privateKey: string | null = null;
+    let signer: ethers.Signer | null = null;
+
+    if (signingMode === "walletconnect") {
+      if (!isWalletConnectReady) {
+        toast({
+          title: "Chưa kết nối ví",
+          description: "Vui lòng kết nối ví bằng WalletConnect trước",
+          variant: "destructive",
+        });
+        return;
+      }
+      signer = await walletConnect.getSigner();
+      if (!signer) {
+        toast({
+          title: "Lỗi",
+          description: "Không thể lấy signer từ WalletConnect",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      privateKey = getPrivateKey(walletAddress);
+      if (!privateKey) {
+        toast({
+          title: "Lỗi",
+          description: "Không tìm thấy private key. Hãy thử đồng bộ từ cloud hoặc dùng WalletConnect.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const { valid, invalid } = validateItemsList(itemsToSend);
@@ -407,7 +521,7 @@ export const BulkSendDialog = ({
     // Set items to show progress
     setItems(itemsToSend);
     setIsProcessing(true);
-    setProgress({ processed: 0, total: valid.length });
+    setProgress({ processed: 0, total: valid.length, success: 0, failed: 0 });
 
     // Create bulk transfer record
     let bulkTransferId: string | null = null;
@@ -440,21 +554,32 @@ export const BulkSendDialog = ({
     }
 
     const updatedItems = [...invalid];
-    // Reuse token from earlier
+    const tokenAddress = token?.address || null;
+    let successCount = 0;
+    let failCount = invalid.length;
 
     for (let i = 0; i < valid.length; i++) {
       const item = valid[i];
       
-      let result;
-      if (selectedToken === "BNB") {
-        result = await sendBNB(privateKey, item.address, item.amount);
-      } else {
-        if (!token?.address) continue;
-        // sendToken tự động lấy decimals từ blockchain
-        result = await sendToken(privateKey, token.address, item.address, item.amount);
-      }
+      const result = await sendWithRetry(item, signer, privateKey, tokenAddress);
 
-      if ("error" in result) {
+      if (result.success) {
+        successCount++;
+        updatedItems.push({
+          ...item,
+          status: "success",
+          txHash: result.txHash,
+        });
+        // Update item status in DB
+        if (bulkTransferId) {
+          await supabase
+            .from('bulk_transfer_items')
+            .update({ status: 'success', tx_hash: result.txHash })
+            .eq('bulk_transfer_id', bulkTransferId)
+            .eq('recipient_address', item.address);
+        }
+      } else {
+        failCount++;
         updatedItems.push({
           ...item,
           status: "failed",
@@ -468,35 +593,24 @@ export const BulkSendDialog = ({
             .eq('bulk_transfer_id', bulkTransferId)
             .eq('recipient_address', item.address);
         }
-      } else {
-        updatedItems.push({
-          ...item,
-          status: "success",
-          txHash: result.hash,
-        });
-        // Update item status in DB
-        if (bulkTransferId) {
-          await supabase
-            .from('bulk_transfer_items')
-            .update({ status: 'success', tx_hash: result.hash })
-            .eq('bulk_transfer_id', bulkTransferId)
-            .eq('recipient_address', item.address);
-        }
       }
 
-      setProgress({ processed: i + 1, total: valid.length });
+      setProgress({ 
+        processed: i + 1, 
+        total: valid.length, 
+        success: successCount, 
+        failed: failCount 
+      });
       setItems([...updatedItems, ...valid.slice(i + 1)]);
       
       // Delay between transactions
       if (i < valid.length - 1) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, DELAY_BETWEEN_TX));
       }
     }
 
     // Update bulk transfer record
     if (bulkTransferId) {
-      const successCount = updatedItems.filter((i) => i.status === "success").length;
-      const failCount = updatedItems.filter((i) => i.status === "failed").length;
       await supabase
         .from('bulk_transfers')
         .update({
@@ -509,11 +623,9 @@ export const BulkSendDialog = ({
     }
 
     setIsProcessing(false);
-    const successCount = updatedItems.filter((i) => i.status === "success").length;
-    const failCount = updatedItems.filter((i) => i.status === "failed").length;
 
     toast({
-      title: "Hoàn tất chuyển tiền hàng loạt",
+      title: successCount > 0 ? "Phước lành đã được chia sẻ! ❤️🌈" : "Gửi thất bại",
       description: `Thành công: ${successCount}, Thất bại: ${failCount}`,
     });
 
@@ -585,7 +697,7 @@ export const BulkSendDialog = ({
     setManualInput("");
     setUniformAmount("");
     setPreviewData(null);
-    setProgress({ processed: 0, total: 0 });
+    setProgress({ processed: 0, total: 0, success: 0, failed: 0 });
     setActiveTab("send");
     onOpenChange(false);
   };
@@ -606,6 +718,24 @@ export const BulkSendDialog = ({
     }
   };
 
+  // Rainbow progress bar component
+  const RainbowProgress = ({ value }: { value: number }) => (
+    <div className="relative h-4 rounded-full overflow-hidden bg-muted">
+      <div 
+        className="h-full transition-all duration-300 ease-out rounded-full"
+        style={{ 
+          width: `${value}%`,
+          background: 'linear-gradient(90deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)',
+          backgroundSize: '200% 100%',
+          animation: 'rainbow-shift 2s linear infinite'
+        }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-foreground">
+        {Math.round(value)}%
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -615,7 +745,7 @@ export const BulkSendDialog = ({
             Chuyển Tiền Hàng Loạt
           </DialogTitle>
           <DialogDescription className="space-y-1">
-            <span>Gửi đến tối đa {MAX_RECIPIENTS} địa chỉ cùng lúc</span>
+            <span>Gửi đến tối đa {MAX_RECIPIENTS} địa chỉ cùng lúc • Retry tự động {MAX_RETRIES} lần</span>
             <div className="text-xs font-mono text-muted-foreground truncate">
               Ví gửi: {walletAddress}
             </div>
@@ -665,6 +795,61 @@ export const BulkSendDialog = ({
 
             {activeTab === "send" ? (
               <div className="space-y-4">
+                {/* Signing Mode Selection */}
+                <div className="p-3 rounded-lg border border-border bg-card">
+                  <Label className="text-xs font-medium mb-2 block">Chọn cách ký giao dịch</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={signingMode === "internal" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSigningMode("internal")}
+                      className="flex items-center gap-2"
+                    >
+                      <Wallet className="h-4 w-4" />
+                      <span className="text-xs">Ví Nội Bộ</span>
+                    </Button>
+                    <Button
+                      variant={signingMode === "walletconnect" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSigningMode("walletconnect")}
+                      className="flex items-center gap-2"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      <span className="text-xs">WalletConnect</span>
+                    </Button>
+                  </div>
+                  
+                  {/* WalletConnect Status */}
+                  {signingMode === "walletconnect" && (
+                    <div className="mt-2 p-2 rounded bg-muted/50">
+                      {isWalletConnectReady ? (
+                        <div className="flex items-center gap-2 text-xs text-success">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>Đã kết nối: {walletConnect.state.address?.slice(0, 8)}...{walletConnect.state.address?.slice(-6)}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Chưa kết nối ví ngoài</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => walletConnect.connect()}
+                            disabled={walletConnect.state.isConnecting}
+                            className="h-7 text-xs"
+                          >
+                            {walletConnect.state.isConnecting ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            ) : (
+                              <Link2 className="h-3 w-3 mr-1" />
+                            )}
+                            Kết nối
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Token Selection */}
                 <div className="space-y-2">
                   <Label>Chọn token</Label>
@@ -832,14 +1017,21 @@ export const BulkSendDialog = ({
                       </div>
                     )}
 
-                    {/* Progress */}
+                    {/* Rainbow Progress */}
                     {isProcessing && (
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span>Đang xử lý...</span>
+                          <span className="flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Đang lan tỏa phước lành...
+                          </span>
                           <span>{progress.processed}/{progress.total}</span>
                         </div>
-                        <Progress value={(progress.processed / progress.total) * 100} />
+                        <RainbowProgress value={(progress.processed / progress.total) * 100} />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span className="text-success">✓ {progress.success} thành công</span>
+                          <span className="text-destructive">✗ {progress.failed} thất bại</span>
+                        </div>
                       </div>
                     )}
 
@@ -927,8 +1119,15 @@ export const BulkSendDialog = ({
               </Button>
               <Button 
                 onClick={handleDirectSend} 
-                className="flex-[2] bg-primary hover:bg-primary/90" 
-                disabled={!manualInput.trim() || (useUniformAmount && !uniformAmount) || !previewData || previewData.count === 0 || previewData.total > maxAmount}
+                className="flex-[2] bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-primary-foreground" 
+                disabled={
+                  !manualInput.trim() || 
+                  (useUniformAmount && !uniformAmount) || 
+                  !previewData || 
+                  previewData.count === 0 || 
+                  previewData.total > maxAmount ||
+                  (signingMode === "walletconnect" && !isWalletConnectReady)
+                }
                 size="lg"
               >
                 <Users className="h-4 w-4 mr-2" />
@@ -961,7 +1160,7 @@ export const BulkSendDialog = ({
                 <Button
                   onClick={handleBulkSend}
                   disabled={isProcessing || totalAmount > maxAmount}
-                  className="flex-1"
+                  className="flex-1 bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-primary-foreground"
                   size="lg"
                 >
                   {isProcessing ? (

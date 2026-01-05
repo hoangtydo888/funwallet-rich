@@ -16,7 +16,9 @@ import {
   X, 
   ExternalLink,
   Clock,
-  Unlink
+  Unlink,
+  CheckCircle,
+  Sparkles
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -28,6 +30,7 @@ import {
   parseWalletConnectUri,
 } from "@/lib/walletconnect";
 import { useChain } from "@/contexts/ChainContext";
+import { useWalletConnect } from "@/hooks/useWalletConnect";
 
 interface WalletConnectDialogProps {
   open: boolean;
@@ -41,6 +44,7 @@ export const WalletConnectDialog = ({
   walletAddress,
 }: WalletConnectDialogProps) => {
   const { currentChain } = useChain();
+  const walletConnect = useWalletConnect();
   const [tab, setTab] = useState<"connect" | "sessions">("connect");
   const [uri, setUri] = useState("");
   const [connecting, setConnecting] = useState(false);
@@ -98,6 +102,13 @@ export const WalletConnectDialog = ({
     }
   };
 
+  const handleQuickConnect = async () => {
+    const address = await walletConnect.connect();
+    if (address) {
+      // Connection successful
+    }
+  };
+
   const handleDisconnect = async (topic: string) => {
     setDisconnecting(topic);
     try {
@@ -138,9 +149,72 @@ export const WalletConnectDialog = ({
             WalletConnect
           </DialogTitle>
           <DialogDescription>
-            Kết nối ví với các DApp bên ngoài một cách an toàn
+            Kết nối ví ngoài (MetaMask, Trust Wallet) hoặc DApp
           </DialogDescription>
         </DialogHeader>
+
+        {/* Quick Connect Status */}
+        {walletConnect.state.isConnected && (
+          <div className="p-3 rounded-lg bg-success/10 border border-success/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-success" />
+                <div>
+                  <p className="text-sm font-medium text-success">Ví đã kết nối ❤️</p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {walletConnect.state.address?.slice(0, 10)}...{walletConnect.state.address?.slice(-8)}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => walletConnect.disconnect()}
+                className="text-destructive hover:text-destructive"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Ngắt
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Connect Button - Big and Beautiful */}
+        {!walletConnect.state.isConnected && (
+          <div className="py-4">
+            <Button
+              onClick={handleQuickConnect}
+              disabled={walletConnect.state.isConnecting}
+              className="w-full h-16 text-lg font-bold bg-[#00FF7F] hover:bg-[#00FF7F]/90 text-primary-foreground shadow-lg glow"
+            >
+              {walletConnect.state.isConnecting ? (
+                <>
+                  <Loader2 className="h-6 w-6 mr-2 animate-spin" />
+                  Đang kết nối...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-6 w-6 mr-2" />
+                  Kết Nối Ví Ánh Sáng ❤️
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-center text-muted-foreground mt-2">
+              Hỗ trợ MetaMask, Trust Wallet, và các ví phổ biến
+            </p>
+          </div>
+        )}
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">
+              Hoặc kết nối DApp
+            </span>
+          </div>
+        </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as "connect" | "sessions")}>
           <TabsList className="grid w-full grid-cols-2">
@@ -151,11 +225,11 @@ export const WalletConnectDialog = ({
           </TabsList>
 
           <TabsContent value="connect" className="space-y-4">
-            <div className="text-center py-6">
-              <div className="w-20 h-20 mx-auto rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
-                <QrCode className="h-10 w-10 text-muted-foreground" />
+            <div className="text-center py-4">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-muted/50 flex items-center justify-center mb-3">
+                <QrCode className="h-8 w-8 text-muted-foreground" />
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground">
                 Quét mã QR hoặc dán WalletConnect URI từ DApp
               </p>
             </div>
@@ -188,14 +262,14 @@ export const WalletConnectDialog = ({
               ) : (
                 <>
                   <Link2 className="h-4 w-4 mr-2" />
-                  Kết nối
+                  Kết nối DApp
                 </>
               )}
             </Button>
 
             <div className="p-3 rounded-lg bg-muted/50 text-sm">
               <p className="font-medium mb-1">Hướng dẫn:</p>
-              <ol className="list-decimal list-inside text-muted-foreground space-y-1">
+              <ol className="list-decimal list-inside text-muted-foreground space-y-1 text-xs">
                 <li>Mở DApp và chọn WalletConnect</li>
                 <li>Sao chép URI hoặc quét mã QR</li>
                 <li>Dán URI vào ô trên và kết nối</li>
@@ -205,21 +279,21 @@ export const WalletConnectDialog = ({
 
           <TabsContent value="sessions" className="space-y-4">
             {sessions.length === 0 ? (
-              <div className="text-center py-8">
-                <Unlink className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">
+              <div className="text-center py-6">
+                <Unlink className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p className="text-muted-foreground text-sm">
                   Chưa có session nào được kết nối
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-64 overflow-y-auto">
                 {sessions.map((session) => (
                   <div
                     key={session.topic}
-                    className="p-4 rounded-lg bg-muted/50 border border-border/50"
+                    className="p-3 rounded-lg bg-muted/50 border border-border/50"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         {session.peerIcon ? (
                           <img
                             src={session.peerIcon}
@@ -231,8 +305,8 @@ export const WalletConnectDialog = ({
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{session.peerName}</p>
-                        <p className="text-sm text-muted-foreground truncate">
+                        <p className="font-medium truncate text-sm">{session.peerName}</p>
+                        <p className="text-xs text-muted-foreground truncate">
                           {session.peerUrl}
                         </p>
                         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
@@ -240,10 +314,11 @@ export const WalletConnectDialog = ({
                           <span>Còn {formatExpiry(session.expiry)}</span>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           asChild
                         >
                           <a
@@ -257,6 +332,7 @@ export const WalletConnectDialog = ({
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
                           onClick={() => handleDisconnect(session.topic)}
                           disabled={disconnecting === session.topic}
                         >
