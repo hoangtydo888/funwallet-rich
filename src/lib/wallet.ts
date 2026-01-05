@@ -174,6 +174,7 @@ export const getTokenDecimals = async (tokenAddress: string): Promise<number> =>
 };
 
 // Send BEP-20 token - now auto-fetches decimals from blockchain for safety
+// Includes precision handling to avoid "transfer amount exceeds balance" errors
 export const sendToken = async (
   privateKey: string,
   tokenAddress: string,
@@ -190,9 +191,28 @@ export const sendToken = async (
     const actualDecimals = await contract.decimals();
     const useDecimals = Number(actualDecimals);
     
-    console.log(`[SEND TOKEN] Amount: ${amount}, Blockchain decimals: ${useDecimals}, Passed decimals: ${decimals}`);
+    // Lấy balance thực tế để so sánh và xử lý precision
+    const realBalance = await contract.balanceOf(wallet.address);
     
-    const tx = await contract.transfer(toAddress, ethers.parseUnits(amount, useDecimals));
+    // Parse amount với precision chuẩn
+    let parsedAmount = ethers.parseUnits(amount, useDecimals);
+    
+    console.log(`[SEND TOKEN] Amount: ${amount}, Parsed: ${parsedAmount.toString()}, Balance: ${realBalance.toString()}, Decimals: ${useDecimals}`);
+    
+    // Nếu amount gần bằng balance (99.99%+), sử dụng toàn bộ balance để tránh dust
+    const threshold = realBalance * 9999n / 10000n; // 99.99%
+    if (parsedAmount >= threshold && parsedAmount <= realBalance) {
+      console.log(`[SEND TOKEN] Amount gần max, sử dụng toàn bộ balance: ${realBalance.toString()}`);
+      parsedAmount = realBalance;
+    }
+    
+    // Double-check không vượt quá balance
+    if (parsedAmount > realBalance) {
+      const formattedBalance = ethers.formatUnits(realBalance, useDecimals);
+      return { error: `Số dư không đủ. Balance thực tế: ${formattedBalance}` };
+    }
+    
+    const tx = await contract.transfer(toAddress, parsedAmount);
     
     return { hash: tx.hash };
   } catch (error: unknown) {

@@ -24,6 +24,13 @@ import type { TokenBalance } from "@/hooks/useWallet";
 // Gas estimate for a single transfer
 const GAS_PER_TRANSFER = 0.00021; // ~21000 gas * 10 gwei
 
+// Helper: Cắt số thập phân để tránh floating point errors (làm tròn xuống)
+const truncateDecimals = (num: number, decimals: number): string => {
+  const multiplier = Math.pow(10, decimals);
+  const truncated = Math.floor(num * multiplier) / multiplier;
+  return truncated.toString();
+};
+
 interface SendCryptoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -161,9 +168,11 @@ export const SendCryptoDialog = ({
     // Leave some BNB for gas if sending BNB
     if (selectedToken === "BNB") {
       const maxWithGas = Math.max(0, maxAmount - 0.001);
-      setAmount(maxWithGas.toString());
+      // Làm tròn xuống 8 decimals để tránh floating point errors
+      setAmount(truncateDecimals(maxWithGas, 8));
     } else {
-      setAmount(maxAmount.toString());
+      // Cắt bớt decimals để đảm bảo không vượt quá balance thực tế
+      setAmount(truncateDecimals(maxAmount, 8));
     }
   };
 
