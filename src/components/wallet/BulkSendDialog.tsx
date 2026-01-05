@@ -578,24 +578,21 @@ export const BulkSendDialog = ({
         </DialogHeader>
 
         {/* Main Scrollable Content - fixed height */}
-        <ScrollArea className="flex-1 min-h-0 max-h-[60vh] pr-4">
-          <div className="space-y-4">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-3 text-center">
-                <Coins className="h-5 w-5 mx-auto mb-1 text-primary" />
-                <p className="text-lg font-bold">{formatBalance(stats.totalAmount.toString())}</p>
-                <p className="text-xs text-muted-foreground">Tổng đã chuyển</p>
+        <ScrollArea className="flex-1 min-h-0 max-h-[50vh] pr-4">
+          <div className="space-y-3">
+            {/* Stats Cards - Compact */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-2 text-center">
+                <p className="text-sm font-bold">{formatBalance(stats.totalAmount.toString())}</p>
+                <p className="text-[10px] text-muted-foreground">Đã chuyển</p>
               </div>
-              <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl p-3 text-center">
-                <TrendingUp className="h-5 w-5 mx-auto mb-1 text-success" />
-                <p className="text-lg font-bold">{stats.totalTransfers}</p>
-                <p className="text-xs text-muted-foreground">Số lần chuyển</p>
+              <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-lg p-2 text-center">
+                <p className="text-sm font-bold">{stats.totalTransfers}</p>
+                <p className="text-[10px] text-muted-foreground">Số lần</p>
               </div>
-              <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 rounded-xl p-3 text-center">
-                <Users className="h-5 w-5 mx-auto mb-1 text-accent-foreground" />
-                <p className="text-lg font-bold">{stats.totalRecipients}</p>
-                <p className="text-xs text-muted-foreground">Người nhận</p>
+              <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 rounded-lg p-2 text-center">
+                <p className="text-sm font-bold">{stats.totalRecipients}</p>
+                <p className="text-[10px] text-muted-foreground">Người nhận</p>
               </div>
             </div>
 
@@ -665,15 +662,16 @@ export const BulkSendDialog = ({
                 {/* Input Mode Toggle */}
                 {items.length === 0 && !isProcessing && (
                   <>
-                    {/* Uniform Amount Input */}
-                    <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                    {/* Uniform Amount Input - Compact */}
+                    <div className="space-y-2 p-2 rounded-lg border border-primary/20 bg-primary/5">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">Số tiền mỗi địa chỉ</Label>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Dùng cùng số tiền</span>
+                        <Label className="text-xs font-medium">Số tiền mỗi địa chỉ</Label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">Cùng số tiền</span>
                           <Switch 
                             checked={useUniformAmount} 
                             onCheckedChange={setUseUniformAmount}
+                            className="scale-75"
                           />
                         </div>
                       </div>
@@ -684,47 +682,39 @@ export const BulkSendDialog = ({
                             placeholder="VD: 100"
                             value={uniformAmount}
                             onChange={(e) => setUniformAmount(e.target.value)}
-                            className="flex-1"
+                            className="flex-1 h-8 text-sm"
                           />
-                          <span className="flex items-center px-3 bg-muted rounded-md text-sm font-medium">
+                          <span className="flex items-center px-2 bg-muted rounded-md text-xs font-medium">
                             {selectedToken}
                           </span>
                         </div>
                       )}
-                      <p className="text-xs text-muted-foreground">
-                        {useUniformAmount 
-                          ? "Nhập số tiền chung, sau đó paste danh sách địa chỉ (mỗi dòng 1 địa chỉ)" 
-                          : "Nhập theo định dạng: address,amount (mỗi dòng)"}
-                      </p>
                     </div>
 
                     {/* Textarea - LUÔN HIỂN THỊ */}
-                    <div className="space-y-2">
-                      <Label>
-                        {useUniformAmount 
-                          ? `Nhập danh sách địa chỉ (mỗi dòng 1 địa chỉ)`
-                          : `Nhập danh sách (address,amount)`}
-                      </Label>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">
+                          {useUniformAmount ? `Danh sách địa chỉ` : `Danh sách (address,amount)`}
+                        </Label>
+                        <button 
+                          type="button"
+                          className="text-primary hover:underline flex items-center gap-1 text-[10px]" 
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="h-3 w-3" />
+                          Tải CSV
+                        </button>
+                      </div>
                       <Textarea
                         value={manualInput}
                         onChange={(e) => setManualInput(e.target.value)}
                         placeholder={useUniformAmount 
-                          ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12\n0x9876543210fedcba9876543210fedcba98765432`
-                          : `0x1234...5678,0.01\n0xabcd...efgh,0.02\n0x9876...5432,0.015`}
-                        rows={8}
-                        className="font-mono text-sm"
+                          ? `0x1234567890abcdef1234567890abcdef12345678\n0xabcdef1234567890abcdef1234567890abcdef12`
+                          : `0x1234...5678,0.01\n0xabcd...efgh,0.02`}
+                        rows={4}
+                        className="font-mono text-xs"
                       />
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Tối đa {MAX_RECIPIENTS} địa chỉ</span>
-                        <button 
-                          type="button"
-                          className="text-primary hover:underline flex items-center gap-1" 
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="h-3 w-3" />
-                          Hoặc tải file CSV
-                        </button>
-                      </div>
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -734,38 +724,27 @@ export const BulkSendDialog = ({
                       />
                     </div>
 
-                    {/* Preview Panel - Hiển thị khi có dữ liệu hợp lệ */}
+                    {/* Preview Panel - Compact */}
                     {previewData && previewData.count > 0 && (
-                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                          <TrendingUp className="h-4 w-4" />
-                          Xem trước giao dịch
-                          {isAutoParsing && <Loader2 className="h-3 w-3 animate-spin" />}
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 text-center">
-                          <div className="bg-background rounded-lg p-2">
-                            <p className="text-lg font-bold">{previewData.count}</p>
-                            <p className="text-xs text-muted-foreground">Địa chỉ hợp lệ</p>
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-2">
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-background rounded p-1.5">
+                            <p className="text-sm font-bold">{previewData.count}</p>
+                            <p className="text-[10px] text-muted-foreground">Địa chỉ</p>
                           </div>
-                          <div className="bg-background rounded-lg p-2">
-                            <p className="text-lg font-bold">{formatBalance(previewData.total.toFixed(6))}</p>
-                            <p className="text-xs text-muted-foreground">{selectedToken}</p>
+                          <div className="bg-background rounded p-1.5">
+                            <p className="text-sm font-bold">{formatBalance(previewData.total.toFixed(4))}</p>
+                            <p className="text-[10px] text-muted-foreground">{selectedToken}</p>
                           </div>
-                          <div className="bg-background rounded-lg p-2">
-                            <p className="text-lg font-bold text-warning">~{previewData.estimatedGas.toFixed(4)}</p>
-                            <p className="text-xs text-muted-foreground">Gas (BNB)</p>
+                          <div className="bg-background rounded p-1.5">
+                            <p className="text-sm font-bold text-warning">~{previewData.estimatedGas.toFixed(4)}</p>
+                            <p className="text-[10px] text-muted-foreground">Gas BNB</p>
                           </div>
                         </div>
                         {previewData.total > maxAmount && (
-                          <div className="flex items-center gap-2 text-destructive text-xs">
+                          <div className="flex items-center gap-1 text-destructive text-[10px]">
                             <AlertCircle className="h-3 w-3" />
-                            <span>Không đủ số dư! Cần {formatBalance(previewData.total.toFixed(6))} {selectedToken}, hiện có {formatBalance(maxAmount.toFixed(6))}</span>
-                          </div>
-                        )}
-                        {previewData.estimatedGas > parseFloat(balances.find(b => b.symbol === 'BNB')?.balance || '0') && (
-                          <div className="flex items-center gap-2 text-warning text-xs">
-                            <AlertCircle className="h-3 w-3" />
-                            <span>Có thể không đủ BNB cho gas fee</span>
+                            <span>Không đủ số dư!</span>
                           </div>
                         )}
                       </div>
