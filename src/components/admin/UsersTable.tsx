@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Gift, Copy, Check, ChevronLeft, ChevronRight, FileSpreadsheet, FileText } from 'lucide-react';
+import { Search, Gift, Copy, Check, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, FileType } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Input } from '@/components/ui/input';
@@ -127,6 +127,57 @@ export const UsersTable = ({ users, onRewardUser }: UsersTableProps) => {
     toast.success('Đã xuất file PDF');
   };
 
+  const exportTXT = () => {
+    const separator = '='.repeat(120);
+    const lines: string[] = [];
+
+    // Header
+    lines.push(separator);
+    lines.push('FUN WALLET - DANH SÁCH USERS');
+    lines.push(`Xuất ngày: ${new Date().toLocaleDateString('vi-VN')}`);
+    lines.push(`Tổng số: ${filteredUsers.length} users`);
+    lines.push(separator);
+    lines.push('');
+
+    // Table header
+    lines.push('-'.repeat(120));
+    lines.push(
+      'STT'.padEnd(6) +
+      'Tên hiển thị'.padEnd(25) +
+      'Email'.padEnd(35) +
+      'Ngày đăng ký'.padEnd(15) +
+      'Số ví'.padEnd(8) +
+      'Địa chỉ ví'
+    );
+    lines.push('-'.repeat(120));
+
+    // Data rows
+    filteredUsers.forEach((user, index) => {
+      const walletAddresses = user.wallets.map((w) => w.address).join('\n' + ' '.repeat(89)) || 'Chưa có';
+      lines.push(
+        (index + 1).toString().padEnd(6) +
+        (user.display_name || 'N/A').substring(0, 23).padEnd(25) +
+        (user.email || 'N/A').substring(0, 33).padEnd(35) +
+        formatDate(user.created_at).padEnd(15) +
+        user.wallets.length.toString().padEnd(8) +
+        walletAddresses
+      );
+    });
+
+    lines.push('-'.repeat(120));
+    lines.push('');
+    lines.push(`© ${new Date().getFullYear()} FUN Wallet - All rights reserved`);
+
+    const content = lines.join('\n');
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + content], { type: 'text/plain;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `funwallet-users-${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+    toast.success('Đã xuất file TXT');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -150,6 +201,10 @@ export const UsersTable = ({ users, onRewardUser }: UsersTableProps) => {
           <Button onClick={exportPDF} variant="outline" size="sm">
             <FileText className="h-4 w-4 mr-2" />
             Export PDF
+          </Button>
+          <Button onClick={exportTXT} variant="outline" size="sm">
+            <FileType className="h-4 w-4 mr-2" />
+            Export TXT
           </Button>
         </div>
       </div>
