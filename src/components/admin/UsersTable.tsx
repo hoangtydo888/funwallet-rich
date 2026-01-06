@@ -131,11 +131,16 @@ export const UsersTable = ({ users, onRewardUser }: UsersTableProps) => {
     const separator = '='.repeat(120);
     const lines: string[] = [];
 
+    // Sắp xếp users theo ngày đăng ký CŨ NHẤT trước (ascending)
+    const sortedUsers = [...filteredUsers].sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
     // Header
     lines.push(separator);
     lines.push('FUN WALLET - DANH SÁCH USERS');
     lines.push(`Xuất ngày: ${new Date().toLocaleDateString('vi-VN')}`);
-    lines.push(`Tổng số: ${filteredUsers.length} users`);
+    lines.push(`Tổng số: ${sortedUsers.length} users`);
     lines.push(separator);
     lines.push('');
 
@@ -151,8 +156,8 @@ export const UsersTable = ({ users, onRewardUser }: UsersTableProps) => {
     );
     lines.push('-'.repeat(120));
 
-    // Data rows
-    filteredUsers.forEach((user, index) => {
+    // Data rows với khoảng cách
+    sortedUsers.forEach((user, index) => {
       const walletAddresses = user.wallets.map((w) => w.address).join('\n' + ' '.repeat(89)) || 'Chưa có';
       lines.push(
         (index + 1).toString().padEnd(6) +
@@ -162,6 +167,7 @@ export const UsersTable = ({ users, onRewardUser }: UsersTableProps) => {
         user.wallets.length.toString().padEnd(8) +
         walletAddresses
       );
+      lines.push(''); // Thêm dòng trống sau mỗi user
     });
 
     lines.push('-'.repeat(120));
