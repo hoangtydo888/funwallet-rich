@@ -35,7 +35,12 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
-  Users
+  Users,
+  QrCode,
+  Coins,
+  SendHorizontal,
+  ClipboardList,
+  GraduationCap
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -426,7 +431,7 @@ const Dashboard = () => {
           </div>
 
           {/* Quick actions - Row 2 */}
-          <div className="grid grid-cols-5 gap-2 sm:gap-3">
+          <div className="grid grid-cols-6 gap-2 sm:gap-3 mb-2">
             <QuickAction 
               icon={<Bell />} 
               label="Giá" 
@@ -455,11 +460,55 @@ const Dashboard = () => {
               colorClass="bg-[#00BFFF] hover:bg-[#0099CC] text-white"
             />
             <QuickAction 
+              icon={<QrCode />} 
+              label="QR" 
+              onClick={() => navigate("/qr-payment")}
+              disabled={!hasWallet}
+              colorClass="bg-[#9333EA] hover:bg-[#7E22CE] text-white"
+            />
+            <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
               disabled={!hasWallet || balanceLoading}
               colorClass="bg-muted hover:bg-muted/80 text-foreground"
+            />
+          </div>
+
+          {/* Quick actions - Row 3: More Features */}
+          <div className="grid grid-cols-5 gap-2 sm:gap-3">
+            <QuickAction 
+              icon={<Coins />} 
+              label="Earn" 
+              onClick={() => navigate("/earn")}
+              colorClass="bg-gradient-to-r from-[#FFD700] to-[#FFA500] hover:from-[#E6C200] hover:to-[#E69400] text-foreground"
+            />
+            <QuickAction 
+              icon={<SendHorizontal />} 
+              label="Transfer" 
+              onClick={() => navigate("/transfer")}
+              disabled={!hasWallet}
+              colorClass="bg-[#FF6B35] hover:bg-[#E55A2B] text-white"
+            />
+            <QuickAction 
+              icon={<ClipboardList />} 
+              label="History" 
+              onClick={() => navigate("/history")}
+              disabled={!hasWallet}
+              colorClass="bg-[#06B6D4] hover:bg-[#0891B2] text-white"
+            />
+            <QuickAction 
+              icon={<CreditCard />} 
+              label="Card" 
+              onClick={() => navigate("/card")}
+              disabled={!hasWallet}
+              colorClass="bg-gradient-to-r from-[#00FF7F] to-[#00BFFF] hover:from-[#00E66F] hover:to-[#00A8E0] text-foreground"
+            />
+            <QuickAction 
+              icon={<GraduationCap />} 
+              label="Learn" 
+              onClick={() => navigate("/learn")}
+              colorClass="bg-gradient-to-r from-[#FF0080] to-[#7928CA] hover:from-[#E60073] hover:to-[#6B21B8] text-white"
             />
           </div>
         </div>
@@ -753,7 +802,7 @@ const QuickAction = ({
   <button 
     onClick={onClick}
     disabled={disabled}
-    className={`flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
+    className={`btn-hover-scale ripple-effect icon-bounce flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
   >
     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 flex items-center justify-center">
       {icon}
