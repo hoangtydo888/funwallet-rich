@@ -269,6 +269,101 @@
     0% { background-position: 0% 0%, 0% 0%; }
     100% { background-position: 0% 0%, 400% 0%; }
   }
+
+  /* ===== MICRO-INTERACTIONS ===== */
+  
+  /* Button hover scale + glow effect */
+  .btn-hover-scale {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-hover-scale:hover:not(:disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px hsla(var(--primary) / 0.3);
+  }
+  .btn-hover-scale:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  /* Card hover lift effect */
+  .card-hover-lift {
+    transition: all 0.3s ease;
+  }
+  .card-hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px hsla(var(--foreground) / 0.1);
+  }
+
+  /* Ripple click effect */
+  .ripple-effect {
+    position: relative;
+    overflow: hidden;
+  }
+  .ripple-effect::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%);
+    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.5s, opacity 0.3s;
+    pointer-events: none;
+  }
+  .ripple-effect:active::after {
+    transform: scale(2);
+    opacity: 1;
+  }
+
+  /* Icon bounce on hover */
+  .icon-bounce:hover svg {
+    animation: icon-bounce 0.4s ease;
+  }
+  @keyframes icon-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  /* Page transition fade-in */
+  .page-fade-in {
+    animation: page-fade-in 0.3s ease-out;
+  }
+  @keyframes page-fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Smooth slide up for lists */
+  .slide-up {
+    animation: slide-up 0.4s ease-out;
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Token card shimmer on hover */
+  .token-card-hover {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .token-card-hover:hover {
+    background: hsla(var(--primary) / 0.05);
+    transform: translateX(4px);
+  }
+  .token-card-hover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, hsla(var(--primary) / 0.1), transparent);
+    transition: left 0.5s ease;
+    pointer-events: none;
+  }
+  .token-card-hover:hover::before {
+    left: 100%;
+  }
 }
 
 @layer utilities {
