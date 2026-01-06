@@ -62,6 +62,7 @@ import { ImportTokenDialog, type CustomToken } from "@/components/wallet/ImportT
 import { WalletManagerDialog } from "@/components/wallet/WalletManagerDialog";
 import { PinDialog } from "@/components/wallet/PinDialog";
 import { BulkSendDialog } from "@/components/wallet/BulkSendDialog";
+import BottomNav from "@/components/layout/BottomNav";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -253,7 +254,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       {/* Header with subtle rainbow gradient */}
       <header 
         className="sticky top-0 z-50 border-b border-border/50 px-4 py-3"
@@ -729,6 +730,9 @@ const Dashboard = () => {
           onSuccess={refreshBalances}
         />
       )}
+
+      {/* Bottom Navigation for Mobile */}
+      <BottomNav />
     </div>
   );
 };
