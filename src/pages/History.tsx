@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Filter, Calendar, Download, ExternalLink, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, Layers, Palette, Coins, Search,
-  Loader2
+  Loader2, FileText, FileSpreadsheet
 } from "lucide-react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -133,6 +135,67 @@ const History = () => {
 
   const openBscScan = (hash: string) => {
     window.open(`https://bscscan.com/tx/${hash}`, '_blank');
+  };
+
+  // Export to CSV function
+  const exportToCSV = (txs: Transaction[]) => {
+    const headers = ['Ngày', 'Loại', 'Token', 'Số lượng', 'Từ', 'Đến', 'Trạng thái', 'TX Hash'];
+    const rows = txs.map(tx => [
+      format(parseISO(tx.tx_timestamp || tx.created_at), 'dd/MM/yyyy HH:mm'),
+      tx.tx_type,
+      tx.token_symbol,
+      tx.amount,
+      tx.from_address,
+      tx.to_address,
+      tx.status,
+      tx.tx_hash
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `transactions_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  // Export to PDF function
+  const exportToPDF = (txs: Transaction[]) => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+
+    // Title
+    doc.setFontSize(18);
+    doc.text('FUN Wallet - Lịch sử giao dịch', 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Xuất ngày: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 28);
+    doc.text(`Tổng số giao dịch: ${txs.length}`, 14, 34);
+
+    // Table
+    const tableData = txs.map(tx => [
+      format(parseISO(tx.tx_timestamp || tx.created_at), 'dd/MM/yyyy HH:mm'),
+      tx.tx_type.toUpperCase(),
+      tx.token_symbol,
+      tx.amount,
+      tx.status === 'success' ? 'Thành công' : tx.status === 'pending' ? 'Đang xử lý' : 'Thất bại',
+      tx.tx_hash.slice(0, 20) + '...'
+    ]);
+
+    (doc as any).autoTable({
+      head: [['Ngày', 'Loại', 'Token', 'Số lượng', 'Trạng thái', 'TX Hash']],
+      body: tableData,
+      startY: 42,
+      headStyles: { fillColor: [0, 200, 83] },
+      styles: { fontSize: 9 },
+      columnStyles: {
+        5: { cellWidth: 50 }
+      }
+    });
+
+    doc.save(`transactions_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
   };
 
   return (
@@ -280,12 +343,20 @@ const History = () => {
             <CardContent className="p-4">
               <h4 className="font-semibold mb-3">Xuất báo cáo</h4>
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 btn-hover-scale">
-                  <Download className="w-4 h-4 mr-2" />
+                <Button 
+                  variant="outline" 
+                  className="flex-1 btn-hover-scale"
+                  onClick={() => exportToCSV(filteredTransactions)}
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
                   CSV
                 </Button>
-                <Button variant="outline" className="flex-1 btn-hover-scale">
-                  <Download className="w-4 h-4 mr-2" />
+                <Button 
+                  variant="outline" 
+                  className="flex-1 btn-hover-scale"
+                  onClick={() => exportToPDF(filteredTransactions)}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
                   PDF
                 </Button>
               </div>

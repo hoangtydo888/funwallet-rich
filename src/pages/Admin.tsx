@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Wallet, Gift, TrendingUp, ArrowLeft, LogOut, ShieldCheck, Send } from 'lucide-react';
+import { Users, Wallet, Gift, TrendingUp, ArrowLeft, LogOut, ShieldCheck, Send, FileCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin, UserWithWallets } from '@/hooks/useAdmin';
+import { useAdminKYC } from '@/hooks/useAdminKYC';
 import { AdminStatsCard } from '@/components/admin/AdminStatsCard';
 import { UsersTable } from '@/components/admin/UsersTable';
 import { RewardsTable } from '@/components/admin/RewardsTable';
+import { KYCTable } from '@/components/admin/KYCTable';
 import { CreateRewardDialog } from '@/components/admin/CreateRewardDialog';
 import { BulkTransferDialog } from '@/components/admin/BulkTransferDialog';
 import { toast } from 'sonner';
@@ -18,6 +20,7 @@ const Admin = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { isAdmin, loading, users, rewards, stats, createReward, updateRewardStatus } = useAdmin();
+  const { kycList, pendingCount: pendingKYC, approveKYC, rejectKYC, isApproving, isRejecting, getDocumentUrl } = useAdminKYC();
   const [selectedUser, setSelectedUser] = useState<UserWithWallets | null>(null);
   const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
   const [bulkTransferOpen, setBulkTransferOpen] = useState(false);
@@ -119,6 +122,12 @@ const Admin = () => {
             icon={Gift}
             description={`${stats.pendingRewards} đang chờ gửi`}
           />
+          <AdminStatsCard
+            title="KYC Pending"
+            value={pendingKYC}
+            icon={FileCheck}
+            description="Hồ sơ chờ duyệt"
+          />
         </div>
 
         {/* Tabs */}
@@ -127,6 +136,10 @@ const Admin = () => {
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Users & Wallets
+            </TabsTrigger>
+            <TabsTrigger value="kyc" className="flex items-center gap-2">
+              <FileCheck className="h-4 w-4" />
+              KYC ({pendingKYC})
             </TabsTrigger>
             <TabsTrigger value="rewards" className="flex items-center gap-2">
               <Gift className="h-4 w-4" />
@@ -145,6 +158,23 @@ const Admin = () => {
                 Danh sách Users & Wallets
               </h2>
               <UsersTable users={users} onRewardUser={handleRewardUser} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="kyc" className="space-y-4">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <FileCheck className="h-5 w-5 text-primary" />
+                Quản lý KYC
+              </h2>
+              <KYCTable
+                submissions={kycList}
+                onApprove={approveKYC}
+                onReject={rejectKYC}
+                isApproving={isApproving}
+                isRejecting={isRejecting}
+                getDocumentUrl={getDocumentUrl}
+              />
             </div>
           </TabsContent>
 
