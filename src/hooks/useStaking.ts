@@ -39,7 +39,7 @@ export const STAKING_POOLS: StakingPool[] = [
   { 
     name: "CAMLY Flexible", 
     token: "CAMLY", 
-    apy: 12, 
+    apy: 2, 
     lockDays: 0, 
     tvl: "2.5M", 
     minStake: "100", 
@@ -48,7 +48,7 @@ export const STAKING_POOLS: StakingPool[] = [
   { 
     name: "CAMLY 30 Days", 
     token: "CAMLY", 
-    apy: 25, 
+    apy: 4, 
     lockDays: 30, 
     tvl: "5.2M", 
     minStake: "500", 
@@ -57,7 +57,7 @@ export const STAKING_POOLS: StakingPool[] = [
   { 
     name: "CAMLY 90 Days", 
     token: "CAMLY", 
-    apy: 45, 
+    apy: 6, 
     lockDays: 90, 
     tvl: "8.1M", 
     minStake: "1000", 
@@ -66,7 +66,7 @@ export const STAKING_POOLS: StakingPool[] = [
   { 
     name: "BNB Staking", 
     token: "BNB", 
-    apy: 8, 
+    apy: 1, 
     lockDays: 0, 
     tvl: "15M", 
     minStake: "0.1", 
@@ -75,7 +75,7 @@ export const STAKING_POOLS: StakingPool[] = [
   { 
     name: "USDT Savings", 
     token: "USDT", 
-    apy: 6, 
+    apy: 1, 
     lockDays: 0, 
     tvl: "25M", 
     minStake: "100", 
