@@ -163,7 +163,7 @@ const Earn = () => {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-semibold">{pool.name}</p>
-                        {pool.apy >= 25 && (
+                        {pool.apy >= 4 && pool.lockDays > 0 && (
                           <Badge variant="destructive" className="text-xs px-1.5 py-0">
                             <Flame className="w-3 h-3 mr-0.5" />
                             HOT

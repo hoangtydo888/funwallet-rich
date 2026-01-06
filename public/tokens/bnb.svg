@@ -1,10 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="bnb-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F3BA2F"/>
-      <stop offset="100%" stop-color="#E5A91D"/>
-    </linearGradient>
-  </defs>
-  <circle cx="16" cy="16" r="16" fill="url(#bnb-grad)"/>
-  <path fill="#fff" d="M16 6l-2.5 2.5 4.5 4.5-4.5 4.5 2.5 2.5 7-7-7-7zm-4.5 7.5L9 16l2.5 2.5L14 16l-2.5-2.5zm9 0L18 16l2.5 2.5L23 16l-2.5-2.5zM16 20l-2.5 2.5L16 25l2.5-2.5L16 20z"/>
+  <circle cx="16" cy="16" r="16" fill="#F3BA2F"/>
+  <g fill="#fff">
+    <polygon points="16,6 13,9 16,12 19,9"/>
+    <polygon points="9,13 6,16 9,19 12,16"/>
+    <polygon points="23,13 20,16 23,19 26,16"/>
+    <polygon points="16,14 13,17 16,20 19,17"/>
+    <polygon points="16,22 13,25 16,28 19,25"/>
+    <polygon points="10,10 8,12 10,14 12,12"/>
+    <polygon points="22,10 20,12 22,14 24,12"/>
+    <polygon points="10,18 8,20 10,22 12,20"/>
+    <polygon points="22,18 20,20 22,22 24,20"/>
+  </g>
 </svg>
