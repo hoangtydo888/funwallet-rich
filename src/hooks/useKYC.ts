@@ -94,6 +94,25 @@ export function useKYC() {
         throw new Error('Failed to upload documents');
       }
 
+      // Insert into kyc_submissions table for admin review
+      const { error: kycError } = await supabase
+        .from('kyc_submissions')
+        .insert({
+          user_id: user.id,
+          full_name: formData.fullName,
+          date_of_birth: formData.dateOfBirth || null,
+          nationality: formData.nationality || null,
+          id_number: formData.idNumber,
+          phone: formData.phone || null,
+          address: formData.address || null,
+          id_front_path: idFrontPath,
+          id_back_path: idBackPath,
+          selfie_path: selfiePath,
+          status: 'pending'
+        });
+
+      if (kycError) throw kycError;
+
       // Update profile with KYC status
       const { data, error } = await supabase
         .from('profiles')
