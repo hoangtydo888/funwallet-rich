@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Search, Gift, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Gift, Copy, Check, ChevronLeft, ChevronRight, FileSpreadsheet, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,25 +63,68 @@ export const UsersTable = ({ users, onRewardUser }: UsersTableProps) => {
   };
 
   const exportCSV = () => {
-    const headers = ['Display Name', 'Email', 'Ngày đăng ký', 'Số ví', 'Địa chỉ ví'];
+    const headers = ['Display Name', 'Email', 'Ngay dang ky', 'So vi', 'Dia chi vi'];
     const rows = filteredUsers.map((user) => [
       user.display_name || 'N/A',
       user.email || 'N/A',
       formatDate(user.created_at),
       user.wallets.length.toString(),
-      user.wallets.map((w) => w.address).join('; ') || 'Chưa có',
+      user.wallets.map((w) => w.address).join('; ') || 'Chua co',
     ]);
 
     const csvContent = [headers, ...rows]
       .map((row) => row.map((cell) => `"${cell}"`).join(','))
       .join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Add BOM for Excel to recognize UTF-8
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `funwallet-users-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     toast.success('Đã xuất file CSV');
+  };
+
+  const exportPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+
+    // Header
+    doc.setFontSize(18);
+    doc.text('FUN Wallet - Danh sach Users', 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Xuat ngay: ${new Date().toLocaleDateString('vi-VN')}`, 14, 28);
+    doc.text(`Tong so: ${filteredUsers.length} users`, 14, 34);
+
+    // Table data
+    const tableData = filteredUsers.map((user) => [
+      user.display_name || 'N/A',
+      user.email || 'N/A',
+      formatDate(user.created_at),
+      user.wallets.length.toString(),
+      user.wallets.map((w) => w.address).join('\n') || 'Chua co',
+    ]);
+
+    autoTable(doc, {
+      head: [['Ten hien thi', 'Email', 'Ngay dang ky', 'So vi', 'Dia chi vi']],
+      body: tableData,
+      startY: 40,
+      headStyles: {
+        fillColor: [0, 255, 127],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+      },
+      columnStyles: {
+        4: { cellWidth: 80 },
+      },
+    });
+
+    doc.save(`funwallet-users-${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success('Đã xuất file PDF');
   };
 
   return (
@@ -97,9 +142,16 @@ export const UsersTable = ({ users, onRewardUser }: UsersTableProps) => {
             className="pl-10"
           />
         </div>
-        <Button onClick={exportCSV} variant="outline" size="sm">
-          📥 Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={exportCSV} variant="outline" size="sm">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button onClick={exportPDF} variant="outline" size="sm">
+            <FileText className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
