@@ -14,6 +14,16 @@ import Install from "./pages/Install";
 import Admin from "./pages/Admin";
 import AdminBulkTransfer from "./pages/AdminBulkTransfer";
 import NotFound from "./pages/NotFound";
+import Onboarding from "./pages/Onboarding";
+import Wallet from "./pages/Wallet";
+import Trading from "./pages/Trading";
+import Earn from "./pages/Earn";
+import Transfer from "./pages/Transfer";
+import FunCard from "./pages/Card";
+import QRPayment from "./pages/QRPayment";
+import History from "./pages/History";
+import Learn from "./pages/Learn";
+import KYC from "./pages/KYC";
 
 const queryClient = new QueryClient();
 
@@ -28,8 +38,18 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/wallet" element={<Wallet />} />
+                <Route path="/trading" element={<Trading />} />
+                <Route path="/earn" element={<Earn />} />
+                <Route path="/transfer" element={<Transfer />} />
+                <Route path="/card" element={<FunCard />} />
+                <Route path="/qr-payment" element={<QRPayment />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/learn" element={<Learn />} />
+                <Route path="/kyc" element={<KYC />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/install" element={<Install />} />
                 <Route path="/admin" element={<Admin />} />
