@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Upload, CheckCircle2, Clock, AlertCircle, User, FileText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Camera, Upload, CheckCircle2, Clock, AlertCircle, User, FileText, ShieldCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { useKYC, type KYCFormData } from "@/hooks/useKYC";
 
 const steps = [
   { id: 1, title: "Thông tin", icon: User },
@@ -25,8 +26,10 @@ const countries = [
 const KYC = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { kycStatus, isLoading: kycLoading, submitKYC, isSubmitting, uploadProgress } = useKYC();
+  
   const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<KYCFormData>({
     fullName: "",
     dateOfBirth: "",
     nationality: "VN",
@@ -34,10 +37,21 @@ const KYC = () => {
     phone: "",
     address: "",
   });
-  const [frontImage, setFrontImage] = useState<string | null>(null);
-  const [backImage, setBackImage] = useState<string | null>(null);
-  const [selfieImage, setSelfieImage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // File states
+  const [frontFile, setFrontFile] = useState<File | null>(null);
+  const [backFile, setBackFile] = useState<File | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  
+  // Preview states
+  const [frontPreview, setFrontPreview] = useState<string | null>(null);
+  const [backPreview, setBackPreview] = useState<string | null>(null);
+  const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
+
+  // File input refs
+  const frontInputRef = useRef<HTMLInputElement>(null);
+  const backInputRef = useRef<HTMLInputElement>(null);
+  const selfieInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -45,7 +59,14 @@ const KYC = () => {
     }
   }, [user, authLoading, navigate]);
 
-  if (authLoading) {
+  // If already submitted, show step 3
+  useEffect(() => {
+    if (kycStatus === 'submitted' || kycStatus === 'approved') {
+      setCurrentStep(3);
+    }
+  }, [kycStatus]);
+
+  if (authLoading || kycLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -53,31 +74,54 @@ const KYC = () => {
     );
   }
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: keyof KYCFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleImageUpload = (type: "front" | "back" | "selfie") => {
-    // Mock upload - in real app, open file picker
-    const mockImage = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='150' fill='%23eee'><rect width='200' height='150'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23999'>Uploaded</text></svg>";
-    if (type === "front") setFrontImage(mockImage);
-    if (type === "back") setBackImage(mockImage);
-    if (type === "selfie") setSelfieImage(mockImage);
+  const handleFileChange = (type: "front" | "back" | "selfie", e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const preview = reader.result as string;
+      if (type === "front") {
+        setFrontFile(file);
+        setFrontPreview(preview);
+      } else if (type === "back") {
+        setBackFile(file);
+        setBackPreview(preview);
+      } else {
+        setSelfieFile(file);
+        setSelfiePreview(preview);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setCurrentStep(3);
-    setIsSubmitting(false);
+    if (!frontFile || !backFile || !selfieFile) return;
+
+    submitKYC({ 
+      formData, 
+      documents: { 
+        idFront: frontFile, 
+        idBack: backFile, 
+        selfie: selfieFile 
+      } 
+    }, {
+      onSuccess: () => {
+        setCurrentStep(3);
+      }
+    });
   };
 
   const canProceedStep1 = formData.fullName && formData.dateOfBirth && formData.idNumber && formData.phone;
-  const canProceedStep2 = frontImage && backImage && selfieImage;
+  const canProceedStep2 = frontFile && backFile && selfieFile;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background page-fade-in">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="flex items-center justify-between px-4 py-4">
@@ -92,7 +136,7 @@ const KYC = () => {
 
       <div className="px-4 py-6 space-y-6">
         {/* Progress Steps */}
-        <div className="relative">
+        <div className="relative slide-up">
           <div className="flex justify-between mb-4">
             {steps.map((step, index) => {
               const Icon = step.icon;
@@ -192,7 +236,7 @@ const KYC = () => {
             </Card>
 
             <Button 
-              className="w-full bg-primary hover:bg-primary/90"
+              className="w-full bg-primary hover:bg-primary/90 btn-hover-scale"
               disabled={!canProceedStep1}
               onClick={() => setCurrentStep(2)}
             >
@@ -206,18 +250,45 @@ const KYC = () => {
           <div className="space-y-4 animate-fade-in">
             <Card className="glass-card">
               <CardContent className="p-4 space-y-4">
+                {/* Hidden file inputs */}
+                <input
+                  type="file"
+                  ref={frontInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleFileChange("front", e)}
+                />
+                <input
+                  type="file"
+                  ref={backInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleFileChange("back", e)}
+                />
+                <input
+                  type="file"
+                  ref={selfieInputRef}
+                  accept="image/*"
+                  capture="user"
+                  className="hidden"
+                  onChange={(e) => handleFileChange("selfie", e)}
+                />
+
                 <div className="space-y-2">
                   <Label>Mặt trước CMND/CCCD</Label>
                   <div 
-                    onClick={() => handleImageUpload("front")}
+                    onClick={() => frontInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${
-                      frontImage ? "border-success bg-success/10" : "border-border hover:border-primary"
+                      frontPreview ? "border-success bg-success/10" : "border-border hover:border-primary"
                     }`}
                   >
-                    {frontImage ? (
-                      <div className="flex items-center justify-center gap-2 text-success">
-                        <CheckCircle2 className="w-6 h-6" />
-                        <span>Đã tải lên</span>
+                    {frontPreview ? (
+                      <div className="space-y-2">
+                        <img src={frontPreview} alt="Front ID" className="max-h-24 mx-auto rounded" />
+                        <div className="flex items-center justify-center gap-2 text-success">
+                          <CheckCircle2 className="w-5 h-5" />
+                          <span className="text-sm">Đã tải lên</span>
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -231,15 +302,18 @@ const KYC = () => {
                 <div className="space-y-2">
                   <Label>Mặt sau CMND/CCCD</Label>
                   <div 
-                    onClick={() => handleImageUpload("back")}
+                    onClick={() => backInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${
-                      backImage ? "border-success bg-success/10" : "border-border hover:border-primary"
+                      backPreview ? "border-success bg-success/10" : "border-border hover:border-primary"
                     }`}
                   >
-                    {backImage ? (
-                      <div className="flex items-center justify-center gap-2 text-success">
-                        <CheckCircle2 className="w-6 h-6" />
-                        <span>Đã tải lên</span>
+                    {backPreview ? (
+                      <div className="space-y-2">
+                        <img src={backPreview} alt="Back ID" className="max-h-24 mx-auto rounded" />
+                        <div className="flex items-center justify-center gap-2 text-success">
+                          <CheckCircle2 className="w-5 h-5" />
+                          <span className="text-sm">Đã tải lên</span>
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -253,15 +327,18 @@ const KYC = () => {
                 <div className="space-y-2">
                   <Label>Ảnh selfie cầm CMND/CCCD</Label>
                   <div 
-                    onClick={() => handleImageUpload("selfie")}
+                    onClick={() => selfieInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${
-                      selfieImage ? "border-success bg-success/10" : "border-border hover:border-primary"
+                      selfiePreview ? "border-success bg-success/10" : "border-border hover:border-primary"
                     }`}
                   >
-                    {selfieImage ? (
-                      <div className="flex items-center justify-center gap-2 text-success">
-                        <CheckCircle2 className="w-6 h-6" />
-                        <span>Đã tải lên</span>
+                    {selfiePreview ? (
+                      <div className="space-y-2">
+                        <img src={selfiePreview} alt="Selfie" className="max-h-24 mx-auto rounded" />
+                        <div className="flex items-center justify-center gap-2 text-success">
+                          <CheckCircle2 className="w-5 h-5" />
+                          <span className="text-sm">Đã tải lên</span>
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -289,15 +366,22 @@ const KYC = () => {
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setCurrentStep(1)}>
+              <Button variant="outline" className="flex-1 btn-hover-scale" onClick={() => setCurrentStep(1)}>
                 Quay lại
               </Button>
               <Button 
-                className="flex-1 bg-primary hover:bg-primary/90"
+                className="flex-1 bg-primary hover:bg-primary/90 btn-hover-scale"
                 disabled={!canProceedStep2 || isSubmitting}
                 onClick={handleSubmit}
               >
-                {isSubmitting ? "Đang gửi..." : "Gửi xác minh"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Đang gửi...
+                  </>
+                ) : (
+                  "Gửi xác minh"
+                )}
               </Button>
             </div>
           </div>
@@ -309,11 +393,20 @@ const KYC = () => {
             <Card className="gradient-border overflow-hidden">
               <CardContent className="p-8 text-center">
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-accent/20 flex items-center justify-center">
-                  <Clock className="w-10 h-10 text-accent animate-pulse" />
+                  {kycStatus === 'approved' ? (
+                    <CheckCircle2 className="w-10 h-10 text-success" />
+                  ) : (
+                    <Clock className="w-10 h-10 text-accent animate-pulse" />
+                  )}
                 </div>
-                <h2 className="text-xl font-heading font-bold mb-2">Đang xác minh</h2>
+                <h2 className="text-xl font-heading font-bold mb-2">
+                  {kycStatus === 'approved' ? 'Đã xác minh' : 'Đang xác minh'}
+                </h2>
                 <p className="text-muted-foreground">
-                  Yêu cầu xác minh của bạn đang được xử lý. Thời gian dự kiến: 24-48 giờ.
+                  {kycStatus === 'approved' 
+                    ? 'Tài khoản của bạn đã được xác minh thành công!'
+                    : 'Yêu cầu xác minh của bạn đang được xử lý. Thời gian dự kiến: 24-48 giờ.'
+                  }
                 </p>
               </CardContent>
             </Card>
@@ -327,20 +420,30 @@ const KYC = () => {
                     <span className="text-sm">Đã nhận hồ sơ</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full border-2 border-accent flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                    </div>
+                    {kycStatus === 'approved' ? (
+                      <CheckCircle2 className="w-5 h-5 text-success" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-accent flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                      </div>
+                    )}
                     <span className="text-sm">Đang xác minh giấy tờ</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full border-2 border-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Hoàn thành</span>
+                    {kycStatus === 'approved' ? (
+                      <CheckCircle2 className="w-5 h-5 text-success" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-muted-foreground" />
+                    )}
+                    <span className={`text-sm ${kycStatus !== 'approved' ? 'text-muted-foreground' : ''}`}>
+                      Hoàn thành
+                    </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Button className="w-full" variant="outline" onClick={() => navigate("/dashboard")}>
+            <Button className="w-full btn-hover-scale" variant="outline" onClick={() => navigate("/dashboard")}>
               Quay về Dashboard
             </Button>
           </div>

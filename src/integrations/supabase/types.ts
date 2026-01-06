@@ -258,6 +258,68 @@ export type Database = {
         }
         Relationships: []
       }
+      staking_positions: {
+        Row: {
+          amount: string
+          apy: number
+          created_at: string | null
+          earned: string | null
+          ends_at: string | null
+          id: string
+          lock_days: number
+          pool_name: string
+          started_at: string | null
+          status: string | null
+          token_address: string | null
+          token_symbol: string
+          updated_at: string | null
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: string
+          apy: number
+          created_at?: string | null
+          earned?: string | null
+          ends_at?: string | null
+          id?: string
+          lock_days?: number
+          pool_name: string
+          started_at?: string | null
+          status?: string | null
+          token_address?: string | null
+          token_symbol: string
+          updated_at?: string | null
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: string
+          apy?: number
+          created_at?: string | null
+          earned?: string | null
+          ends_at?: string | null
+          id?: string
+          lock_days?: number
+          pool_name?: string
+          started_at?: string | null
+          status?: string | null
+          token_address?: string | null
+          token_symbol?: string
+          updated_at?: string | null
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staking_positions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: string
