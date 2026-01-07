@@ -10,9 +10,8 @@ const Header = () => {
     <header className="fixed top-0 left-0 right-0 z-50 px-4 py-4">
       <nav className="max-w-6xl mx-auto glass-card rounded-2xl px-6 py-3 flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 font-heading text-xl font-bold gradient-text">
-          <img src="/logo.png" alt="FUN Wallet" className="w-8 h-8 rounded-full" />
-          FUN Wallet
+        <Link to="/" className="flex items-center">
+          <img src="/logo.png" alt="FUN Wallet" className="h-10 w-auto" />
         </Link>
 
         {/* Desktop nav */}

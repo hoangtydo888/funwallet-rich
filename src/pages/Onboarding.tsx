@@ -93,13 +93,9 @@ const Onboarding = () => {
 
         {/* Logo */}
         <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
-          <div className="w-28 h-28 rounded-3xl gradient-border glow-rainbow flex items-center justify-center bg-card overflow-hidden">
-            <img src="/logo.png" alt="FUN Wallet" className="w-24 h-24" />
+          <div className="w-32 h-32 flex items-center justify-center">
+            <img src="/logo.png" alt="FUN Wallet" className="w-32 h-32 drop-shadow-xl" />
           </div>
-          
-          <h1 className="text-4xl font-heading font-bold rainbow-text">
-            FUN Wallet
-          </h1>
           
           <p className="text-primary/80 text-center max-w-xs">
             Tràn đầy năng lượng yêu thương
