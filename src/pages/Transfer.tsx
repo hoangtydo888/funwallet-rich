@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/layout/BottomNav";
 
 const tokens = [
-  { symbol: "BNB", name: "BNB", icon: "/tokens/bnb.svg", balance: "2.5" },
+  { symbol: "BNB", name: "BNB", icon: "/tokens/bnb.png", balance: "2.5" },
   { symbol: "USDT", name: "Tether", icon: "/tokens/usdt.svg", balance: "1,500" },
   { symbol: "ETH", name: "Ethereum", icon: "/tokens/eth.svg", balance: "0.5" },
   { symbol: "CAMLY", name: "CAMLY", icon: "/tokens/camly.png", balance: "1,000,000" },

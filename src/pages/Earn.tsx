@@ -95,7 +95,7 @@ const Earn = () => {
   const getPoolIcon = (token: string) => {
     const iconMap: Record<string, string> = {
       'CAMLY': '/tokens/camly.png',
-      'BNB': '/tokens/bnb.svg',
+      'BNB': '/tokens/bnb.png',
       'ETH': '/tokens/eth.svg',
       'USDT': '/tokens/usdt.svg',
     };
