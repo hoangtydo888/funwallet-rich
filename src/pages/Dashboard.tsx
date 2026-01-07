@@ -269,8 +269,8 @@ const Dashboard = () => {
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center">
-            <div className="w-16 h-16 rounded-full border-2 border-primary/30 shadow-lg overflow-hidden flex items-center justify-center bg-white">
-              <img src="/logo.png" alt="FUN Wallet" className="w-14 h-14" />
+            <div className="w-48 h-48 rounded-full border-2 border-primary/30 shadow-lg overflow-hidden flex items-center justify-center bg-white">
+              <img src="/logo.png" alt="FUN Wallet" className="w-44 h-44" />
             </div>
           </Link>
           <div className="flex items-center gap-2">
