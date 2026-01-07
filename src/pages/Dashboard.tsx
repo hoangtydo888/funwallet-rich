@@ -269,7 +269,7 @@ const Dashboard = () => {
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center">
-            <img src="/logo.png" alt="FUN Wallet" className="h-14 w-14" />
+            <img src="/logo.png?v=2" alt="FUN Wallet" className="h-14 w-14" />
           </Link>
           <div className="flex items-center gap-2">
             <ChainSelector compact />

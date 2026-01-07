@@ -94,7 +94,7 @@ const Onboarding = () => {
         {/* Logo */}
         <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
           <div className="w-32 h-32 flex items-center justify-center">
-            <img src="/logo.png" alt="FUN Wallet" className="w-32 h-32 drop-shadow-xl" />
+            <img src="/logo.png?v=2" alt="FUN Wallet" className="w-32 h-32 drop-shadow-xl" />
           </div>
           
           <p className="text-primary/80 text-center max-w-xs">
