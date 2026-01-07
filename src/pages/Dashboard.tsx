@@ -269,25 +269,11 @@ const Dashboard = () => {
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center">
-            <div 
-              className="rounded-full p-1 shadow-lg"
-              style={{
-                width: '98px',
-                height: '98px',
-                background: 'linear-gradient(135deg, #FFD700, #FFA500, #FFD700)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <div className="rounded-full bg-white w-[90px] h-[90px] flex items-center justify-center overflow-hidden">
-                <img 
-                  src="/logo.png?v=2" 
-                  alt="FUN Wallet" 
-                  className="w-[82px] h-[82px] object-contain" 
-                />
-              </div>
-            </div>
+            <img 
+              src="/logo.png?v=2" 
+              alt="FUN Wallet" 
+              className="w-[90px] h-[90px] object-contain" 
+            />
           </Link>
           <div className="flex items-center gap-2">
             <ChainSelector compact />
