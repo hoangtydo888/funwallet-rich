@@ -13,7 +13,7 @@ import { QRCodeSVG } from "qrcode.react";
 import BottomNav from "@/components/layout/BottomNav";
 
 const tokens = [
-  { symbol: "BNB", name: "BNB", icon: "/tokens/bnb.svg" },
+  { symbol: "BNB", name: "BNB", icon: "/tokens/bnb.png" },
   { symbol: "USDT", name: "Tether", icon: "/tokens/usdt.svg" },
   { symbol: "ETH", name: "Ethereum", icon: "/tokens/eth.svg" },
   { symbol: "CAMLY", name: "CAMLY", icon: "/tokens/camly.png" },

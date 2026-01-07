@@ -67,7 +67,7 @@ const Wallet = () => {
       apy: "8.5%",
       lockDays: 0,
       progress: 100,
-      icon: "/tokens/bnb.svg",
+      icon: "/tokens/bnb.png",
     },
   ];
 
