@@ -269,11 +269,32 @@ const Dashboard = () => {
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center">
-            <img 
-              src="/logo.png?v=2" 
-              alt="FUN Wallet" 
-              className="w-[90px] h-[90px] object-contain" 
-            />
+            <div 
+              className="relative rounded-full flex items-center justify-center animate-pulse-glow-gold"
+              style={{
+                width: '100px',
+                height: '100px',
+                background: 'radial-gradient(circle, rgba(255,215,0,0.4) 0%, rgba(255,165,0,0.2) 50%, transparent 70%)',
+              }}
+            >
+              {/* Viền vàng gradient */}
+              <div 
+                className="absolute inset-0 rounded-full"
+                style={{
+                  border: '3px solid transparent',
+                  background: 'linear-gradient(135deg, #FFD700, #FFA500, #FFD700, #FFA500) border-box',
+                  WebkitMask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
+                  WebkitMaskComposite: 'xor',
+                  maskComposite: 'exclude'
+                }}
+              />
+              {/* Logo */}
+              <img 
+                src="/logo.png?v=2" 
+                alt="FUN Wallet" 
+                className="w-[80px] h-[80px] object-contain relative z-10" 
+              />
+            </div>
           </Link>
           <div className="flex items-center gap-2">
             <ChainSelector compact />
