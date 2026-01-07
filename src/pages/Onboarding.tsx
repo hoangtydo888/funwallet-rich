@@ -93,8 +93,8 @@ const Onboarding = () => {
 
         {/* Logo */}
         <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
-          <div className="w-28 h-28 rounded-3xl gradient-border glow-rainbow flex items-center justify-center bg-card">
-            <Sparkles className="w-14 h-14 text-primary" />
+          <div className="w-28 h-28 rounded-3xl gradient-border glow-rainbow flex items-center justify-center bg-card overflow-hidden">
+            <img src="/logo.png" alt="FUN Wallet" className="w-24 h-24" />
           </div>
           
           <h1 className="text-4xl font-heading font-bold rainbow-text">
