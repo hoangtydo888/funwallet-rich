@@ -7,9 +7,8 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
           <div className="md:col-span-2">
-            <div className="flex items-center gap-2 font-heading text-2xl font-bold gradient-text mb-4">
-              <img src="/logo.png" alt="FUN Wallet" className="w-10 h-10 rounded-full" />
-              FUN Wallet
+            <div className="mb-4">
+              <img src="/logo.png" alt="FUN Wallet" className="h-14 w-auto" />
             </div>
             <p className="text-muted-foreground mb-4 max-w-sm">
               Trái tim của FUN ECOSYSTEM - Hệ sinh thái 5D trong thời đại Hoàng Kim.
