@@ -15,8 +15,8 @@ interface PinDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "setup" | "verify";
-  onSetup?: (pin: string) => void;
-  onVerify?: (pin: string) => boolean;
+  onSetup?: (pin: string) => void | Promise<void>;
+  onVerify?: (pin: string) => boolean | Promise<boolean>;
 }
 
 export const PinDialog = ({
@@ -30,6 +30,7 @@ export const PinDialog = ({
   const [confirmPin, setConfirmPin] = useState(["", "", "", "", "", ""]);
   const [step, setStep] = useState<"enter" | "confirm">("enter");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const confirmInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -39,12 +40,13 @@ export const PinDialog = ({
       setConfirmPin(["", "", "", "", "", ""]);
       setStep("enter");
       setError("");
+      setIsLoading(false);
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
     }
   }, [open]);
 
   const handlePinChange = (index: number, value: string, isConfirm = false) => {
-    if (!/^\d*$/.test(value)) return;
+    if (!/^\d*$/.test(value) || isLoading) return;
 
     const newPin = isConfirm ? [...confirmPin] : [...pin];
     const refs = isConfirm ? confirmInputRefs : inputRefs;
@@ -97,13 +99,23 @@ export const PinDialog = ({
     }
   };
 
-  const handleVerify = (enteredPin: string) => {
+  const handleVerify = async (enteredPin: string) => {
     if (onVerify) {
-      const isValid = onVerify(enteredPin);
-      if (!isValid) {
-        setError("Mã PIN không đúng");
+      setIsLoading(true);
+      try {
+        const result = onVerify(enteredPin);
+        const isValid = result instanceof Promise ? await result : result;
+        if (!isValid) {
+          setError("Mã PIN không đúng");
+          setPin(["", "", "", "", "", ""]);
+          setTimeout(() => inputRefs.current[0]?.focus(), 100);
+        }
+      } catch (err) {
+        setError("Lỗi xác thực PIN");
         setPin(["", "", "", "", "", ""]);
         setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      } finally {
+        setIsLoading(false);
       }
     }
   };
