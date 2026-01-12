@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useChain } from "@/contexts/ChainContext";
 import { useWallet } from "@/hooks/useWallet";
+import { useSecureWallet } from "@/hooks/useSecureWallet";
 import { useNFT } from "@/hooks/useNFT";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,7 +41,8 @@ import {
   Coins,
   SendHorizontal,
   ClipboardList,
-  GraduationCap
+  GraduationCap,
+  Lock
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatAddress, formatBalance, BSC_MAINNET } from "@/lib/wallet";
@@ -67,6 +69,7 @@ import { ImportTokenDialog, type CustomToken } from "@/components/wallet/ImportT
 import { WalletManagerDialog } from "@/components/wallet/WalletManagerDialog";
 import { PinDialog } from "@/components/wallet/PinDialog";
 import { BulkSendDialog } from "@/components/wallet/BulkSendDialog";
+import { UnlockWalletDialog } from "@/components/wallet/UnlockWalletDialog";
 import BottomNav from "@/components/layout/BottomNav";
 
 const Dashboard = () => {
@@ -94,6 +97,18 @@ const Dashboard = () => {
     refreshBalances,
   } = useWallet();
 
+  // Security hooks
+  const {
+    isPasswordSet,
+    isUnlocked,
+    failedAttempts,
+    isLocked,
+    lockoutEndTime,
+    unlock,
+    lock,
+    hasOldStorageData,
+  } = useSecureWallet();
+
   const {
     nfts,
     loading: nftLoading,
@@ -116,6 +131,7 @@ const Dashboard = () => {
   const [importTokenOpen, setImportTokenOpen] = useState(false);
   const [walletManagerOpen, setWalletManagerOpen] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
+  const [unlockDialogOpen, setUnlockDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tokens");
   
   // Realtime prices state for synchronized total balance
@@ -782,6 +798,16 @@ const Dashboard = () => {
           onSuccess={refreshBalances}
         />
       )}
+
+      {/* Unlock Wallet Dialog - Show when wallet has password but locked */}
+      <UnlockWalletDialog
+        open={unlockDialogOpen}
+        onOpenChange={setUnlockDialogOpen}
+        onUnlock={unlock}
+        failedAttempts={failedAttempts}
+        isLocked={isLocked}
+        lockoutEndTime={lockoutEndTime}
+      />
 
       {/* Bottom Navigation for Mobile */}
       <BottomNav />
