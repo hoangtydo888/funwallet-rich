@@ -109,7 +109,7 @@ export const useWallet = () => {
   }, [activeWallet]);
 
   // Create new wallet
-  const createWallet = async (name: string = "Ví chính"): Promise<{ mnemonic: string } | null> => {
+  const createWallet = async (name: string = "Ví chính"): Promise<{ mnemonic: string; address: string; privateKey: string } | null> => {
     if (!user) return null;
 
     try {
@@ -130,7 +130,7 @@ export const useWallet = () => {
 
       if (error) throw error;
 
-      // Store private key in localStorage (encrypted in production)
+      // Store private key in localStorage (legacy - will be encrypted by caller)
       const existingKeys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
       existingKeys[address] = privateKey;
       localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(existingKeys));
@@ -141,7 +141,7 @@ export const useWallet = () => {
       });
 
       await fetchWallets();
-      return { mnemonic };
+      return { mnemonic, address, privateKey };
     } catch (error) {
       console.error("Error creating wallet:", error);
       toast({
@@ -154,8 +154,8 @@ export const useWallet = () => {
   };
 
   // Import wallet from mnemonic
-  const importFromMnemonic = async (mnemonic: string, name: string = "Ví import"): Promise<boolean> => {
-    if (!user) return false;
+  const importFromMnemonic = async (mnemonic: string, name: string = "Ví import"): Promise<{ address: string; privateKey: string } | null> => {
+    if (!user) return null;
 
     const wallet = importWalletFromMnemonic(mnemonic);
     if (!wallet) {
@@ -164,7 +164,7 @@ export const useWallet = () => {
         description: "Seed phrase không hợp lệ",
         variant: "destructive",
       });
-      return false;
+      return null;
     }
 
     try {
@@ -176,7 +176,7 @@ export const useWallet = () => {
           description: "Địa chỉ ví này đã được thêm vào tài khoản của bạn",
           variant: "destructive",
         });
-        return false;
+        return null;
       }
 
       const { error } = await supabase.from("wallets").insert({
@@ -200,7 +200,7 @@ export const useWallet = () => {
       });
 
       await fetchWallets();
-      return true;
+      return { address: wallet.address, privateKey: wallet.privateKey };
     } catch (error) {
       console.error("Error importing wallet:", error);
       toast({
@@ -208,13 +208,13 @@ export const useWallet = () => {
         description: "Không thể import ví. Vui lòng thử lại.",
         variant: "destructive",
       });
-      return false;
+      return null;
     }
   };
 
   // Import from private key
-  const importFromPrivateKey = async (privateKey: string, name: string = "Ví import"): Promise<boolean> => {
-    if (!user) return false;
+  const importFromPrivateKey = async (privateKey: string, name: string = "Ví import"): Promise<{ address: string } | null> => {
+    if (!user) return null;
 
     const wallet = importWalletFromPrivateKey(privateKey);
     if (!wallet) {
@@ -223,7 +223,7 @@ export const useWallet = () => {
         description: "Private key không hợp lệ",
         variant: "destructive",
       });
-      return false;
+      return null;
     }
 
     try {
@@ -234,7 +234,7 @@ export const useWallet = () => {
           description: "Địa chỉ ví này đã được thêm vào tài khoản của bạn",
           variant: "destructive",
         });
-        return false;
+        return null;
       }
 
       const { error } = await supabase.from("wallets").insert({
@@ -257,7 +257,7 @@ export const useWallet = () => {
       });
 
       await fetchWallets();
-      return true;
+      return { address: wallet.address };
     } catch (error) {
       console.error("Error importing wallet:", error);
       toast({
@@ -265,7 +265,7 @@ export const useWallet = () => {
         description: "Không thể import ví. Vui lòng thử lại.",
         variant: "destructive",
       });
-      return false;
+      return null;
     }
   };
 

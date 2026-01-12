@@ -41,7 +41,7 @@ export interface UseSecureWalletReturn {
   lockoutEndTime: number | null;
   
   // Password operations
-  setupPassword: (password: string, confirmPassword: string) => Promise<boolean>;
+  setupPassword: (password: string) => Promise<boolean>;
   unlock: (password: string) => Promise<boolean>;
   lock: () => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
@@ -51,6 +51,7 @@ export interface UseSecureWalletReturn {
   getDecryptedKey: (address: string, password?: string) => Promise<string | null>;
   removeKey: (address: string) => void;
   hasKey: (address: string) => boolean;
+  getCachedPassword: () => string | null;
   
   // Migration
   migrateOldStorage: (password: string) => Promise<number>;
@@ -66,22 +67,12 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
 
   // Setup new password
   const setupPassword = useCallback(async (
-    password: string, 
-    confirmPassword: string
+    password: string
   ): Promise<boolean> => {
-    if (password !== confirmPassword) {
-      toast({
-        title: 'Mật khẩu không khớp',
-        description: 'Vui lòng nhập lại mật khẩu xác nhận',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    if (password.length < 8) {
+    if (password.length < 6) {
       toast({
         title: 'Mật khẩu quá ngắn',
-        description: 'Mật khẩu phải có ít nhất 8 ký tự',
+        description: 'Mật khẩu phải có ít nhất 6 ký tự',
         variant: 'destructive',
       });
       return false;
@@ -335,6 +326,11 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
     }
   }, []);
 
+  // Get cached password
+  const getCachedPassword = useCallback((): string | null => {
+    return security.getCachedPassword();
+  }, [security]);
+
   return {
     isUnlocked: security.isUnlocked,
     isPasswordSet: security.isPasswordSet,
@@ -351,6 +347,7 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
     getDecryptedKey,
     removeKey,
     hasKey,
+    getCachedPassword,
     
     migrateOldStorage,
     hasOldStorageData,
