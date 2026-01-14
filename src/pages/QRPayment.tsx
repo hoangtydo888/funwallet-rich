@@ -158,7 +158,7 @@ const QRPayment = () => {
                 level="H"
                 includeMargin
                 imageSettings={{
-                  src: "/logo.png?v=4",
+                  src: "/logo.gif?v=1",
                   height: 80,
                   width: 80,
                   excavate: true,
