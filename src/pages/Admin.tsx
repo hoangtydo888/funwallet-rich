@@ -74,8 +74,8 @@ const Admin = () => {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-20 w-20 flex items-center justify-center">
-              <img src="/logo.gif?v=1" alt="FUN Wallet" className="h-20 w-20" />
+            <div className="h-12 w-12 md:h-16 md:w-16 lg:h-20 lg:w-20 flex items-center justify-center">
+              <img src="/logo.gif?v=1" alt="FUN Wallet" className="h-full w-full logo-glow" />
             </div>
             <div>
               <h1 className="font-bold text-lg text-foreground">Admin Panel</h1>

@@ -11,7 +11,7 @@ const Header = () => {
       <nav className="max-w-6xl mx-auto glass-card rounded-2xl px-6 py-3 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center">
-          <img src="/logo.gif?v=1" alt="FUN Wallet" className="h-20 w-auto" />
+          <img src="/logo.gif?v=1" alt="FUN Wallet" className="h-12 md:h-16 lg:h-20 w-auto logo-glow cursor-pointer" />
         </Link>
 
         {/* Desktop nav */}

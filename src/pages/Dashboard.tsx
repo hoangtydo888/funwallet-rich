@@ -288,7 +288,7 @@ const Dashboard = () => {
             <img 
               src="/logo.gif?v=1" 
               alt="FUN Wallet" 
-              className="w-[180px] h-[180px] object-contain" 
+              className="w-[120px] h-[120px] md:w-[150px] md:h-[150px] lg:w-[180px] lg:h-[180px] object-contain logo-glow" 
             />
           </Link>
           <div className="flex items-center gap-2">
