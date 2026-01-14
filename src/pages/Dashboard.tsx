@@ -286,7 +286,7 @@ const Dashboard = () => {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center">
             <img 
-              src="/logo.png?v=2" 
+              src="/logo.png?v=3" 
               alt="FUN Wallet" 
               className="w-[90px] h-[90px] object-contain" 
             />

@@ -111,7 +111,7 @@ const Install = () => {
         {/* App Info */}
         <div className="text-center space-y-4">
           <div className="mx-auto w-24 h-24 flex items-center justify-center">
-            <img src="/logo.png" alt="FUN Wallet" className="w-24 h-24" />
+            <img src="/logo.png?v=3" alt="FUN Wallet" className="w-24 h-24" />
           </div>
           <div>
             <p className="text-muted-foreground">Ví tiền điện tử Web3</p>

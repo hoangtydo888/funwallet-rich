@@ -8,7 +8,7 @@ const Footer = () => {
           {/* Brand */}
           <div className="md:col-span-2">
             <div className="mb-4">
-              <img src="/logo.png?v=2" alt="FUN Wallet" className="h-14 w-auto" />
+              <img src="/logo.png?v=3" alt="FUN Wallet" className="h-14 w-auto" />
             </div>
             <p className="text-muted-foreground mb-4 max-w-sm">
               Trái tim của FUN ECOSYSTEM - Hệ sinh thái 5D trong thời đại Hoàng Kim.
