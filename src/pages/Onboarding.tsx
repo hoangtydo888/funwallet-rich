@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Layers, Heart, ChevronRight, Sparkles, Star } from "lucide-react";
+import { Shield, Layers, Heart, ChevronRight, Sparkles } from "lucide-react";
 
 const slides = [
   {
@@ -71,40 +71,6 @@ const Onboarding = () => {
   if (showSplash) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Animated pulse rings */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute rounded-full border-2 border-primary/30 animate-ring-pulse"
-              style={{
-                width: `${180 + i * 80}px`,
-                height: `${180 + i * 80}px`,
-                animationDelay: `${i * 0.8}s`,
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Sparkle stars around logo */}
-        <div className="absolute inset-0 pointer-events-none">
-          {[...Array(8)].map((_, i) => {
-            const angle = (i * 45) * Math.PI / 180;
-            const radius = 140;
-            return (
-              <Star
-                key={i}
-                className="absolute w-4 h-4 text-yellow-400 fill-yellow-400 animate-sparkle"
-                style={{
-                  left: `calc(50% + ${Math.cos(angle) * radius}px - 8px)`,
-                  top: `calc(50% + ${Math.sin(angle) * radius}px - 8px)`,
-                  animationDelay: `${i * 0.25}s`,
-                }}
-              />
-            );
-          })}
-        </div>
-
         {/* Rainbow particles */}
         <div className="absolute inset-0 pointer-events-none">
           {[...Array(20)].map((_, i) => (
@@ -125,44 +91,26 @@ const Onboarding = () => {
           ))}
         </div>
 
-        {/* Logo with zoom-in + breathing glow */}
-        <div className="relative z-10 flex flex-col items-center gap-6">
-          <div 
-            className="w-44 h-44 md:w-56 md:h-56 lg:w-72 lg:h-72 flex items-center justify-center animate-zoom-in"
-          >
-            <img 
-              src="/logo.gif?v=1" 
-              alt="FUN Wallet" 
-              className="w-full h-full animate-breathing-glow"
-              style={{ 
-                filter: 'drop-shadow(0 0 30px rgba(0, 255, 127, 0.6))'
-              }} 
-            />
+        {/* Logo */}
+        <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
+          <div className="w-40 h-40 md:w-52 md:h-52 lg:w-64 lg:h-64 flex items-center justify-center">
+            <img src="/logo.gif?v=1" alt="FUN Wallet" className="w-full h-full logo-animated drop-shadow-xl" />
           </div>
           
-          {/* Animated tagline */}
-          <p 
-            className="text-primary/90 text-center max-w-xs font-medium text-lg animate-fade-in-up"
-            style={{ animationDelay: '0.6s' }}
-          >
-            ✨ Tràn đầy năng lượng yêu thương ✨
+          <p className="text-primary/80 text-center max-w-xs">
+            Tràn đầy năng lượng yêu thương
           </p>
 
-          {/* Loading bar with shimmer */}
-          <div className="w-56 h-2 bg-muted rounded-full overflow-hidden mt-6 relative">
+          {/* Loading bar */}
+          <div className="w-48 h-1.5 bg-muted rounded-full overflow-hidden mt-8">
             <div 
-              className="h-full rounded-full transition-all duration-100 relative loading-shimmer"
+              className="h-full rounded-full transition-all duration-100"
               style={{ 
                 width: `${loadingProgress}%`,
                 background: "linear-gradient(90deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)",
               }}
             />
           </div>
-          
-          {/* Loading percentage */}
-          <p className="text-muted-foreground text-sm animate-pulse">
-            {loadingProgress}%
-          </p>
         </div>
       </div>
     );
