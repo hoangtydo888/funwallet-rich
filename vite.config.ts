@@ -35,24 +35,24 @@ export default defineConfig(({ mode }) => ({
         short_name: "FUN Wallet",
         description: "Ví tiền điện tử Web3 an toàn, dễ sử dụng",
         theme_color: "#00FF7F",
-        background_color: "#000000",
+        background_color: "#00CED1",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
         start_url: "/",
         icons: [
           {
-            src: "/pwa-192x192.png?v=3",
+            src: "/pwa-192x192.png?v=4",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/pwa-512x512.png?v=3",
+            src: "/pwa-512x512.png?v=4",
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "/pwa-512x512.png?v=3",
+            src: "/pwa-512x512.png?v=4",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
