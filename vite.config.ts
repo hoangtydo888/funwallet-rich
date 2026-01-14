@@ -42,17 +42,17 @@ export default defineConfig(({ mode }) => ({
         start_url: "/",
         icons: [
           {
-            src: "/pwa-192x192.png?v=4",
+            src: "/pwa-192x192.png?v=5",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/pwa-512x512.png?v=4",
+            src: "/pwa-512x512.png?v=5",
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "/pwa-512x512.png?v=4",
+            src: "/pwa-512x512.png?v=5",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
