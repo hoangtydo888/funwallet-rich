@@ -110,8 +110,8 @@ const Install = () => {
       <main className="container px-4 py-8 max-w-lg mx-auto space-y-6">
         {/* App Info */}
         <div className="text-center space-y-4">
-          <div className="mx-auto w-48 h-48 flex items-center justify-center">
-            <img src="/logo.gif?v=1" alt="FUN Wallet" className="w-48 h-48" />
+          <div className="mx-auto w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 flex items-center justify-center">
+            <img src="/logo.gif?v=1" alt="FUN Wallet" className="w-full h-full logo-pulse" />
           </div>
           <div>
             <p className="text-muted-foreground">Ví tiền điện tử Web3</p>

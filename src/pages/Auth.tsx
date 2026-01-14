@@ -185,8 +185,8 @@ const Auth = () => {
         <div className="glass-card rounded-3xl p-8">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-40 h-40 mb-4">
-              <img src="/logo.gif?v=1" alt="FUN Wallet" className="w-40 h-40" />
+            <div className="inline-flex items-center justify-center w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 mb-4">
+              <img src="/logo.gif?v=1" alt="FUN Wallet" className="w-full h-full logo-pulse" />
             </div>
             <p className="text-muted-foreground mt-2">
               {isSignUp ? "Tạo tài khoản mới" : "Đăng nhập vào ví của bạn"}
