@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Layers, Heart, ChevronRight, Sparkles } from "lucide-react";
+import { Shield, Layers, Heart, ChevronRight, Sparkles, Star } from "lucide-react";
 
 const slides = [
   {
@@ -24,11 +24,19 @@ const slides = [
   },
 ];
 
+// Rainbow colors for particles
+const rainbowColors = [
+  "#FF0000", "#FF4500", "#FFA500", "#FFD700", "#FFFF00", 
+  "#ADFF2F", "#00FF7F", "#00FA9A", "#00FFFF", "#00BFFF", 
+  "#1E90FF", "#4B0082", "#8B00FF", "#FF00FF", "#FF1493"
+];
+
 const Onboarding = () => {
   const navigate = useNavigate();
   const [showSplash, setShowSplash] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [logoLoaded, setLogoLoaded] = useState(false);
 
   useEffect(() => {
     // Check if user has seen onboarding before
@@ -37,6 +45,9 @@ const Onboarding = () => {
       navigate("/auth");
       return;
     }
+
+    // Trigger logo animation after a small delay
+    setTimeout(() => setLogoLoaded(true), 100);
 
     // Splash screen animation
     const progressInterval = setInterval(() => {
@@ -67,50 +78,116 @@ const Onboarding = () => {
     navigate("/auth");
   };
 
-  // Splash Screen
+  // Splash Screen with enhanced animations
   if (showSplash) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Rainbow particles */}
-        <div className="absolute inset-0 pointer-events-none">
-          {[...Array(20)].map((_, i) => (
+        {/* Animated pulse rings behind logo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {[...Array(3)].map((_, i) => (
             <div
-              key={i}
-              className="absolute w-2 h-2 rounded-full animate-float"
+              key={`ring-${i}`}
+              className="absolute w-64 h-64 md:w-80 md:h-80 rounded-full border-2 border-primary/20 animate-pulse-ring"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${3 + Math.random() * 4}s`,
-                background: [
-                  "#FF0000", "#FFA500", "#FFFF00", "#00FF7F", "#00BFFF", "#4B0082", "#FF00FF"
-                ][i % 7],
-                opacity: 0.6,
+                animationDelay: `${i * 0.5}s`,
               }}
             />
           ))}
         </div>
 
-        {/* Logo */}
-        <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
+        {/* Orbiting rainbow particles */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={`orbit-${i}`}
+              className="absolute w-3 h-3 rounded-full animate-orbit"
+              style={{
+                background: rainbowColors[i % rainbowColors.length],
+                boxShadow: `0 0 10px ${rainbowColors[i % rainbowColors.length]}`,
+                '--orbit-radius': `${120 + (i % 3) * 30}px`,
+                '--orbit-duration': `${6 + i * 0.5}s`,
+                '--orbit-delay': `${i * 0.3}s`,
+              } as React.CSSProperties}
+            />
+          ))}
+        </div>
+
+        {/* Floating sparkles */}
+        <div className="absolute inset-0 pointer-events-none">
+          {[...Array(20)].map((_, i) => (
+            <div
+              key={`sparkle-${i}`}
+              className="absolute animate-twinkle"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                '--twinkle-duration': `${2 + Math.random() * 2}s`,
+                '--twinkle-delay': `${Math.random() * 3}s`,
+              } as React.CSSProperties}
+            >
+              <Star 
+                className="text-yellow-400" 
+                size={8 + Math.random() * 12} 
+                fill="currentColor"
+                style={{
+                  filter: `drop-shadow(0 0 4px rgba(255, 215, 0, 0.8))`,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Rainbow floating particles */}
+        <div className="absolute inset-0 pointer-events-none">
+          {[...Array(30)].map((_, i) => (
+            <div
+              key={`particle-${i}`}
+              className="absolute rounded-full animate-float"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                width: `${4 + Math.random() * 8}px`,
+                height: `${4 + Math.random() * 8}px`,
+                animationDelay: `${Math.random() * 5}s`,
+                animationDuration: `${4 + Math.random() * 4}s`,
+                background: rainbowColors[i % rainbowColors.length],
+                boxShadow: `0 0 8px ${rainbowColors[i % rainbowColors.length]}`,
+                opacity: 0.7,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Logo with scale bounce animation */}
+        <div className={`relative z-10 flex flex-col items-center gap-6 ${logoLoaded ? 'animate-scale-bounce' : 'opacity-0'}`}>
           <div className="w-40 h-40 md:w-52 md:h-52 lg:w-64 lg:h-64 flex items-center justify-center">
-            <img src="/logo.gif?v=1" alt="FUN Wallet" className="w-full h-full logo-animated drop-shadow-xl" />
+            <img 
+              src="/logo.gif?v=1" 
+              alt="FUN Wallet" 
+              className="w-full h-full logo-animated drop-shadow-xl glow-rainbow" 
+            />
           </div>
           
-          <p className="text-primary/80 text-center max-w-xs">
-            Tràn đầy năng lượng yêu thương
+          {/* Text with reveal animation */}
+          <p className="text-primary/80 text-center max-w-xs animate-text-reveal font-medium">
+            ✨ Tràn đầy năng lượng yêu thương ✨
           </p>
 
-          {/* Loading bar */}
-          <div className="w-48 h-1.5 bg-muted rounded-full overflow-hidden mt-8">
+          {/* Loading bar with glow and shimmer */}
+          <div className="w-48 h-2 bg-muted rounded-full overflow-hidden mt-8 relative loading-bar-glow">
             <div 
-              className="h-full rounded-full transition-all duration-100"
+              className="h-full rounded-full transition-all duration-100 relative overflow-hidden loading-shimmer"
               style={{ 
                 width: `${loadingProgress}%`,
                 background: "linear-gradient(90deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)",
               }}
             />
           </div>
+          
+          {/* Loading percentage */}
+          <span className="text-xs text-muted-foreground animate-pulse">
+            {loadingProgress}%
+          </span>
         </div>
       </div>
     );
