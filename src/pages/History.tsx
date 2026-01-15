@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  ArrowLeft, Filter, Calendar, Download, ExternalLink, 
+  ArrowLeft, ExternalLink, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, Layers, Palette, Coins, Search,
-  Loader2, FileText, FileSpreadsheet
+  Loader2, FileText, FileSpreadsheet, Globe, Database
 } from "lucide-react";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
@@ -19,6 +19,8 @@ import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
 import BottomNav from "@/components/layout/BottomNav";
 import { toast } from "@/hooks/use-toast";
+import { useWallet } from "@/hooks/useWallet";
+import { getAllTransactions, formatTxValue, getTxDirection, type Transaction as BlockchainTx } from "@/lib/bscscan";
 
 interface Transaction {
   id: string;
@@ -31,6 +33,7 @@ interface Transaction {
   tx_hash: string;
   created_at: string;
   tx_timestamp: string | null;
+  source: 'blockchain' | 'database';
 }
 
 const typeIcons: Record<string, any> = {
@@ -59,14 +62,26 @@ const statusColors: Record<string, string> = {
 const History = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { activeWallet } = useWallet();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [newTxIds, setNewTxIds] = useState<Set<string>>(new Set());
 
-  // Fetch real transactions from Supabase
-  const { data: transactions = [], isLoading, refetch } = useQuery({
-    queryKey: ['transactions', user?.id],
+  // Fetch blockchain transactions from BSCScan
+  const { data: blockchainTxs = [], isLoading: blockchainLoading, refetch: refetchBlockchain } = useQuery({
+    queryKey: ['blockchain-transactions', activeWallet?.address],
+    queryFn: async () => {
+      if (!activeWallet?.address) return [];
+      return getAllTransactions(activeWallet.address, 1, 50);
+    },
+    enabled: !!activeWallet?.address,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
+  // Fetch database transactions from Supabase
+  const { data: dbTransactions = [], isLoading: dbLoading, refetch: refetchDb } = useQuery({
+    queryKey: ['db-transactions', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
@@ -82,10 +97,61 @@ const History = () => {
         return [];
       }
       
-      return (data || []) as Transaction[];
+      return data || [];
     },
     enabled: !!user?.id,
   });
+
+  const isLoading = blockchainLoading || dbLoading;
+
+  // Combine blockchain and database transactions
+  const allTransactions = useMemo(() => {
+    const walletAddress = activeWallet?.address?.toLowerCase() || '';
+    
+    // Format blockchain transactions
+    const blockchainFormatted: Transaction[] = blockchainTxs.map((tx: BlockchainTx) => {
+      const direction = getTxDirection(tx, walletAddress);
+      const decimals = tx.tokenDecimal ? parseInt(tx.tokenDecimal) : 18;
+      
+      return {
+        id: tx.hash,
+        tx_type: direction === 'in' ? 'receive' : 'send',
+        token_symbol: tx.tokenSymbol || 'BNB',
+        amount: formatTxValue(tx.value, decimals),
+        from_address: tx.from,
+        to_address: tx.to,
+        status: tx.isError === '0' ? 'success' : 'failed',
+        tx_hash: tx.hash,
+        created_at: new Date(parseInt(tx.timeStamp) * 1000).toISOString(),
+        tx_timestamp: new Date(parseInt(tx.timeStamp) * 1000).toISOString(),
+        source: 'blockchain' as const,
+      };
+    });
+    
+    // Format database transactions
+    const dbFormatted: Transaction[] = dbTransactions.map((tx: any) => ({
+      ...tx,
+      source: 'database' as const,
+    }));
+    
+    // Merge and sort by date (newest first)
+    // Remove duplicates by tx_hash
+    const txMap = new Map<string, Transaction>();
+    
+    [...blockchainFormatted, ...dbFormatted].forEach(tx => {
+      if (!txMap.has(tx.tx_hash)) {
+        txMap.set(tx.tx_hash, tx);
+      }
+    });
+    
+    return Array.from(txMap.values())
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [blockchainTxs, dbTransactions, activeWallet?.address]);
+
+  const refetch = () => {
+    refetchBlockchain();
+    refetchDb();
+  };
 
   // Real-time subscription for new transactions
   useEffect(() => {
@@ -156,7 +222,7 @@ const History = () => {
     );
   }
 
-  const filteredTransactions = transactions.filter(tx => {
+  const filteredTransactions = allTransactions.filter(tx => {
     if (filter !== "all" && tx.tx_type !== filter) return false;
     if (searchQuery && !tx.token_symbol.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
@@ -363,7 +429,21 @@ const History = () => {
                         </div>
                         
                         <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-muted-foreground">{txTime}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{txTime}</span>
+                            {tx.source === 'blockchain' && (
+                              <Badge variant="outline" className="text-xs gap-1">
+                                <Globe className="w-3 h-3" />
+                                On-chain
+                              </Badge>
+                            )}
+                            {tx.source === 'database' && (
+                              <Badge variant="outline" className="text-xs gap-1 bg-primary/10">
+                                <Database className="w-3 h-3" />
+                                In-app
+                              </Badge>
+                            )}
+                          </div>
                           <Badge className={`text-xs ${statusColors[tx.status]}`}>
                             {tx.status === "success" ? "✅ Success" :
                              tx.status === "pending" ? "⏳ Pending" :
