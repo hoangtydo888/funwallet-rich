@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, ExternalLink, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, Layers, Palette, Coins, Search,
-  Loader2, FileText, FileSpreadsheet, Globe, Database
+  Loader2, FileText, FileSpreadsheet, Globe, Database, Wallet
 } from "lucide-react";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -370,10 +371,31 @@ const History = () => {
           </Select>
         </div>
 
-        {/* Loading State */}
+        {/* Skeleton Loading State */}
         {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="space-y-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i} className="glass-card">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="w-10 h-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <div className="flex justify-between">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-3 w-32" />
+                        </div>
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-5 w-20 rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
 
@@ -472,11 +494,37 @@ const History = () => {
         {!isLoading && filteredTransactions.length === 0 && (
           <Card className="glass-card">
             <CardContent className="p-8 text-center">
-              <Coins className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-              <p className="text-muted-foreground">Không có giao dịch nào</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Các giao dịch của bạn sẽ hiển thị ở đây
-              </p>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                <Wallet className="w-8 h-8 text-muted-foreground/50" />
+              </div>
+              <p className="font-medium mb-2">Chưa có giao dịch nào</p>
+              {searchQuery ? (
+                <p className="text-sm text-muted-foreground">
+                  Không tìm thấy giao dịch phù hợp với "{searchQuery}"
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Ví của bạn chưa có giao dịch on-chain nào.
+                  </p>
+                  {activeWallet?.address && (
+                    <p className="text-xs text-muted-foreground font-mono bg-muted px-3 py-1.5 rounded-lg inline-block mb-4">
+                      {formatAddress(activeWallet.address)}
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Gửi BNB hoặc token đến địa chỉ ví để bắt đầu!
+                  </p>
+                  <Button 
+                    onClick={() => navigate("/transfer")} 
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <ArrowDownLeft className="w-4 h-4" />
+                    Nhận tiền
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
