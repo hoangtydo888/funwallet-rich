@@ -69,39 +69,78 @@ const Auth = () => {
 
         const { error } = await signUp(formData.email, formData.password, formData.displayName);
         if (error) {
+          const errorMsg = error.message.toLowerCase();
           let errorTitle = "Lỗi đăng ký";
           let errorDescription = error.message;
+
+          // Check if this is an email-related error (account may still be created)
+          const isEmailError = 
+            errorMsg.includes("email") ||
+            errorMsg.includes("sending") ||
+            errorMsg.includes("smtp") ||
+            errorMsg.includes("confirmation") ||
+            errorMsg.includes("domain") ||
+            errorMsg.includes("rate limit") ||
+            errorMsg.includes("error sending");
+
+          // Check for network errors
+          const isNetworkError = 
+            errorMsg.includes("network") ||
+            errorMsg.includes("fetch") ||
+            errorMsg.includes("load failed") ||
+            errorMsg.includes("failed to fetch") ||
+            errorMsg.includes("connection");
 
           if (error.message.includes("already registered") || error.message.includes("User already registered")) {
             errorTitle = "Email đã được đăng ký";
             errorDescription = "Vui lòng đăng nhập hoặc sử dụng email khác.";
-          } else if (error.message.includes("confirmation email") || error.message.includes("sending email") || error.message.includes("domain is not verified")) {
-            errorTitle = "Đăng ký thành công!";
-            errorDescription = "Tài khoản đã được tạo. Bạn có thể đăng nhập ngay.";
-            // Account was created but email failed - still allow login
             toast({
               title: errorTitle,
               description: errorDescription,
+              variant: "destructive",
+            });
+          } else if (isEmailError && !isNetworkError) {
+            // Email error but account was likely created - allow login
+            toast({
+              title: "Đăng ký thành công!",
+              description: "Tài khoản đã được tạo. Bạn có thể đăng nhập ngay mà không cần xác nhận email.",
             });
             setIsSignUp(false);
             setFormData(prev => ({ ...prev, confirmPassword: "", displayName: "" }));
+            setLoading(false);
             return;
+          } else if (isNetworkError) {
+            errorTitle = "Lỗi kết nối";
+            errorDescription = "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.";
+            toast({
+              title: errorTitle,
+              description: errorDescription,
+              variant: "destructive",
+            });
           } else if (error.message.includes("Password should be")) {
             errorTitle = "Mật khẩu không đủ mạnh";
             errorDescription = "Mật khẩu cần có ít nhất 6 ký tự.";
+            toast({
+              title: errorTitle,
+              description: errorDescription,
+              variant: "destructive",
+            });
           } else if (error.message.includes("Invalid email")) {
             errorTitle = "Email không hợp lệ";
             errorDescription = "Vui lòng nhập địa chỉ email đúng định dạng.";
-          } else if (error.message.includes("Network") || error.message.includes("fetch") || error.message.includes("Load failed")) {
-            errorTitle = "Lỗi kết nối";
-            errorDescription = "Không thể kết nối đến server. Vui lòng kiểm tra mạng và thử lại.";
+            toast({
+              title: errorTitle,
+              description: errorDescription,
+              variant: "destructive",
+            });
+          } else {
+            // Generic error
+            toast({
+              title: errorTitle,
+              description: errorDescription,
+              variant: "destructive",
+            });
           }
-
-          toast({
-            title: errorTitle,
-            description: errorDescription,
-            variant: "destructive",
-          });
         } else {
           toast({
             title: "Đăng ký thành công!",
@@ -126,8 +165,17 @@ const Auth = () => {
 
         const { error } = await signIn(formData.email, formData.password);
         if (error) {
+          const errorMsg = error.message.toLowerCase();
           let errorTitle = "Lỗi đăng nhập";
           let errorDescription = error.message;
+
+          // Check for network errors
+          const isNetworkError = 
+            errorMsg.includes("network") ||
+            errorMsg.includes("fetch") ||
+            errorMsg.includes("load failed") ||
+            errorMsg.includes("failed to fetch") ||
+            errorMsg.includes("connection");
 
           if (error.message.includes("Invalid login credentials")) {
             errorTitle = "Thông tin đăng nhập không đúng";
@@ -135,10 +183,10 @@ const Auth = () => {
           } else if (error.message.includes("Email not confirmed")) {
             errorTitle = "Email chưa được xác nhận";
             errorDescription = "Vui lòng kiểm tra hộp thư để xác nhận email, hoặc thử đăng ký lại.";
-          } else if (error.message.includes("Network") || error.message.includes("fetch") || error.message.includes("Load failed")) {
+          } else if (isNetworkError) {
             errorTitle = "Lỗi kết nối";
-            errorDescription = "Không thể kết nối đến server. Vui lòng kiểm tra mạng và thử lại.";
-          } else if (error.message.includes("Too many requests")) {
+            errorDescription = "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.";
+          } else if (error.message.includes("Too many requests") || errorMsg.includes("rate limit")) {
             errorTitle = "Quá nhiều yêu cầu";
             errorDescription = "Vui lòng đợi một lát rồi thử lại.";
           }
