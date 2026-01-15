@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, Lock, Unlock, Settings, History, Sparkles, Crown, Shield, Globe } from "lucide-react";
+import { ArrowLeft, CreditCard, Lock, Unlock, Settings, History, Sparkles, Crown, Shield, Globe, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCard } from "@/hooks/useCard";
 import BottomNav from "@/components/layout/BottomNav";
 
 const cardTiers = [
   {
-    id: "bronze",
+    id: "bronze" as const,
     name: "Bronze",
     icon: "🥉",
     limit: "$1,000/tháng",
@@ -19,7 +20,7 @@ const cardTiers = [
     color: "from-amber-600 to-amber-800",
   },
   {
-    id: "silver",
+    id: "silver" as const,
     name: "Silver",
     icon: "🥈",
     limit: "$5,000/tháng",
@@ -28,7 +29,7 @@ const cardTiers = [
     color: "from-gray-400 to-gray-600",
   },
   {
-    id: "gold",
+    id: "gold" as const,
     name: "Gold",
     icon: "🥇",
     limit: "Không giới hạn",
@@ -48,9 +49,7 @@ const nftBadges = [
 const FunCard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const [isCardLocked, setIsCardLocked] = useState(false);
-  const [selectedTier, setSelectedTier] = useState("bronze");
-  const [selectedBadge, setSelectedBadge] = useState("gold");
+  const { card, loading, updating, toggleCardLock, updateTier, updateBadge, topUpBalance } = useCard();
   const [showCardNumber, setShowCardNumber] = useState(false);
 
   useEffect(() => {
@@ -59,7 +58,7 @@ const FunCard = () => {
     }
   }, [user, authLoading, navigate]);
 
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -67,8 +66,28 @@ const FunCard = () => {
     );
   }
 
-  const currentTier = cardTiers.find(t => t.id === selectedTier) || cardTiers[0];
-  const selectedBadgeData = nftBadges.find(b => b.id === selectedBadge);
+  const currentTier = cardTiers.find(t => t.id === card?.card_tier) || cardTiers[0];
+  const selectedBadgeData = nftBadges.find(b => b.id === card?.nft_badge_id);
+
+  // Format card number for display
+  const formatCardNumber = (number: string | undefined): string => {
+    if (!number) return "•••• •••• •••• ••••";
+    if (!showCardNumber) {
+      return `•••• •••• •••• ${number.slice(-4)}`;
+    }
+    return number.replace(/(.{4})/g, "$1 ").trim();
+  };
+
+  const handleUpgrade = async (tierId: "bronze" | "silver" | "gold") => {
+    if (updating || tierId === card?.card_tier) return;
+    await updateTier(tierId);
+  };
+
+  const handleBadgeSelect = async (badgeId: string) => {
+    if (updating) return;
+    const newBadgeId = badgeId === card?.nft_badge_id ? null : badgeId;
+    await updateBadge(newBadgeId);
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -132,7 +151,7 @@ const FunCard = () => {
               {/* Card Number */}
               <div className="relative z-10">
                 <p className="text-lg font-mono tracking-widest">
-                  {showCardNumber ? "5432 1098 7654 3210" : "•••• •••• •••• 3210"}
+                  {formatCardNumber(card?.card_number)}
                 </p>
               </div>
 
@@ -140,7 +159,7 @@ const FunCard = () => {
               <div className="flex items-end justify-between relative z-10">
                 <div>
                   <p className="text-xs opacity-70">CARDHOLDER</p>
-                  <p className="font-semibold">NGUYEN VAN A</p>
+                  <p className="font-semibold">{user?.email?.split("@")[0].toUpperCase() || "FUN USER"}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs opacity-70">VALID THRU</p>
@@ -149,7 +168,7 @@ const FunCard = () => {
               </div>
 
               {/* Lock Overlay */}
-              {isCardLocked && (
+              {card?.is_locked && (
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20">
                   <div className="text-center">
                     <Lock className="w-12 h-12 mx-auto mb-2" />
@@ -166,7 +185,7 @@ const FunCard = () => {
           <Card className="glass-card">
             <CardContent className="p-4 text-center">
               <p className="text-sm text-muted-foreground mb-1">Số dư thẻ</p>
-              <p className="text-2xl font-bold rainbow-text">$2,500.00</p>
+              <p className="text-2xl font-bold rainbow-text">${card?.balance.toFixed(2) || "0.00"}</p>
             </CardContent>
           </Card>
           <Card className="glass-card">
@@ -182,16 +201,32 @@ const FunCard = () => {
           <Button
             variant="outline"
             className="h-auto py-4 flex flex-col items-center gap-2"
-            onClick={() => setIsCardLocked(!isCardLocked)}
+            onClick={toggleCardLock}
+            disabled={updating}
           >
-            {isCardLocked ? <Unlock className="w-5 h-5 text-success" /> : <Lock className="w-5 h-5 text-destructive" />}
-            <span className="text-xs">{isCardLocked ? "Mở khóa" : "Khóa thẻ"}</span>
+            {updating ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : card?.is_locked ? (
+              <Unlock className="w-5 h-5 text-success" />
+            ) : (
+              <Lock className="w-5 h-5 text-destructive" />
+            )}
+            <span className="text-xs">{card?.is_locked ? "Mở khóa" : "Khóa thẻ"}</span>
           </Button>
-          <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="h-auto py-4 flex flex-col items-center gap-2"
+            onClick={() => topUpBalance(100)}
+            disabled={updating}
+          >
             <CreditCard className="w-5 h-5 text-secondary" />
             <span className="text-xs">Nạp tiền</span>
           </Button>
-          <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="h-auto py-4 flex flex-col items-center gap-2"
+            onClick={() => navigate("/history")}
+          >
             <History className="w-5 h-5 text-accent" />
             <span className="text-xs">Lịch sử</span>
           </Button>
@@ -219,11 +254,11 @@ const FunCard = () => {
             <Card 
               key={tier.id}
               className={`cursor-pointer transition-all ${
-                selectedTier === tier.id 
+                card?.card_tier === tier.id 
                   ? "gradient-border ring-2 ring-primary" 
                   : "glass-card hover:border-primary/50"
               }`}
-              onClick={() => setSelectedTier(tier.id)}
+              onClick={() => handleUpgrade(tier.id)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -234,7 +269,7 @@ const FunCard = () => {
                       <p className="text-sm text-muted-foreground">{tier.limit}</p>
                     </div>
                   </div>
-                  {selectedTier === tier.id && (
+                  {card?.card_tier === tier.id && (
                     <Badge className="bg-primary text-primary-foreground">Hiện tại</Badge>
                   )}
                 </div>
@@ -253,10 +288,20 @@ const FunCard = () => {
             </Card>
           ))}
 
-          <Button className="w-full bg-gradient-to-r from-primary to-secondary text-primary-foreground font-semibold">
-            <Crown className="w-4 h-4 mr-2" />
-            Nâng cấp Gold
-          </Button>
+          {card?.card_tier !== "gold" && (
+            <Button 
+              className="w-full bg-gradient-to-r from-primary to-secondary text-primary-foreground font-semibold"
+              onClick={() => handleUpgrade("gold")}
+              disabled={updating}
+            >
+              {updating ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Crown className="w-4 h-4 mr-2" />
+              )}
+              Nâng cấp Gold
+            </Button>
+          )}
         </div>
 
         {/* NFT Badge Selection */}
@@ -266,12 +311,13 @@ const FunCard = () => {
             {nftBadges.map((badge) => (
               <button
                 key={badge.id}
-                onClick={() => setSelectedBadge(badge.id)}
+                onClick={() => handleBadgeSelect(badge.id)}
+                disabled={updating}
                 className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${
-                  selectedBadge === badge.id
+                  card?.nft_badge_id === badge.id
                     ? "bg-primary/20 ring-2 ring-primary"
                     : "bg-muted hover:bg-muted/80"
-                }`}
+                } ${updating ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <span className="text-3xl">{badge.icon}</span>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">{badge.name}</span>
