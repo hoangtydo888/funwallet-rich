@@ -8,11 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useWallet, TokenBalance } from "@/hooks/useWallet";
+import { useWallet } from "@/hooks/useWallet";
 import { sendBNB, sendToken, isValidAddress } from "@/lib/wallet";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/layout/BottomNav";
 import { TransactionConfirmDialog } from "@/components/wallet/TransactionConfirmDialog";
+import { QRScannerDialog } from "@/components/wallet/QRScannerDialog";
 
 const banks = [
   { id: "vcb", name: "Vietcombank", logo: "🏦" },
@@ -34,6 +35,7 @@ const Transfer = () => {
   const [sending, setSending] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   
   // Fiat withdrawal
   const [selectedBank, setSelectedBank] = useState("");
@@ -103,26 +105,34 @@ const Transfer = () => {
 
     setSending(true);
     try {
-      let result: { hash: string };
+      let txHash: string;
       
       if (selectedToken === "BNB") {
-        result = await sendBNB(privateKey, recipientAddress, amount);
+        const result = await sendBNB(privateKey, recipientAddress, amount);
+        if ('error' in result) {
+          throw new Error(result.error);
+        }
+        txHash = result.hash;
       } else {
         const tokenAddress = selectedTokenData?.address;
         if (!tokenAddress) {
           throw new Error("Token address not found");
         }
-        result = await sendToken(privateKey, tokenAddress, recipientAddress, amount);
+        const result = await sendToken(privateKey, tokenAddress, recipientAddress, amount);
+        if ('error' in result) {
+          throw new Error(result.error);
+        }
+        txHash = result.hash;
       }
 
-      setTxHash(result.hash);
+      setTxHash(txHash);
 
       // Save transaction to database
       if (user && activeWallet) {
         await supabase.from("transactions").insert({
           user_id: user.id,
           wallet_id: activeWallet.id,
-          tx_hash: result.hash,
+          tx_hash: txHash,
           tx_type: "send",
           token_symbol: selectedToken,
           token_address: selectedTokenData?.address || null,
@@ -322,7 +332,11 @@ const Transfer = () => {
                     onChange={(e) => setRecipientAddress(e.target.value)}
                     className="flex-1 font-mono text-sm"
                   />
-                  <Button variant="outline" size="icon">
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setShowQRScanner(true)}
+                  >
                     <QrCode className="w-4 h-4" />
                   </Button>
                 </div>
@@ -558,12 +572,27 @@ const Transfer = () => {
       <TransactionConfirmDialog
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
-        tokenSymbol={selectedToken}
-        amount={amount}
-        recipient={recipientAddress}
-        networkFee={networkFee}
-        onConfirm={handleSendCrypto}
-        loading={sending}
+        transaction={{
+          from: activeWallet?.address || "",
+          to: recipientAddress,
+          amount: amount,
+          tokenSymbol: selectedToken,
+          tokenLogo: selectedTokenData?.logo,
+          gasEstimate: networkFee,
+          gasToken: "BNB",
+          isNewAddress: true,
+        }}
+        onConfirm={async () => {
+          await handleSendCrypto();
+        }}
+        requirePassword={false}
+      />
+
+      {/* QR Scanner Dialog */}
+      <QRScannerDialog
+        open={showQRScanner}
+        onOpenChange={setShowQRScanner}
+        onScan={(address) => setRecipientAddress(address)}
       />
 
       <BottomNav />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Filter, Calendar, Download, ExternalLink, 
@@ -13,11 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
 import BottomNav from "@/components/layout/BottomNav";
+import { toast } from "@/hooks/use-toast";
 
 interface Transaction {
   id: string;
@@ -58,8 +59,10 @@ const statusColors: Record<string, string> = {
 const History = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [newTxIds, setNewTxIds] = useState<Set<string>>(new Set());
 
   // Fetch real transactions from Supabase
   const { data: transactions = [], isLoading, refetch } = useQuery({
@@ -83,6 +86,61 @@ const History = () => {
     },
     enabled: !!user?.id,
   });
+
+  // Real-time subscription for new transactions
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const channel = supabase
+      .channel('transactions-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newTx = payload.new as Transaction;
+          // Mark as new for animation
+          setNewTxIds(prev => new Set(prev).add(newTx.id));
+          // Clear animation after 3 seconds
+          setTimeout(() => {
+            setNewTxIds(prev => {
+              const next = new Set(prev);
+              next.delete(newTx.id);
+              return next;
+            });
+          }, 3000);
+          
+          // Refetch to get updated list
+          queryClient.invalidateQueries({ queryKey: ['transactions', user.id] });
+          
+          toast({
+            title: "📬 Giao dịch mới",
+            description: `${newTx.tx_type === 'send' ? 'Gửi' : 'Nhận'} ${newTx.amount} ${newTx.token_symbol}`,
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['transactions', user.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -261,9 +319,15 @@ const History = () => {
             {txs.map((tx) => {
               const Icon = typeIcons[tx.tx_type] || Coins;
               const txTime = format(parseISO(tx.tx_timestamp || tx.created_at), "HH:mm");
+              const isNew = newTxIds.has(tx.id);
               
               return (
-                <Card key={tx.id} className="glass-card token-card-hover cursor-pointer">
+                <Card 
+                  key={tx.id} 
+                  className={`glass-card token-card-hover cursor-pointer transition-all duration-300 ${
+                    isNew ? 'ring-2 ring-primary animate-pulse' : ''
+                  }`}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <div className={`w-10 h-10 rounded-full bg-muted flex items-center justify-center ${typeColors[tx.tx_type]}`}>
