@@ -1,5 +1,6 @@
-// BscScan API integration
-const BSCSCAN_API = "https://api.bscscan.com/api";
+// Etherscan API V2 integration for BSC
+const ETHERSCAN_V2_API = "https://api.etherscan.io/v2/api";
+const BSC_CHAIN_ID = "56"; // BSC Mainnet
 
 export interface Transaction {
   hash: string;
@@ -27,6 +28,7 @@ export const getNormalTransactions = async (
 ): Promise<Transaction[]> => {
   try {
     const params = new URLSearchParams({
+      chainid: BSC_CHAIN_ID,
       module: "account",
       action: "txlist",
       address,
@@ -37,7 +39,7 @@ export const getNormalTransactions = async (
       sort: "desc",
     });
 
-    const response = await fetch(`${BSCSCAN_API}?${params}`);
+    const response = await fetch(`${ETHERSCAN_V2_API}?${params}`);
     const data = await response.json();
 
     if (data.status === "1" && data.result) {
@@ -62,6 +64,7 @@ export const getTokenTransactions = async (
 ): Promise<Transaction[]> => {
   try {
     const params = new URLSearchParams({
+      chainid: BSC_CHAIN_ID,
       module: "account",
       action: "tokentx",
       address,
@@ -72,7 +75,7 @@ export const getTokenTransactions = async (
       sort: "desc",
     });
 
-    const response = await fetch(`${BSCSCAN_API}?${params}`);
+    const response = await fetch(`${ETHERSCAN_V2_API}?${params}`);
     const data = await response.json();
 
     if (data.status === "1" && data.result) {
