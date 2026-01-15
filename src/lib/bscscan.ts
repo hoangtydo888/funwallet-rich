@@ -1,6 +1,5 @@
-// Etherscan API V2 integration for BSC
-const ETHERSCAN_V2_API = "https://api.etherscan.io/v2/api";
-const BSC_CHAIN_ID = "56"; // BSC Mainnet
+// BSCScan API integration (free, no API key required)
+const BSCSCAN_API = "https://api.bscscan.com/api";
 
 export interface Transaction {
   hash: string;
@@ -28,7 +27,6 @@ export const getNormalTransactions = async (
 ): Promise<Transaction[]> => {
   try {
     const params = new URLSearchParams({
-      chainid: BSC_CHAIN_ID,
       module: "account",
       action: "txlist",
       address,
@@ -39,7 +37,7 @@ export const getNormalTransactions = async (
       sort: "desc",
     });
 
-    const response = await fetch(`${ETHERSCAN_V2_API}?${params}`);
+    const response = await fetch(`${BSCSCAN_API}?${params}`);
     const data = await response.json();
 
     if (data.status === "1" && data.result) {
@@ -64,7 +62,6 @@ export const getTokenTransactions = async (
 ): Promise<Transaction[]> => {
   try {
     const params = new URLSearchParams({
-      chainid: BSC_CHAIN_ID,
       module: "account",
       action: "tokentx",
       address,
@@ -75,7 +72,7 @@ export const getTokenTransactions = async (
       sort: "desc",
     });
 
-    const response = await fetch(`${ETHERSCAN_V2_API}?${params}`);
+    const response = await fetch(`${BSCSCAN_API}?${params}`);
     const data = await response.json();
 
     if (data.status === "1" && data.result) {
@@ -98,10 +95,17 @@ export const getAllTransactions = async (
   offset: number = 10
 ): Promise<Transaction[]> => {
   try {
+    console.log("[BSCScan] Fetching transactions for:", address);
+    
     const [nativeTxs, tokenTxs] = await Promise.all([
       getNormalTransactions(address, page, offset),
       getTokenTransactions(address, page, offset),
     ]);
+
+    console.log("[BSCScan] Found:", {
+      native: nativeTxs.length,
+      token: tokenTxs.length,
+    });
 
     // Combine and sort by timestamp
     const allTxs = [...nativeTxs, ...tokenTxs].sort(
