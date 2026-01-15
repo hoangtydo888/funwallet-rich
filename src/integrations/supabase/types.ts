@@ -190,6 +190,36 @@ export type Database = {
         }
         Relationships: []
       }
+      learning_progress: {
+        Row: {
+          completed_at: string | null
+          course_id: string
+          created_at: string | null
+          id: string
+          progress: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          course_id: string
+          created_at?: string | null
+          id?: string
+          progress?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          course_id?: string
+          created_at?: string | null
+          id?: string
+          progress?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       nft_collections: {
         Row: {
           chain: string
@@ -474,6 +504,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_cards: {
+        Row: {
+          balance: number | null
+          card_number: string
+          card_tier: string
+          created_at: string | null
+          id: string
+          is_locked: boolean | null
+          nft_badge_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          balance?: number | null
+          card_number: string
+          card_tier?: string
+          created_at?: string | null
+          id?: string
+          is_locked?: boolean | null
+          nft_badge_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          balance?: number | null
+          card_number?: string
+          card_tier?: string
+          created_at?: string | null
+          id?: string
+          is_locked?: boolean | null
+          nft_badge_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_learning_stats: {
+        Row: {
+          certificates_earned: string[] | null
+          created_at: string | null
+          id: string
+          last_activity_date: string | null
+          level: number | null
+          streak_days: number | null
+          updated_at: string | null
+          user_id: string
+          xp: number | null
+        }
+        Insert: {
+          certificates_earned?: string[] | null
+          created_at?: string | null
+          id?: string
+          last_activity_date?: string | null
+          level?: number | null
+          streak_days?: number | null
+          updated_at?: string | null
+          user_id: string
+          xp?: number | null
+        }
+        Update: {
+          certificates_earned?: string[] | null
+          created_at?: string | null
+          id?: string
+          last_activity_date?: string | null
+          level?: number | null
+          streak_days?: number | null
+          updated_at?: string | null
+          user_id?: string
+          xp?: number | null
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
