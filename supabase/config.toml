@@ -1,1 +1,4 @@
 project_id = "xavgatuwiaeewdfpkycn"
+
+[functions.bscscan-proxy]
+verify_jwt = false

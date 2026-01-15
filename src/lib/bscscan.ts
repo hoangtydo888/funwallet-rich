@@ -1,5 +1,5 @@
-// BSCScan API integration (free, no API key required)
-const BSCSCAN_API = "https://api.bscscan.com/api";
+// BSCScan API integration via Edge Function Proxy (bypasses CORS)
+const BSCSCAN_PROXY_URL = "https://xavgatuwiaeewdfpkycn.supabase.co/functions/v1/bscscan-proxy";
 
 export interface Transaction {
   hash: string;
@@ -19,28 +19,29 @@ export interface Transaction {
   type: "native" | "token";
 }
 
-// Fetch normal transactions
+// Fetch normal transactions via Edge Function
 export const getNormalTransactions = async (
   address: string,
   page: number = 1,
-  offset: number = 20
+  offset: number = 50
 ): Promise<Transaction[]> => {
   try {
-    const params = new URLSearchParams({
-      module: "account",
-      action: "txlist",
-      address,
-      startblock: "0",
-      endblock: "99999999",
-      page: page.toString(),
-      offset: offset.toString(),
-      sort: "desc",
+    console.log("[BSCScan] Fetching normal txs for:", address);
+    
+    const response = await fetch(BSCSCAN_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, action: "txlist", page, offset }),
     });
 
-    const response = await fetch(`${BSCSCAN_API}?${params}`);
     const data = await response.json();
+    console.log("[BSCScan] Normal txs response:", {
+      status: data.status,
+      message: data.message,
+      count: Array.isArray(data.result) ? data.result.length : 0,
+    });
 
-    if (data.status === "1" && data.result) {
+    if (data.status === "1" && Array.isArray(data.result)) {
       return data.result.map((tx: Record<string, string>) => ({
         ...tx,
         type: "native" as const,
@@ -49,33 +50,34 @@ export const getNormalTransactions = async (
     }
     return [];
   } catch (error) {
-    console.error("Error fetching transactions:", error);
+    console.error("[BSCScan] Error fetching normal transactions:", error);
     return [];
   }
 };
 
-// Fetch BEP-20 token transactions
+// Fetch BEP-20 token transactions via Edge Function
 export const getTokenTransactions = async (
   address: string,
   page: number = 1,
-  offset: number = 20
+  offset: number = 50
 ): Promise<Transaction[]> => {
   try {
-    const params = new URLSearchParams({
-      module: "account",
-      action: "tokentx",
-      address,
-      startblock: "0",
-      endblock: "99999999",
-      page: page.toString(),
-      offset: offset.toString(),
-      sort: "desc",
+    console.log("[BSCScan] Fetching token txs for:", address);
+    
+    const response = await fetch(BSCSCAN_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, action: "tokentx", page, offset }),
     });
 
-    const response = await fetch(`${BSCSCAN_API}?${params}`);
     const data = await response.json();
+    console.log("[BSCScan] Token txs response:", {
+      status: data.status,
+      message: data.message,
+      count: Array.isArray(data.result) ? data.result.length : 0,
+    });
 
-    if (data.status === "1" && data.result) {
+    if (data.status === "1" && Array.isArray(data.result)) {
       return data.result.map((tx: Record<string, string>) => ({
         ...tx,
         type: "token" as const,
@@ -83,7 +85,7 @@ export const getTokenTransactions = async (
     }
     return [];
   } catch (error) {
-    console.error("Error fetching token transactions:", error);
+    console.error("[BSCScan] Error fetching token transactions:", error);
     return [];
   }
 };
