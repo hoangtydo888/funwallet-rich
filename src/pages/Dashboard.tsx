@@ -686,6 +686,7 @@ const Dashboard = () => {
             open={sendOpen}
             onOpenChange={setSendOpen}
             walletAddress={activeWallet.address}
+            activeWallet={activeWallet}
             balances={balances}
             getPrivateKey={getPrivateKey}
             onSuccess={refreshBalances}
