@@ -1,5 +1,5 @@
-// BSCScan API integration (free, no API key required)
-const BSCSCAN_API = "https://api.bscscan.com/api";
+// BSCScan API integration via Edge Function Proxy (bypass CORS)
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Transaction {
   hash: string;
@@ -19,28 +19,27 @@ export interface Transaction {
   type: "native" | "token";
 }
 
-// Fetch normal transactions
+// Fetch normal transactions via Edge Function Proxy
 export const getNormalTransactions = async (
   address: string,
   page: number = 1,
-  offset: number = 20
+  offset: number = 50
 ): Promise<Transaction[]> => {
   try {
-    const params = new URLSearchParams({
-      module: "account",
-      action: "txlist",
-      address,
-      startblock: "0",
-      endblock: "99999999",
-      page: page.toString(),
-      offset: offset.toString(),
-      sort: "desc",
+    console.log("[BSCScan] Fetching normal txs for:", address);
+    
+    const { data, error } = await supabase.functions.invoke('bscscan-proxy', {
+      body: { address, action: 'txlist', page, offset }
     });
-
-    const response = await fetch(`${BSCSCAN_API}?${params}`);
-    const data = await response.json();
-
-    if (data.status === "1" && data.result) {
+    
+    if (error) {
+      console.error("[BSCScan Proxy] Error:", error);
+      return [];
+    }
+    
+    console.log("[BSCScan] Normal txs response:", data?.status, data?.message, "count:", data?.result?.length);
+    
+    if (data?.status === "1" && Array.isArray(data.result)) {
       return data.result.map((tx: Record<string, string>) => ({
         ...tx,
         type: "native" as const,
@@ -49,33 +48,32 @@ export const getNormalTransactions = async (
     }
     return [];
   } catch (error) {
-    console.error("Error fetching transactions:", error);
+    console.error("[BSCScan] Error fetching normal transactions:", error);
     return [];
   }
 };
 
-// Fetch BEP-20 token transactions
+// Fetch BEP-20 token transactions via Edge Function Proxy
 export const getTokenTransactions = async (
   address: string,
   page: number = 1,
-  offset: number = 20
+  offset: number = 50
 ): Promise<Transaction[]> => {
   try {
-    const params = new URLSearchParams({
-      module: "account",
-      action: "tokentx",
-      address,
-      startblock: "0",
-      endblock: "99999999",
-      page: page.toString(),
-      offset: offset.toString(),
-      sort: "desc",
+    console.log("[BSCScan] Fetching token txs for:", address);
+    
+    const { data, error } = await supabase.functions.invoke('bscscan-proxy', {
+      body: { address, action: 'tokentx', page, offset }
     });
-
-    const response = await fetch(`${BSCSCAN_API}?${params}`);
-    const data = await response.json();
-
-    if (data.status === "1" && data.result) {
+    
+    if (error) {
+      console.error("[BSCScan Proxy] Error:", error);
+      return [];
+    }
+    
+    console.log("[BSCScan] Token txs response:", data?.status, data?.message, "count:", data?.result?.length);
+    
+    if (data?.status === "1" && Array.isArray(data.result)) {
       return data.result.map((tx: Record<string, string>) => ({
         ...tx,
         type: "token" as const,
@@ -83,7 +81,7 @@ export const getTokenTransactions = async (
     }
     return [];
   } catch (error) {
-    console.error("Error fetching token transactions:", error);
+    console.error("[BSCScan] Error fetching token transactions:", error);
     return [];
   }
 };
@@ -92,10 +90,10 @@ export const getTokenTransactions = async (
 export const getAllTransactions = async (
   address: string,
   page: number = 1,
-  offset: number = 10
+  offset: number = 25
 ): Promise<Transaction[]> => {
   try {
-    console.log("[BSCScan] Fetching transactions for:", address);
+    console.log("[BSCScan] Fetching all transactions for:", address);
     
     const [nativeTxs, tokenTxs] = await Promise.all([
       getNormalTransactions(address, page, offset),
@@ -114,7 +112,7 @@ export const getAllTransactions = async (
 
     return allTxs;
   } catch (error) {
-    console.error("Error fetching all transactions:", error);
+    console.error("[BSCScan] Error fetching all transactions:", error);
     return [];
   }
 };
