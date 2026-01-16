@@ -20,6 +20,8 @@ import { ArrowUpRight, Loader2, ExternalLink, AlertCircle, Heart, Sparkles } fro
 import { sendBNB, sendToken, isValidAddress, BSC_MAINNET, formatBalance, getBNBBalance, getTokenBalance } from "@/lib/wallet";
 import { toast } from "@/hooks/use-toast";
 import type { TokenBalance } from "@/hooks/useWallet";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Gas estimate for a single transfer
 const GAS_PER_TRANSFER = 0.00021; // ~21000 gas * 10 gwei
@@ -35,6 +37,7 @@ interface SendCryptoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   walletAddress: string;
+  activeWallet: { id: string; address: string } | null;
   balances: TokenBalance[];
   getPrivateKey: (address: string) => string | null;
   onSuccess: () => void;
@@ -44,10 +47,12 @@ export const SendCryptoDialog = ({
   open,
   onOpenChange,
   walletAddress,
+  activeWallet,
   balances,
   getPrivateKey,
   onSuccess,
 }: SendCryptoDialogProps) => {
+  const { user } = useAuth();
   // Ưu tiên CAMLY làm token mặc định nếu có trong balances
   const [selectedToken, setSelectedToken] = useState(() => {
     const camly = balances.find(b => b.symbol === "CAMLY");
@@ -149,6 +154,24 @@ export const SendCryptoDialog = ({
       });
     } else {
       setTxHash(result.hash);
+      
+      // Lưu giao dịch vào database
+      if (user && activeWallet) {
+        const tokenData = balances.find((b) => b.symbol === selectedToken);
+        await supabase.from("transactions").insert({
+          user_id: user.id,
+          wallet_id: activeWallet.id,
+          tx_hash: result.hash,
+          tx_type: "send",
+          token_symbol: selectedToken,
+          token_address: tokenData?.address || null,
+          amount: amount,
+          from_address: walletAddress,
+          to_address: recipient,
+          status: "pending",
+        });
+      }
+      
       toast({
         title: "Phước lành đã được chia sẻ! ❤️🌈",
         description: `Đã gửi ${amount} ${selectedToken}`,
