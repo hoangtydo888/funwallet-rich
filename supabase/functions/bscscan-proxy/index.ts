@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Etherscan API V2 - unified endpoint for all chains
-const ETHERSCAN_V2_API = "https://api.etherscan.io/v2/api";
-const BSC_CHAIN_ID = "56"; // BSC Mainnet
+// BSCScan API with API key
+const BSCSCAN_API = "https://api.bscscan.com/api";
+const BSCSCAN_API_KEY = Deno.env.get("BSCSCAN_API_KEY") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +28,6 @@ serve(async (req) => {
     }
 
     const params = new URLSearchParams({
-      chainid: BSC_CHAIN_ID,
       module: "account",
       action: action, // "txlist" or "tokentx"
       address,
@@ -37,9 +36,10 @@ serve(async (req) => {
       page: page.toString(),
       offset: offset.toString(),
       sort: "desc",
+      apikey: BSCSCAN_API_KEY,
     });
 
-    const response = await fetch(`${ETHERSCAN_V2_API}?${params}`);
+    const response = await fetch(`${BSCSCAN_API}?${params}`);
     const data = await response.json();
     
     console.log(`[BSCScan Proxy] Response status: ${data.status}, message: ${data.message}, results: ${Array.isArray(data.result) ? data.result.length : 'N/A'}`);
