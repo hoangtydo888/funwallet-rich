@@ -26,6 +26,7 @@ import QRPayment from "./pages/QRPayment";
 import History from "./pages/History";
 import Learn from "./pages/Learn";
 import KYC from "./pages/KYC";
+import PlatformDocs from "./pages/PlatformDocs";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
                     <Route path="/install" element={<Install />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/admin/bulk-transfer" element={<AdminBulkTransfer />} />
+                    <Route path="/docs/platform" element={<PlatformDocs />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
