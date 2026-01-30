@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="usdc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2775CA"/>
+      <stop offset="100%" stop-color="#1A5BA8"/>
+    </linearGradient>
+  </defs>
+  <circle cx="16" cy="16" r="16" fill="url(#usdc-grad)"/>
+  <path fill="#fff" d="M20.5 18c0-1.6-1-2.2-3-2.5l-1.5-.2c-1.2-.2-1.5-.5-1.5-1s.5-1 1.5-1c.9 0 1.4.3 1.6 1h2c-.2-1.5-1.3-2.5-3.1-2.7V10h-1.5v1.6c-1.9.2-3 1.4-3 2.9 0 1.5 1 2.2 2.8 2.5l1.6.3c1.3.2 1.6.5 1.6 1s-.6 1-1.7 1c-1 0-1.6-.4-1.8-1.1h-2c.2 1.6 1.4 2.6 3.4 2.8v1.5h1.5v-1.5c2-.3 3.1-1.4 3.1-3z"/>
+  <path fill="#fff" d="M12 22.5a8.5 8.5 0 010-13v-2a10.5 10.5 0 000 17v-2zm8-15a8.5 8.5 0 010 13v2a10.5 10.5 0 000-17v2z"/>
+</svg>
