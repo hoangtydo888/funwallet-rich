@@ -1,40 +1,166 @@
 
-# Phase 2: Hoàn Thiện Chrome Extension - Build System & Core Features
+# Phase 3: Vite Build Config cho Chrome Extension
 
 ## Tổng Quan
 
-Phase 2 sẽ tập trung vào việc hoàn thiện Chrome Extension để có thể build và test locally:
-1. **Vite Config cho Extension** - Setup build system riêng biệt
-2. **Icon Assets** - Tạo icons cho extension
-3. **CSS/Styles** - Extension styles riêng
-4. **Hoàn thiện Send/Receive Pages** - Tích hợp với shared wallet logic
-5. **Build Scripts** - Thêm scripts vào package.json
-6. **Cập nhật Manifest** - Sửa đường dẫn sau khi build
+Phase này sẽ thiết lập hệ thống build riêng biệt cho Chrome Extension, cho phép:
+- Build extension thành folder `dist-extension/`
+- Hot reload khi develop
+- Tự động xử lý manifest.json
+- Tách biệt hoàn toàn với PWA build
 
 ---
 
-## 1. Tạo Vite Config Cho Extension
+## 1. Cài đặt Dependencies
 
-**File mới: `vite.config.extension.ts`**
+Thêm package mới vào `package.json`:
 
-| Cấu hình | Chi tiết |
-|----------|----------|
-| Plugin | `@crxjs/vite-plugin` + `@vitejs/plugin-react-swc` |
-| Entry | `popup.html` từ `src/extension/` |
-| Output | `dist-extension/` |
-| Resolve | Alias `@shared` → `src/shared` |
-| Build | Target Chrome 88+ |
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@crxjs/vite-plugin` | `^2.0.0-beta.23` | Build Chrome Extension với Vite |
+
+**Lưu ý**: Sử dụng beta version vì stable version chưa hỗ trợ Manifest V3 đầy đủ
+
+---
+
+## 2. Tạo vite.config.extension.ts
+
+File cấu hình Vite riêng cho Extension:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ vite.config.extension.ts                                │
+├─────────────────────────────────────────────────────────┤
+│ • Root: ./src/extension                                 │
+│ • Output: dist-extension/                               │
+│ • Plugins: react-swc + crx                              │
+│ • Alias: @shared → src/shared                           │
+│ • Target: Chrome 88+                                    │
+│ • Build: ES2020 modules                                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Cấu hình chi tiết**:
+
+| Option | Value | Mô tả |
+|--------|-------|-------|
+| `root` | `./src/extension` | Thư mục gốc của extension |
+| `publicDir` | `public` | Assets tĩnh (icons, manifest) |
+| `build.outDir` | `../../dist-extension` | Output folder |
+| `build.target` | `esnext` | Modern browsers |
+| `build.emptyOutDir` | `true` | Xóa folder cũ trước khi build |
+| `resolve.alias` | `@shared` | Trỏ tới src/shared |
+
+---
+
+## 3. Cập nhật Manifest.json
+
+Manifest cần được cập nhật để tương thích với CRXJS:
+
+**Thay đổi paths**:
+```text
+Before                          After
+─────────────────────────────────────────
+src/background/service-worker.ts → service-worker.ts (CRXJS tự xử lý)
+src/content/inject.ts           → content/inject.ts (CRXJS tự xử lý)
+```
+
+**Thêm web_accessible_resources cho tokens**:
+```json
+{
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*", "tokens/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
+```
+
+---
+
+## 4. Cập nhật Package.json Scripts
+
+Thêm scripts mới:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Scripts                                                 │
+├─────────────────────────────────────────────────────────┤
+│ dev:ext     → vite --config vite.config.extension.ts    │
+│ build:ext   → vite build --config vite.config.extension.ts │
+│ preview:ext → vite preview --config vite.config.extension.ts │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Cấu trúc Output (dist-extension/)
+
+Sau khi build, folder `dist-extension/` sẽ có:
+
+```text
+dist-extension/
+├── manifest.json           # Đã được xử lý bởi CRXJS
+├── popup.html              # Popup entry
+├── service-worker.js       # Background script (bundled)
+├── content/
+│   └── inject.js           # Content script (bundled)
+├── assets/
+│   ├── popup-[hash].js     # Popup React app
+│   └── popup-[hash].css    # Styles
+├── icons/
+│   ├── icon-16.png
+│   ├── icon-48.png
+│   └── icon-128.png
+└── tokens/                 # Token icons (copy từ public)
+    ├── bnb.png
+    ├── usdt.svg
+    └── ...
+```
+
+---
+
+## 6. Copy Token Icons
+
+Extension cần access token icons. Có 2 options:
+
+**Option A: Symlink/Copy trong build**
+- Copy `public/tokens/` vào `src/extension/public/tokens/`
+
+**Option B: Vite plugin để copy**
+- Dùng `vite-plugin-static-copy` để copy assets
+
+CHA chọn **Option A** vì đơn giản hơn và manifest đã cấu hình `web_accessible_resources`.
+
+---
+
+## 7. Files Cần Tạo/Sửa
+
+| File | Action | Chi tiết |
+|------|--------|----------|
+| `vite.config.extension.ts` | **Create** | Vite config cho extension |
+| `src/extension/public/manifest.json` | **Update** | Fix paths cho CRXJS |
+| `package.json` | **Update** | Thêm scripts + dependency |
+| `src/extension/public/tokens/` | **Create** | Copy token icons |
+| `.gitignore` | **Update** | Thêm dist-extension/ |
+
+---
+
+## 8. Chi tiết Kỹ thuật
+
+### 8.1 vite.config.extension.ts
 
 ```typescript
-// vite.config.extension.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { crx } from '@crxjs/vite-plugin';
-import manifest from './src/extension/public/manifest.json';
 import path from 'path';
+import manifest from './src/extension/public/manifest.json';
 
 export default defineConfig({
   root: './src/extension',
+  publicDir: 'public',
   plugins: [
     react(),
     crx({ manifest }),
@@ -47,102 +173,43 @@ export default defineConfig({
   build: {
     outDir: '../../dist-extension',
     emptyOutDir: true,
+    target: 'esnext',
+    rollupOptions: {
+      output: {
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
+    },
+  },
+  server: {
+    port: 5174,
+    hmr: {
+      port: 5174,
+    },
   },
 });
 ```
 
----
+### 8.2 Manifest paths update
 
-## 2. Tạo Extension Icons
-
-**Folder: `src/extension/public/icons/`**
-
-| File | Kích thước | Mô tả |
-|------|-----------|-------|
-| `icon-16.png` | 16x16 | Favicon, toolbar |
-| `icon-48.png` | 48x48 | Extension page |
-| `icon-128.png` | 128x128 | Chrome Web Store |
-
-**Giải pháp**: Resize từ `public/pwa-512x512.png` hiện có
-
----
-
-## 3. CSS/Styles Cho Extension
-
-**File mới: `src/extension/index.css`**
-
-- Copy cấu trúc từ `src/index.css`
-- Tailwind CSS imports
-- CSS variables cho themes
-- Fixed width 360px styles
-
----
-
-## 4. Hoàn Thiện Popup Pages
-
-### 4.1 SendPage - Gửi Crypto Thực Sự
-
-```
-┌─────────────────────────────────────┐
-│ ← Gửi Crypto                        │
-├─────────────────────────────────────┤
-│ [Select Token ▼]                    │
-│                                     │
-│ Địa chỉ nhận:                       │
-│ [0x... _________________________ ]  │
-│                                     │
-│ Số lượng:                           │
-│ [____________________] [MAX]        │
-│                                     │
-│ Số dư: 0.5 BNB                      │
-│                                     │
-├─────────────────────────────────────┤
-│ [        Tiếp tục        ]          │
-└─────────────────────────────────────┘
-```
-
-**Tích hợp**:
-- Import `sendNativeToken`, `sendToken` từ `@shared/lib/wallet`
-- Validate địa chỉ với `isValidAddress`
-- Ước tính gas fee
-
-### 4.2 ReceivePage - Sửa Import
-
-- QRCode.react đã có
-- Sửa import path cho shared wallet functions
-
-### 4.3 HomePage - Real Balances
-
-- Import `getAllBalances` từ shared
-- Fetch real token balances từ blockchain
-- Cache balances trong chrome.storage
-
----
-
-## 5. Update Manifest.json
-
-**Sửa đổi đường dẫn**:
+CRXJS tự động xử lý TypeScript paths, nên manifest cần giữ nguyên `.ts`:
 
 ```json
 {
   "background": {
-    "service_worker": "background/service-worker.js",
+    "service_worker": "src/background/service-worker.ts",
     "type": "module"
   },
-  "content_scripts": [
-    {
-      "js": ["content/inject.js"],
-      "run_at": "document_start"
-    }
-  ]
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["src/content/inject.ts"],
+    "run_at": "document_start"
+  }]
 }
 ```
 
-**Note**: CRXJS sẽ tự động transpile `.ts` → `.js`
-
----
-
-## 6. Package.json Scripts
+### 8.3 Package.json scripts
 
 ```json
 {
@@ -151,112 +218,47 @@ export default defineConfig({
     "dev:ext": "vite --config vite.config.extension.ts",
     "build": "vite build",
     "build:ext": "vite build --config vite.config.extension.ts",
-    "preview:ext": "cd dist-extension && npx http-server"
+    "preview": "vite preview",
+    "preview:ext": "vite preview --config vite.config.extension.ts"
   }
 }
 ```
 
 ---
 
-## 7. Dependencies Cần Thêm
+## 9. Testing Flow
 
-| Package | Purpose |
-|---------|---------|
-| `@crxjs/vite-plugin` | Build Chrome Extension với Vite |
+### 9.1 Development Mode
 
----
-
-## 8. Các Files Cần Tạo/Sửa
-
-| File | Action | Mô tả |
-|------|--------|-------|
-| `vite.config.extension.ts` | Create | Vite config cho extension |
-| `src/extension/index.css` | Create | Tailwind styles |
-| `src/extension/public/icons/icon-16.png` | Create | Icon 16x16 |
-| `src/extension/public/icons/icon-48.png` | Create | Icon 48x48 |
-| `src/extension/public/icons/icon-128.png` | Create | Icon 128x128 |
-| `src/extension/public/manifest.json` | Update | Fix paths |
-| `src/extension/src/popup/pages/SendPage.tsx` | Update | Full send functionality |
-| `src/extension/src/popup/pages/HomePage.tsx` | Update | Real balances |
-| `src/extension/src/popup/main.tsx` | Update | Fix CSS import |
-| `package.json` | Update | Add scripts + dependency |
-
----
-
-## 9. Technical Details
-
-### 9.1 Wallet Password Verification
-
-Background service worker cần verify password thực sự:
-
-```typescript
-async function handleUnlockWallet(payload: { password: string }): Promise<MessageResponse> {
-  // Get encrypted wallet data
-  const encryptedData = await chromeStorageAdapter.get(STORAGE_KEYS.ENCRYPTED_KEYS);
-  
-  if (!encryptedData) {
-    return { success: false, error: 'No wallet found' };
-  }
-  
-  try {
-    // Try to decrypt with password
-    const parsed = JSON.parse(encryptedData);
-    const addresses = Object.keys(parsed.wallets);
-    
-    if (addresses.length > 0) {
-      const testData = parsed.wallets[addresses[0]];
-      await decryptPrivateKey(testData, payload.password);
-    }
-    
-    isLocked = false;
-    return { success: true };
-  } catch {
-    return { success: false, error: 'Invalid password' };
-  }
-}
+```bash
+npm run dev:ext
 ```
+- Khởi động dev server tại port 5174
+- HMR enabled cho popup
+- Tự động reload khi thay đổi code
 
-### 9.2 Asset Loading in Extension
+### 9.2 Production Build
 
-Extension assets cần dùng `chrome.runtime.getURL()`:
-
-```typescript
-// Thay vì
-<img src="/tokens/bnb.png" />
-
-// Sử dụng
-<img src={chrome.runtime.getURL('tokens/bnb.png')} />
+```bash
+npm run build:ext
 ```
+- Build vào `dist-extension/`
+- Minified và optimized
+
+### 9.3 Load trong Chrome
+
+1. Mở `chrome://extensions/`
+2. Bật "Developer mode"
+3. Click "Load unpacked"
+4. Chọn folder `dist-extension/`
 
 ---
 
-## 10. Testing Flow
+## 10. Kết Quả Mong Đợi
 
-1. **Build Extension**:
-   ```bash
-   npm run build:ext
-   ```
-
-2. **Load in Chrome**:
-   - Mở `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked"
-   - Chọn folder `dist-extension/`
-
-3. **Test Features**:
-   - Click extension icon
-   - Nhập password để unlock
-   - Xem balances
-   - Test Send/Receive
-
----
-
-## Kết Quả Mong Đợi
-
-Sau Phase 2:
-- ✅ Extension có thể build thành công
-- ✅ Load được trong Chrome Developer mode
-- ✅ Unlock wallet với password
-- ✅ Hiển thị real token balances
-- ✅ Send/Receive crypto functionality
-- ✅ Icons hiển thị đúng
+Sau Phase 3:
+- Extension có thể build thành công với `npm run build:ext`
+- Dev mode với HMR hoạt động với `npm run dev:ext`
+- Folder `dist-extension/` chứa extension sẵn sàng load vào Chrome
+- Token icons hiển thị đúng trong extension
+- Background service worker và content script hoạt động
