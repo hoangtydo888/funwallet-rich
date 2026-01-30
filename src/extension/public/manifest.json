@@ -1,0 +1,63 @@
+{
+  "manifest_version": 3,
+  "name": "FUN Wallet - Web3 Crypto Wallet",
+  "version": "1.0.0",
+  "description": "Ví tiền điện tử Web3 an toàn trên BNB Chain và các mạng EVM",
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/inject.ts"],
+      "run_at": "document_start"
+    }
+  ],
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "notifications"
+  ],
+  
+  "host_permissions": [
+    "https://bsc-dataseed.binance.org/*",
+    "https://eth.llamarpc.com/*",
+    "https://polygon-rpc.com/*",
+    "https://arb1.arbitrum.io/*",
+    "https://mainnet.optimism.io/*",
+    "https://api.avax.network/*",
+    "https://rpc.ftm.tools/*",
+    "https://mainnet.base.org/*",
+    "https://api.dexscreener.com/*"
+  ],
+  
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
