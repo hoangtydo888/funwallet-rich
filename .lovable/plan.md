@@ -1,264 +1,317 @@
 
-# Phase 3: Vite Build Config cho Chrome Extension ✅ COMPLETED
+# Phase 4: Code Reusable từ PWA
 
 ## Tổng Quan
 
-Phase này đã thiết lập hệ thống build riêng biệt cho Chrome Extension:
-- Build extension thành folder `dist-extension/`
-- Hot reload khi develop
-- Tự động xử lý manifest.json
-- Tách biệt hoàn toàn với PWA build
+Phase này sẽ tối ưu hóa cấu trúc code bằng cách:
+1. **Di chuyển core logic vào shared** - PriceTracker, DexScreener APIs
+2. **Tạo reusable UI components** - Button, Input, Card cho extension
+3. **Tạo shared hooks** - useTokenPrices, useBalance có thể dùng cả PWA và Extension
+4. **Cập nhật Extension imports** - Sử dụng shared code thay vì duplicate
 
 ---
 
-## 1. Cài đặt Dependencies
+## 1. Di Chuyển Price Tracker vào Shared
 
-Thêm package mới vào `package.json`:
+**File mới: `src/shared/lib/priceTracker.ts`**
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@crxjs/vite-plugin` | `^2.0.0-beta.23` | Build Chrome Extension với Vite |
+| Hàm | Mô tả |
+|-----|-------|
+| `fetchTokenPrices()` | Fetch giá từ DexScreener + CoinGecko |
+| `formatPrice()` | Format số tiền USD |
+| `formatChange()` | Format % thay đổi 24h |
+| `formatMarketCap()` | Format market cap |
 
-**Lưu ý**: Sử dụng beta version vì stable version chưa hỗ trợ Manifest V3 đầy đủ
+**Lý do**: Cả PWA và Extension đều cần fetch/hiển thị giá token realtime
 
 ---
 
-## 2. Tạo vite.config.extension.ts
+## 2. Di Chuyển DexScreener API vào Shared
 
-File cấu hình Vite riêng cho Extension:
+**File mới: `src/shared/lib/dexscreener.ts`**
+
+| Hàm | Mô tả |
+|-----|-------|
+| `fetchTokenFromDexScreener()` | Fetch token data từ DEX |
+| `TOKEN_ADDRESSES` | Mapping symbol → contract address |
+
+---
+
+## 3. Tạo Reusable UI Components cho Extension
+
+**Folder: `src/extension/src/components/ui/`**
+
+### Components cần tạo:
+
+| Component | Copy từ | Thay đổi |
+|-----------|---------|----------|
+| `Button.tsx` | `src/components/ui/button.tsx` | Thêm extension-specific styles |
+| `Input.tsx` | `src/components/ui/input.tsx` | Fixed width cho popup |
+| `Card.tsx` | `src/components/ui/card.tsx` | Compact size |
+| `Skeleton.tsx` | `src/components/ui/skeleton.tsx` | Không thay đổi |
+| `Select.tsx` | `src/components/ui/select.tsx` | Responsive cho popup |
+
+### Utils cần copy:
+
+| File | Source | Purpose |
+|------|--------|---------|
+| `cn.ts` | `src/lib/utils.ts` | Class name merger |
+
+---
+
+## 4. Tạo Shared Custom Hooks
+
+### 4.1 useTokenPrices Hook
+
+**File: `src/shared/hooks/useTokenPrices.ts`**
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ vite.config.extension.ts                                │
+│ useTokenPrices(symbols: string[])                       │
 ├─────────────────────────────────────────────────────────┤
-│ • Root: ./src/extension                                 │
-│ • Output: dist-extension/                               │
-│ • Plugins: react-swc + crx                              │
-│ • Alias: @shared → src/shared                           │
-│ • Target: Chrome 88+                                    │
-│ • Build: ES2020 modules                                 │
+│ Returns:                                                │
+│   • prices: TokenPrice[]                                │
+│   • loading: boolean                                    │
+│   • error: string | null                                │
+│   • refetch: () => void                                 │
+├─────────────────────────────────────────────────────────┤
+│ Features:                                               │
+│   • Auto-refresh mỗi 30s                                │
+│   • Cache results                                       │
+│   • Error handling                                      │
+│   • Works in both PWA & Extension                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Cấu hình chi tiết**:
+### 4.2 useBalance Hook
 
-| Option | Value | Mô tả |
-|--------|-------|-------|
-| `root` | `./src/extension` | Thư mục gốc của extension |
-| `publicDir` | `public` | Assets tĩnh (icons, manifest) |
-| `build.outDir` | `../../dist-extension` | Output folder |
-| `build.target` | `esnext` | Modern browsers |
-| `build.emptyOutDir` | `true` | Xóa folder cũ trước khi build |
-| `resolve.alias` | `@shared` | Trỏ tới src/shared |
-
----
-
-## 3. Cập nhật Manifest.json
-
-Manifest cần được cập nhật để tương thích với CRXJS:
-
-**Thay đổi paths**:
-```text
-Before                          After
-─────────────────────────────────────────
-src/background/service-worker.ts → service-worker.ts (CRXJS tự xử lý)
-src/content/inject.ts           → content/inject.ts (CRXJS tự xử lý)
-```
-
-**Thêm web_accessible_resources cho tokens**:
-```json
-{
-  "web_accessible_resources": [
-    {
-      "resources": ["icons/*", "tokens/*"],
-      "matches": ["<all_urls>"]
-    }
-  ]
-}
-```
-
----
-
-## 4. Cập nhật Package.json Scripts
-
-Thêm scripts mới:
+**File: `src/shared/hooks/useBalance.ts`**
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ Scripts                                                 │
+│ useBalance(address: string, tokens: Token[])            │
 ├─────────────────────────────────────────────────────────┤
-│ dev:ext     → vite --config vite.config.extension.ts    │
-│ build:ext   → vite build --config vite.config.extension.ts │
-│ preview:ext → vite preview --config vite.config.extension.ts │
+│ Returns:                                                │
+│   • balances: TokenBalance[]                            │
+│   • totalUsd: number                                    │
+│   • loading: boolean                                    │
+│   • refresh: () => void                                 │
+├─────────────────────────────────────────────────────────┤
+│ Features:                                               │
+│   • Fetch from blockchain                               │
+│   • Calculate USD values                                │
+│   • Cache balances                                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. Cấu trúc Output (dist-extension/)
+## 5. Cập Nhật Extension Components
 
-Sau khi build, folder `dist-extension/` sẽ có:
+### 5.1 HomePage.tsx Updates
 
-```text
-dist-extension/
-├── manifest.json           # Đã được xử lý bởi CRXJS
-├── popup.html              # Popup entry
-├── service-worker.js       # Background script (bundled)
-├── content/
-│   └── inject.js           # Content script (bundled)
-├── assets/
-│   ├── popup-[hash].js     # Popup React app
-│   └── popup-[hash].css    # Styles
-├── icons/
-│   ├── icon-16.png
-│   ├── icon-48.png
-│   └── icon-128.png
-└── tokens/                 # Token icons (copy từ public)
-    ├── bnb.png
-    ├── usdt.svg
-    └── ...
-```
+| Before | After |
+|--------|-------|
+| Hardcoded `TOKEN_PRICES` | Import `useTokenPrices` hook |
+| Manual balance fetch | Import `useBalance` hook |
+| No caching | LocalStorage/ChromeStorage cache |
+
+### 5.2 SendPage.tsx Updates
+
+| Before | After |
+|--------|-------|
+| Basic UI | Use shared Button, Input, Select |
+| Manual validation | Use shared `isValidAddress` |
+| No gas estimation | Add gas estimation từ shared |
 
 ---
 
-## 6. Copy Token Icons
+## 6. Tạo TokenList Component cho Extension
 
-Extension cần access token icons. Có 2 options:
+**File: `src/extension/src/components/TokenList.tsx`**
 
-**Option A: Symlink/Copy trong build**
-- Copy `public/tokens/` vào `src/extension/public/tokens/`
-
-**Option B: Vite plugin để copy**
-- Dùng `vite-plugin-static-copy` để copy assets
-
-CHA chọn **Option A** vì đơn giản hơn và manifest đã cấu hình `web_accessible_resources`.
+Simplified version của PWA TokenList:
+- Fixed height cho popup
+- Không có search filter (không đủ space)
+- Click để xem chi tiết token
+- Hiển thị balance + USD value
 
 ---
 
 ## 7. Files Cần Tạo/Sửa
 
-| File | Action | Chi tiết |
-|------|--------|----------|
-| `vite.config.extension.ts` | **Create** | Vite config cho extension |
-| `src/extension/public/manifest.json` | **Update** | Fix paths cho CRXJS |
-| `package.json` | **Update** | Thêm scripts + dependency |
-| `src/extension/public/tokens/` | **Create** | Copy token icons |
-| `.gitignore` | **Update** | Thêm dist-extension/ |
+### Files mới trong Shared:
+
+| File | Mô tả |
+|------|-------|
+| `src/shared/lib/priceTracker.ts` | Price fetching logic |
+| `src/shared/lib/dexscreener.ts` | DexScreener API |
+| `src/shared/hooks/useTokenPrices.ts` | Price hook |
+| `src/shared/hooks/useBalance.ts` | Balance hook |
+| `src/shared/index.ts` | Update exports |
+
+### Files mới trong Extension:
+
+| File | Mô tả |
+|------|-------|
+| `src/extension/src/lib/utils.ts` | CN function |
+| `src/extension/src/components/ui/Button.tsx` | Button component |
+| `src/extension/src/components/ui/Input.tsx` | Input component |
+| `src/extension/src/components/ui/Skeleton.tsx` | Loading skeleton |
+| `src/extension/src/components/TokenList.tsx` | Token list UI |
+
+### Files cần update:
+
+| File | Thay đổi |
+|------|----------|
+| `src/extension/src/popup/pages/HomePage.tsx` | Use shared hooks |
+| `src/extension/src/popup/pages/SendPage.tsx` | Use shared components |
+| `src/lib/priceTracker.ts` | Re-export từ shared |
+| `src/lib/dexscreener.ts` | Re-export từ shared |
 
 ---
 
-## 8. Chi tiết Kỹ thuật
+## 8. Dependency Graph
 
-### 8.1 vite.config.extension.ts
+```text
+┌─────────────────────────────────────────────────────────┐
+│                   src/shared/                           │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  lib/                                             │  │
+│  │  ├── wallet.ts      ← Core wallet operations      │  │
+│  │  ├── encryption.ts  ← AES-256-GCM                 │  │
+│  │  ├── priceTracker.ts ← NEW: Price APIs            │  │
+│  │  └── dexscreener.ts  ← NEW: DEX API               │  │
+│  ├───────────────────────────────────────────────────┤  │
+│  │  hooks/                                           │  │
+│  │  ├── useTokenPrices.ts ← NEW: Price hook          │  │
+│  │  └── useBalance.ts     ← NEW: Balance hook        │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+         │                              │
+         ▼                              ▼
+┌─────────────────┐            ┌─────────────────┐
+│   PWA (src/)    │            │   Extension     │
+│                 │            │                 │
+│  • Re-exports   │            │  • Imports      │
+│    from shared  │            │    from shared  │
+│  • UI Components│            │  • Own UI       │
+│  • Supabase     │            │  • Chrome APIs  │
+└─────────────────┘            └─────────────────┘
+```
+
+---
+
+## 9. Technical Details
+
+### 9.1 PriceTracker với Storage Adapter
 
 ```typescript
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
-import { crx } from '@crxjs/vite-plugin';
-import path from 'path';
-import manifest from './src/extension/public/manifest.json';
+// src/shared/lib/priceTracker.ts
+import { StorageAdapter } from '../storage/types';
 
-export default defineConfig({
-  root: './src/extension',
-  publicDir: 'public',
-  plugins: [
-    react(),
-    crx({ manifest }),
-  ],
-  resolve: {
-    alias: {
-      '@shared': path.resolve(__dirname, './src/shared'),
-    },
-  },
-  build: {
-    outDir: '../../dist-extension',
-    emptyOutDir: true,
-    target: 'esnext',
-    rollupOptions: {
-      output: {
-        chunkFileNames: 'assets/[name]-[hash].js',
-        entryFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]',
-      },
-    },
-  },
-  server: {
-    port: 5174,
-    hmr: {
-      port: 5174,
-    },
-  },
-});
-```
+const CACHE_KEY = 'fun_wallet_prices_cache';
+const CACHE_TTL = 30000; // 30 seconds
 
-### 8.2 Manifest paths update
-
-CRXJS tự động xử lý TypeScript paths, nên manifest cần giữ nguyên `.ts`:
-
-```json
-{
-  "background": {
-    "service_worker": "src/background/service-worker.ts",
-    "type": "module"
-  },
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["src/content/inject.ts"],
-    "run_at": "document_start"
-  }]
-}
-```
-
-### 8.3 Package.json scripts
-
-```json
-{
-  "scripts": {
-    "dev": "vite",
-    "dev:ext": "vite --config vite.config.extension.ts",
-    "build": "vite build",
-    "build:ext": "vite build --config vite.config.extension.ts",
-    "preview": "vite preview",
-    "preview:ext": "vite preview --config vite.config.extension.ts"
+export const fetchTokenPricesWithCache = async (
+  symbols: string[],
+  storage: StorageAdapter
+): Promise<TokenPrice[]> => {
+  // Check cache first
+  const cached = await storage.get(CACHE_KEY);
+  if (cached) {
+    const { prices, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < CACHE_TTL) {
+      return prices;
+    }
   }
+  
+  // Fetch fresh prices
+  const prices = await fetchTokenPrices(symbols);
+  
+  // Cache results
+  await storage.set(CACHE_KEY, JSON.stringify({
+    prices,
+    timestamp: Date.now()
+  }));
+  
+  return prices;
+};
+```
+
+### 9.2 useBalance Hook Implementation
+
+```typescript
+// src/shared/hooks/useBalance.ts
+import { useState, useEffect, useCallback } from 'react';
+import { getNativeBalance, getTokenBalance } from '../lib/wallet';
+import { Token, TokenBalance } from '../types';
+
+interface UseBalanceOptions {
+  autoRefresh?: boolean;
+  refreshInterval?: number;
 }
+
+export const useBalance = (
+  address: string | null,
+  tokens: Token[],
+  options: UseBalanceOptions = {}
+) => {
+  const { autoRefresh = true, refreshInterval = 30000 } = options;
+  
+  const [balances, setBalances] = useState<TokenBalance[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const fetchBalances = useCallback(async () => {
+    if (!address) return;
+    
+    setLoading(true);
+    const results: TokenBalance[] = [];
+    
+    for (const token of tokens) {
+      let balance = '0';
+      if (token.address === null) {
+        balance = await getNativeBalance(address);
+      } else {
+        balance = await getTokenBalance(token.address, address);
+      }
+      results.push({ ...token, balance });
+    }
+    
+    setBalances(results);
+    setLoading(false);
+  }, [address, tokens]);
+  
+  useEffect(() => {
+    fetchBalances();
+    
+    if (autoRefresh) {
+      const interval = setInterval(fetchBalances, refreshInterval);
+      return () => clearInterval(interval);
+    }
+  }, [fetchBalances, autoRefresh, refreshInterval]);
+  
+  return { balances, loading, refresh: fetchBalances };
+};
 ```
-
----
-
-## 9. Testing Flow
-
-### 9.1 Development Mode
-
-```bash
-npm run dev:ext
-```
-- Khởi động dev server tại port 5174
-- HMR enabled cho popup
-- Tự động reload khi thay đổi code
-
-### 9.2 Production Build
-
-```bash
-npm run build:ext
-```
-- Build vào `dist-extension/`
-- Minified và optimized
-
-### 9.3 Load trong Chrome
-
-1. Mở `chrome://extensions/`
-2. Bật "Developer mode"
-3. Click "Load unpacked"
-4. Chọn folder `dist-extension/`
 
 ---
 
 ## 10. Kết Quả Mong Đợi
 
-Sau Phase 3:
-- Extension có thể build thành công với `npm run build:ext`
-- Dev mode với HMR hoạt động với `npm run dev:ext`
-- Folder `dist-extension/` chứa extension sẵn sàng load vào Chrome
-- Token icons hiển thị đúng trong extension
-- Background service worker và content script hoạt động
+Sau Phase 4:
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Code duplication | ~40% | <10% |
+| Shared logic | 3 files | 8+ files |
+| Extension size | Larger | Optimized |
+| Maintainability | Separate | Single source |
+
+### Benefits:
+
+- PWA và Extension dùng chung price fetching logic
+- Bug fixes apply cho cả 2 platforms
+- Consistent UI/UX across platforms
+- Easier testing với shared hooks
+- Reduced bundle size trong extension
