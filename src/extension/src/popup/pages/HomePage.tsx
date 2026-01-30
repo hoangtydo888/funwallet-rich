@@ -8,107 +8,57 @@ import {
   ExternalLink,
   RefreshCw 
 } from 'lucide-react';
-import { formatAddress, formatBalance, getNativeBalance, getTokenBalance } from '../../../shared/lib/wallet';
+import { formatAddress } from '../../../shared/lib/wallet';
 import { COMMON_TOKENS } from '../../../shared/constants/tokens';
 import { STORAGE_KEYS } from '../../../shared/storage/types';
-
-interface TokenBalance {
-  symbol: string;
-  name: string;
-  balance: string;
-  logo: string;
-  priceUsd?: number;
-  address: string | null;
-}
-
-// Cached prices (in real app, fetch from API)
-const TOKEN_PRICES: Record<string, number> = {
-  BNB: 600,
-  USDT: 1,
-  USDC: 1,
-  BTCB: 42000,
-  ETH: 2500,
-  CAMLY: 0.001,
-  CAKE: 2.5,
-};
+import { useTokenPrices } from '../../../shared/hooks/useTokenPrices';
+import { useBalance } from '../../../shared/hooks/useBalance';
+import { formatPrice } from '../../../shared/lib/priceTracker';
+import { TokenList } from '../../components/TokenList';
 
 function HomePage() {
   const navigate = useNavigate();
   const [address, setAddress] = useState<string>('');
-  const [balances, setBalances] = useState<TokenBalance[]>([]);
-  const [totalUsd, setTotalUsd] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Get top 5 tokens
+  const topTokens = COMMON_TOKENS.slice(0, 5);
+  const tokenSymbols = topTokens.map(t => t.symbol);
+
+  // Fetch prices using shared hook
+  const { priceMap, loading: pricesLoading, refetch: refetchPrices } = useTokenPrices(
+    tokenSymbols,
+    { autoRefresh: true, refreshInterval: 30000 }
+  );
+
+  // Fetch balances using shared hook
+  const { balances, totalUsd, loading: balancesLoading, refresh: refreshBalances } = useBalance(
+    address,
+    topTokens,
+    priceMap,
+    { autoRefresh: false }
+  );
+
+  const loading = pricesLoading || balancesLoading;
+
   useEffect(() => {
-    loadWalletData();
+    loadWalletAddress();
   }, []);
 
-  const loadWalletData = async (isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
+  const loadWalletAddress = async () => {
     try {
-      // Get active wallet
       const walletData = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_WALLET);
       const activeAddress = walletData[STORAGE_KEYS.ACTIVE_WALLET];
-      
       if (activeAddress) {
         setAddress(activeAddress);
-        
-        // Load real balances from blockchain
-        const tokenBalances: TokenBalance[] = [];
-        let total = 0;
-
-        // Load top 5 tokens
-        const topTokens = COMMON_TOKENS.slice(0, 5);
-
-        for (const token of topTokens) {
-          let balance = '0';
-          try {
-            if (token.address === null) {
-              balance = await getNativeBalance(activeAddress);
-            } else {
-              balance = await getTokenBalance(token.address, activeAddress);
-            }
-          } catch (err) {
-            console.error(`Error loading ${token.symbol} balance:`, err);
-          }
-
-          const priceUsd = TOKEN_PRICES[token.symbol] || 0;
-          const valueUsd = parseFloat(balance) * priceUsd;
-          total += valueUsd;
-
-          tokenBalances.push({
-            symbol: token.symbol,
-            name: token.name,
-            balance,
-            logo: token.logo,
-            priceUsd,
-            address: token.address,
-          });
-        }
-
-        // Sort by USD value
-        tokenBalances.sort((a, b) => {
-          const aValue = parseFloat(a.balance) * (a.priceUsd || 0);
-          const bValue = parseFloat(b.balance) * (b.priceUsd || 0);
-          return bValue - aValue;
-        });
-
-        setBalances(tokenBalances);
-        setTotalUsd(total);
       }
     } catch (error) {
       console.error('Error loading wallet:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    await Promise.all([refetchPrices(), refreshBalances()]);
   };
 
   const copyAddress = async () => {
@@ -131,7 +81,17 @@ function HomePage() {
     }
   };
 
-  if (loading) {
+  // Convert balances to TokenList format
+  const tokenListData = balances.map(b => ({
+    symbol: b.symbol,
+    name: b.name,
+    balance: b.balance,
+    logo: b.logo,
+    balanceUsd: b.balanceUsd,
+    address: b.address,
+  }));
+
+  if (loading && !address) {
     return (
       <div className="flex items-center justify-center h-full">
         <RefreshCw className="w-6 h-6 animate-spin text-primary" />
@@ -154,11 +114,11 @@ function HomePage() {
         </div>
         <div className="flex items-center gap-1">
           <button 
-            onClick={() => loadWalletData(true)}
-            disabled={refreshing}
+            onClick={handleRefresh}
+            disabled={loading}
             className="p-2 hover:bg-muted rounded-lg"
           >
-            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button 
             onClick={() => navigate('/settings')}
@@ -197,7 +157,7 @@ function HomePage() {
           {/* Total Balance */}
           <div className="mb-4">
             <p className="text-sm text-muted-foreground">Tổng số dư</p>
-            <p className="text-3xl font-bold">${totalUsd.toFixed(2)}</p>
+            <p className="text-3xl font-bold">{formatPrice(totalUsd)}</p>
           </div>
           
           {/* Action Buttons */}
@@ -223,42 +183,10 @@ function HomePage() {
       {/* Token List */}
       <div className="flex-1 overflow-y-auto p-4 pt-0">
         <h3 className="text-sm font-medium text-muted-foreground mb-2">Tokens</h3>
-        <div className="space-y-2">
-          {balances.map((token) => (
-            <div 
-              key={token.symbol}
-              className="flex items-center justify-between p-3 bg-muted/50 rounded-xl token-card-hover"
-            >
-              <div className="flex items-center gap-3">
-                <img 
-                  src={getAssetUrl(token.logo)} 
-                  alt={token.symbol}
-                  className="w-8 h-8 rounded-full"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = getAssetUrl('/tokens/default.svg');
-                  }}
-                />
-                <div>
-                  <p className="font-medium">{token.symbol}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatBalance(token.balance)} {token.symbol}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-medium">
-                  ${((parseFloat(token.balance) || 0) * (token.priceUsd || 0)).toFixed(2)}
-                </p>
-              </div>
-            </div>
-          ))}
-
-          {balances.length === 0 && (
-            <p className="text-center text-muted-foreground py-4">
-              Không tìm thấy token
-            </p>
-          )}
-        </div>
+        <TokenList 
+          tokens={tokenListData} 
+          loading={loading}
+        />
       </div>
     </div>
   );
