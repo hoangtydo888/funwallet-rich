@@ -10,10 +10,12 @@
 
 import { chromeStorageAdapter } from '../storage/ChromeStorageAdapter';
 import { STORAGE_KEYS } from '../../shared/storage/types';
+import { decryptPrivateKey } from '../../shared/lib/encryption';
 import { 
   DAppConnection, 
   PendingRequest,
-  TransactionRequest 
+  TransactionRequest,
+  SecureWalletStorage
 } from '../../shared/types';
 
 // Message types
@@ -158,23 +160,48 @@ async function handleMessage(message: Message, sender: chrome.runtime.MessageSen
 }
 
 /**
- * Unlock wallet with password
+ * Unlock wallet with password - REAL verification
  */
 async function handleUnlockWallet(payload: { password: string }): Promise<MessageResponse> {
-  // TODO: Implement actual password verification
   if (!payload?.password) {
     return { success: false, error: 'Password required' };
   }
-  
-  isLocked = false;
-  
-  // Update last activity
-  await chromeStorageAdapter.set(
-    STORAGE_KEYS.LAST_ACTIVITY, 
-    Date.now().toString()
-  );
-  
-  return { success: true };
+
+  try {
+    // Get encrypted wallet data
+    const encryptedData = await chromeStorageAdapter.get(STORAGE_KEYS.ENCRYPTED_KEYS);
+    
+    if (!encryptedData) {
+      return { success: false, error: 'No wallet found' };
+    }
+
+    // Parse and verify password by attempting decryption
+    const parsed: SecureWalletStorage = JSON.parse(encryptedData);
+    const addresses = Object.keys(parsed.wallets);
+    
+    if (addresses.length === 0) {
+      return { success: false, error: 'No wallet found' };
+    }
+
+    // Try to decrypt first wallet to verify password
+    const testKeyData = parsed.wallets[addresses[0]];
+    await decryptPrivateKey(testKeyData, payload.password);
+    
+    // Password correct - unlock wallet
+    isLocked = false;
+    
+    // Update last activity
+    await chromeStorageAdapter.set(
+      STORAGE_KEYS.LAST_ACTIVITY, 
+      Date.now().toString()
+    );
+
+    console.log('[FUN Wallet] Wallet unlocked successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('[FUN Wallet] Unlock failed:', error);
+    return { success: false, error: 'Mật khẩu không đúng' };
+  }
 }
 
 /**

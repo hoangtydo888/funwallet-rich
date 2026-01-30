@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatAddress } from '../../../shared/lib/wallet';
+import { STORAGE_KEYS } from '../../../shared/storage/types';
 
 function ReceivePage() {
   const navigate = useNavigate();
@@ -14,9 +15,9 @@ function ReceivePage() {
   }, []);
 
   const loadAddress = async () => {
-    const walletData = await chrome.storage.local.get('fun_wallet_active');
-    if (walletData.fun_wallet_active) {
-      setAddress(walletData.fun_wallet_active);
+    const walletData = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_WALLET);
+    if (walletData[STORAGE_KEYS.ACTIVE_WALLET]) {
+      setAddress(walletData[STORAGE_KEYS.ACTIVE_WALLET]);
     }
   };
 
