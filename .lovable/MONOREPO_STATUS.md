@@ -1,6 +1,6 @@
 # FUN Wallet - Monorepo Structure
 
-## Cấu trúc thư mục mới
+## Cấu trúc thư mục
 
 ```
 src/
@@ -20,7 +20,8 @@ src/
 │
 ├── extension/                   # Chrome Extension package
 │   ├── public/
-│   │   └── manifest.json       # Manifest V3
+│   │   ├── manifest.json       # Manifest V3
+│   │   └── icons/              # Extension icons (16, 48, 128)
 │   ├── src/
 │   │   ├── background/
 │   │   │   └── service-worker.ts
@@ -33,8 +34,8 @@ src/
 │   │       │   └── PopupLayout.tsx
 │   │       └── pages/
 │   │           ├── UnlockPage.tsx
-│   │           ├── HomePage.tsx
-│   │           ├── SendPage.tsx
+│   │           ├── HomePage.tsx (real balances)
+│   │           ├── SendPage.tsx (full send)
 │   │           ├── ReceivePage.tsx
 │   │           ├── SettingsPage.tsx
 │   │           ├── ConnectPage.tsx
@@ -42,6 +43,7 @@ src/
 │   ├── storage/
 │   │   └── ChromeStorageAdapter.ts
 │   ├── popup.html
+│   ├── index.css               # Extension-specific styles
 │   └── tsconfig.json
 │
 └── ... (existing PWA code)
@@ -49,51 +51,50 @@ src/
 
 ## Trạng thái triển khai
 
-### ✅ Đã hoàn thành
+### ✅ Phase 1: Đã hoàn thành
 
 1. **@fun-wallet/shared package**
    - StorageAdapter interface
-   - LocalStorageAdapter (PWA)
+   - LocalStorageAdapter (PWA), ChromeStorageAdapter (Extension)
    - Shared types (Chain, Token, Wallet, Transaction, DApp, etc.)
    - Chain configurations (8 EVM chains)
    - Token constants (19+ tokens)
    - Encryption module (AES-256-GCM)
    - Wallet operations (ethers.js v6)
 
-2. **Chrome Extension skeleton**
-   - Manifest V3 configuration
-   - Background Service Worker
-   - Content Script with EIP-1193 provider
-   - Popup UI với các pages cơ bản
-   - ChromeStorageAdapter
+### ✅ Phase 2: Đã hoàn thành
 
-### 🔄 Đang tiến hành
+1. **Build System**
+   - Extension icons (16, 48, 128px)
+   - Extension-specific CSS với design system
+   - TSConfig riêng cho extension
 
-- Tích hợp shared code vào PWA hiện tại
-- Testing extension locally
+2. **Core Features**
+   - **HomePage**: Real token balances từ blockchain
+   - **SendPage**: Full send functionality
+   - **ReceivePage**: QR code + copy address
+   - **Background**: Real password verification
 
-### 📋 Cần làm
+3. **Security**
+   - Password verification bằng decryption thực sự
+   - Auto-lock sau 15 phút
+   - chrome.runtime.getURL() cho assets
 
-- Vite config cho extension build
-- Icon assets cho extension
-- DApp connection flow hoàn chỉnh
-- Transaction signing UI
-- Chrome Web Store submission
-
-## Build Commands (khi hoàn thành)
+## Build Commands
 
 ```bash
 # PWA
 npm run dev        # Dev server
 npm run build      # Production build
 
-# Extension (cần thêm config)
+# Extension (cần thêm vite.config.extension.ts + @crxjs/vite-plugin)
 npm run dev:ext    # Dev with HMR
 npm run build:ext  # Production build
 ```
 
-## Notes
+## Next Steps
 
-- Extension code được exclude khỏi main PWA build (tsconfig.app.json)
-- Extension cần build riêng với @crxjs/vite-plugin
-- Shared code có thể import từ cả PWA và Extension
+- [ ] Thêm @crxjs/vite-plugin dependency
+- [ ] Tạo vite.config.extension.ts
+- [ ] Test build extension
+- [ ] Load extension trong Chrome
