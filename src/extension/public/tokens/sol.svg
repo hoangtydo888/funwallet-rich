@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="sol-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00FFA3"/>
+      <stop offset="50%" stop-color="#03E1FF"/>
+      <stop offset="100%" stop-color="#DC1FFF"/>
+    </linearGradient>
+  </defs>
+  <circle cx="16" cy="16" r="16" fill="#000"/>
+  <g fill="none" stroke="url(#sol-grad)" stroke-width="2">
+    <path d="M9 20l2-2h10l2 2"/>
+    <path d="M9 12l2 2h10l2-2"/>
+    <path d="M9 16h14"/>
+  </g>
+  <g fill="url(#sol-grad)">
+    <path d="M9 19l2.5-2.5h9l2.5 2.5H9z"/>
+    <path d="M9 13l2.5 2.5h9L23 13H9z"/>
+  </g>
+</svg>

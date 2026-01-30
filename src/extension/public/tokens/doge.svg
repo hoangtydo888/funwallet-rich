@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="doge-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C3A634"/>
+      <stop offset="100%" stop-color="#A88E2A"/>
+    </linearGradient>
+  </defs>
+  <circle cx="16" cy="16" r="16" fill="url(#doge-grad)"/>
+  <path fill="#fff" d="M13 10h4c3.3 0 6 2.7 6 6s-2.7 6-6 6h-4V10zm2 2v8h2c2.2 0 4-1.8 4-4s-1.8-4-4-4h-2z"/>
+  <path fill="#fff" d="M10 15h8v2h-8z"/>
+</svg>
