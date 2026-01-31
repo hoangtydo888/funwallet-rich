@@ -8,6 +8,8 @@ import ReceivePage from './pages/ReceivePage';
 import SettingsPage from './pages/SettingsPage';
 import ConnectPage from './pages/ConnectPage';
 import ApproveTxPage from './pages/ApproveTxPage';
+import ApproveSignPage from './pages/ApproveSignPage';
+import ConnectedDAppsPage from './pages/ConnectedDAppsPage';
 
 function PopupApp() {
   const [isUnlocked, setIsUnlocked] = useState<boolean | null>(null);
@@ -122,6 +124,17 @@ function PopupApp() {
         {/* DApp connection routes */}
         <Route path="/connect" element={<ConnectPage />} />
         <Route path="/approve-tx" element={<ApproveTxPage />} />
+        <Route path="/approve-sign" element={<ApproveSignPage />} />
+        
+        {/* Settings sub-routes */}
+        <Route 
+          path="/connected-dapps" 
+          element={
+            isUnlocked 
+              ? <ConnectedDAppsPage /> 
+              : <Navigate to="/unlock" replace />
+          } 
+        />
         
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
