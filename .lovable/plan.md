@@ -1,155 +1,308 @@
-# FUN Wallet - Chrome Extension Development Plan
 
-## Overview
-Building a Chrome Extension version of FUN Wallet that shares core logic with the PWA.
+# Phase 5: DApp Connection (EIP-1193) - Hoàn Thiện
 
----
+## Tổng Quan
 
-## Phase 1: Extension Structure ✅ COMPLETED
+Phase này sẽ hoàn thiện hệ thống kết nối DApp theo chuẩn EIP-1193, cho phép extension tương tác với các DApp như PancakeSwap, Uniswap, OpenSea, etc.
 
-Created base structure for Chrome Extension:
-- `src/extension/` - Extension source code
-- Manifest V3 configuration
-- Popup, Background, Content scripts structure
-- TypeScript configuration for extension
-
----
-
-## Phase 2: Shared Core Logic ✅ COMPLETED
-
-Moved core logic to `src/shared/`:
-- `lib/wallet.ts` - Wallet operations (create, import, sign, etc.)
-- `lib/encryption.ts` - AES-256-GCM encryption
-- `constants/tokens.ts` - Token definitions
-- `constants/chains.ts` - Chain configurations
-- `storage/types.ts` - Storage adapter interface
-- `types/index.ts` - Shared TypeScript types
+**Mục tiêu:**
+- Hoàn thiện flow Connect/Approve/Reject
+- Xử lý Transaction Signing thực sự
+- Xử lý Message Signing (personal_sign, eth_signTypedData)
+- Pending Requests management
+- Hiển thị Connected DApps trong Settings
 
 ---
 
-## Phase 3: Vite Build Config ✅ COMPLETED
+## 1. Kiến Trúc Hiện Tại
 
-Created dedicated build system for extension:
-- `vite.config.extension.ts` - Separate Vite config
-- `@crxjs/vite-plugin` integration
-- Build commands: `dev:ext`, `build:ext`
-- Output to `dist-extension/`
-- Token icons copied to extension public folder
+Dự án đã có cấu trúc cơ bản:
 
----
-
-## Phase 4: Code Reusable từ PWA ✅ COMPLETED
-
-### Shared Libraries Created:
-- `src/shared/lib/dexscreener.ts` - DexScreener API integration
-- `src/shared/lib/priceTracker.ts` - Price fetching with cache support
-
-### Shared Hooks Created:
-- `src/shared/hooks/useTokenPrices.ts` - Real-time price fetching with auto-refresh
-- `src/shared/hooks/useBalance.ts` - Token balance fetching with USD calculations
-
-### Extension UI Components:
-- `src/extension/src/lib/utils.ts` - CN utility for class merging
-- `src/extension/src/components/ui/Button.tsx` - Shadcn-style button
-- `src/extension/src/components/ui/Input.tsx` - Form input component
-- `src/extension/src/components/ui/Card.tsx` - Card layout components
-- `src/extension/src/components/ui/Skeleton.tsx` - Loading skeleton
-- `src/extension/src/components/TokenList.tsx` - Token list with balances
-
-### Updated Files:
-- `src/shared/index.ts` - Export all shared modules (selective to avoid conflicts)
-- `src/lib/priceTracker.ts` - Re-export from shared + PWA-specific localStorage functions
-- `src/lib/dexscreener.ts` - Re-export from shared
-- `src/extension/src/popup/pages/HomePage.tsx` - Now uses shared hooks (useTokenPrices, useBalance)
-
----
-
-## Phase 5: DApp Connection (EIP-1193) 🔜 NEXT
-
-### Goals:
-- Implement EIP-1193 provider for DApp connections
-- Enable wallet to connect to PancakeSwap, Uniswap, etc.
-- Content script injection for provider
-
-### Files to Create:
-- `src/extension/src/provider/EIP1193Provider.ts`
-- `src/extension/src/content/provider-inject.ts`
-- Update `service-worker.ts` for message handling
-
----
-
-## Phase 6: WalletConnect Integration 🔜 FUTURE
-
-### Goals:
-- QR code scanning for WalletConnect
-- Session management
-- Transaction approval UI
-
----
-
-## Architecture Summary
-
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
-│                   src/shared/                           │
+│                    Web Page (DApp)                      │
 │  ┌───────────────────────────────────────────────────┐  │
-│  │  lib/                                             │  │
-│  │  ├── wallet.ts      ← Core wallet operations      │  │
-│  │  ├── encryption.ts  ← AES-256-GCM                 │  │
-│  │  ├── priceTracker.ts ← Price APIs + caching       │  │
-│  │  └── dexscreener.ts  ← DEX API                    │  │
-│  ├───────────────────────────────────────────────────┤  │
-│  │  hooks/                                           │  │
-│  │  ├── useTokenPrices.ts ← Real-time prices         │  │
-│  │  └── useBalance.ts     ← Token balances           │  │
-│  ├───────────────────────────────────────────────────┤  │
-│  │  constants/                                       │  │
-│  │  ├── tokens.ts     ← Token definitions            │  │
-│  │  └── chains.ts     ← Chain configs                │  │
-│  ├───────────────────────────────────────────────────┤  │
-│  │  storage/                                         │  │
-│  │  ├── types.ts      ← StorageAdapter interface     │  │
-│  │  └── LocalStorageAdapter.ts                       │  │
+│  │  window.funWallet.request({ method, params })     │  │
 │  └───────────────────────────────────────────────────┘  │
+└────────────────────────┬────────────────────────────────┘
+                         │ postMessage
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│               Content Script (inject.ts)                │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  Receives FUN_WALLET_REQUEST                      │  │
+│  │  → chrome.runtime.sendMessage                     │  │
+│  └───────────────────────────────────────────────────┘  │
+└────────────────────────┬────────────────────────────────┘
+                         │ chrome.runtime.sendMessage
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│           Background Service Worker                     │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  handleMessage() → Route to handlers              │  │
+│  │  pendingRequests: Map<requestId, request>         │  │
+│  │  openPopup() for user approval                    │  │
+│  └───────────────────────────────────────────────────┘  │
+└────────────────────────┬────────────────────────────────┘
+                         │ chrome.windows.create
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                    Popup Pages                          │
+│  • ConnectPage - Approve/Reject connection              │
+│  • ApproveTxPage - Approve/Reject transaction           │
+│  • ApproveSignPage - Approve/Reject message signing     │
 └─────────────────────────────────────────────────────────┘
-         │                              │
-         ▼                              ▼
-┌─────────────────┐            ┌─────────────────┐
-│   PWA (src/)    │            │   Extension     │
-│                 │            │  (src/extension)│
-│  • Re-exports   │            │                 │
-│    from shared  │            │  • Imports      │
-│  • Full UI      │            │    from shared  │
-│  • Supabase     │            │  • Popup UI     │
-│  • Router       │            │  • Chrome APIs  │
-└─────────────────┘            └─────────────────┘
 ```
 
 ---
 
-## Build Commands
+## 2. Thiếu Sót Cần Hoàn Thiện
 
-```bash
-# PWA Development
-npm run dev
+| Component | Tình trạng | Cần làm |
+|-----------|------------|---------|
+| inject.ts | ✅ Done | Minor fixes |
+| service-worker.ts | ⚠️ Partial | Hoàn thiện sign logic |
+| ConnectPage | ⚠️ Partial | Fix response flow |
+| ApproveTxPage | ⚠️ Partial | Thực sự sign & broadcast |
+| ApproveSignPage | ❌ Missing | Tạo mới |
+| SettingsPage | ⚠️ Partial | Show connected DApps |
 
-# Extension Development
-npm run dev:ext
+---
 
-# Build PWA
-npm run build
+## 3. Files Cần Tạo/Sửa
 
-# Build Extension
-npm run build:ext
+### 3.1 Tạo Mới
+
+| File | Mô tả |
+|------|-------|
+| `ApproveSignPage.tsx` | UI phê duyệt ký message |
+| `ConnectedDAppsPage.tsx` | Xem & quản lý DApps đã kết nối |
+
+### 3.2 Cập Nhật
+
+| File | Thay đổi |
+|------|----------|
+| `service-worker.ts` | Hoàn thiện sign logic, response flow |
+| `ConnectPage.tsx` | Fix approve response |
+| `ApproveTxPage.tsx` | Real transaction signing |
+| `SettingsPage.tsx` | Link to connected DApps |
+| `PopupApp.tsx` | Thêm routes mới |
+| `inject.ts` | Fix event handling |
+
+---
+
+## 4. Chi Tiết Kỹ Thuật
+
+### 4.1 Response Flow Hoàn Chỉnh
+
+```text
+Current Problem:
+─────────────────────────────────────────────────────────
+DApp calls eth_requestAccounts
+  → Background opens popup
+  → User clicks Approve
+  → Popup closes ❌ (no response sent back!)
+  → DApp never receives accounts
+
+Solution:
+─────────────────────────────────────────────────────────
+DApp calls eth_requestAccounts
+  → Background creates pendingRequest with callback
+  → Background opens popup with requestId
+  → User clicks Approve
+  → Popup sends APPROVE_REQUEST to background
+  → Background resolves pending request
+  → Response sent to content script
+  → Content script sends to page
+  → DApp receives accounts ✅
+```
+
+### 4.2 Service Worker Updates
+
+**Thêm request callback system:**
+
+```typescript
+// Pending request với resolve/reject callbacks
+interface PendingRequestWithCallback {
+  ...PendingRequest,
+  resolve: (result: unknown) => void;
+  reject: (error: Error) => void;
+  sendResponse: (response: MessageResponse) => void;
+}
+
+const pendingRequests: Map<string, PendingRequestWithCallback> = new Map();
+```
+
+**Thêm message handlers mới:**
+
+| Message Type | Handler |
+|--------------|---------|
+| `APPROVE_CONNECTION` | Confirm DApp connection, return accounts |
+| `REJECT_CONNECTION` | Reject DApp connection |
+| `APPROVE_TRANSACTION` | Sign & broadcast transaction |
+| `REJECT_TRANSACTION` | Reject transaction |
+| `APPROVE_SIGN` | Sign message |
+| `REJECT_SIGN` | Reject signing |
+| `GET_PENDING_REQUEST` | Get pending request data |
+
+### 4.3 Transaction Signing Flow
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ ApproveTxPage                                           │
+├─────────────────────────────────────────────────────────┤
+│ 1. Load pending request from background                 │
+│ 2. Display transaction details (to, value, data)        │
+│ 3. Estimate gas fee                                     │
+│ 4. User enters password                                 │
+│ 5. Decrypt private key                                  │
+│ 6. Sign transaction with ethers.js                      │
+│ 7. Broadcast to network                                 │
+│ 8. Send tx hash back to background                      │
+│ 9. Background resolves pending request                  │
+│ 10. DApp receives tx hash                               │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 4.4 Message Signing Implementation
+
+**ApproveSignPage UI:**
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ ← Ký Tin Nhắn                                           │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│        🔐                                               │
+│                                                         │
+│  pancakeswap.finance muốn bạn ký:                       │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Sign this message to verify your wallet...        │  │
+│  │ Nonce: 12345                                      │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  ⚠️ Chỉ ký tin nhắn từ nguồn đáng tin cậy              │
+│                                                         │
+│  Nhập mật khẩu để ký:                                   │
+│  [________________________]                             │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│  [     Ký     ]    [   Từ chối   ]                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Signing methods:**
+
+| Method | Implementation |
+|--------|----------------|
+| `personal_sign` | `wallet.signMessage(message)` |
+| `eth_signTypedData_v4` | `wallet.signTypedData(domain, types, value)` |
+
+### 4.5 Connected DApps Management
+
+**SettingsPage additions:**
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Cài Đặt                                                 │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ 🔗 DApps Đã Kết Nối                            3 DApps  │
+│    └─ Xem và quản lý các DApp đã kết nối                │
+│                                                         │
+│ 🔒 Bảo Mật                                              │
+│ 🌙 Giao Diện                                            │
+│ ...                                                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**ConnectedDAppsPage:**
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ ← DApps Đã Kết Nối                                      │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ 🥞 pancakeswap.finance                              │ │
+│ │    Kết nối: 2 ngày trước                      [X]   │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ 🦄 app.uniswap.org                                  │ │
+│ │    Kết nối: 1 tuần trước                      [X]   │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ ⛵ opensea.io                                        │ │
+│ │    Kết nối: 3 tuần trước                      [X]   │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ [    Ngắt kết nối tất cả    ]                           │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Code Sharing Benefits
+## 5. EIP-1193 Methods Support
 
-| Metric | Before Phase 4 | After Phase 4 |
-|--------|----------------|---------------|
-| Code duplication | ~40% | <10% |
-| Shared logic files | 3 | 8+ |
-| Maintenance | 2 codebases | Single source |
-| Bug fixes | Manual sync | Automatic |
+### Fully Implemented
+
+| Method | Description |
+|--------|-------------|
+| `eth_requestAccounts` | Request wallet connection |
+| `eth_accounts` | Get connected accounts |
+| `eth_chainId` | Get current chain ID |
+| `eth_sendTransaction` | Send transaction |
+| `personal_sign` | Sign message |
+| `eth_signTypedData_v4` | Sign typed data |
+| `wallet_switchEthereumChain` | Switch network |
+
+### Events Support
+
+| Event | Trigger |
+|-------|---------|
+| `accountsChanged` | User switches account |
+| `chainChanged` | User switches network |
+| `connect` | DApp connected |
+| `disconnect` | DApp disconnected |
+
+---
+
+## 6. Implementation Order
+
+| Step | Task | Files |
+|------|------|-------|
+| 1 | Update service-worker response flow | `service-worker.ts` |
+| 2 | Fix ConnectPage approve/reject | `ConnectPage.tsx` |
+| 3 | Create ApproveSignPage | `ApproveSignPage.tsx` |
+| 4 | Implement real tx signing | `ApproveTxPage.tsx` |
+| 5 | Create ConnectedDAppsPage | `ConnectedDAppsPage.tsx` |
+| 6 | Update SettingsPage | `SettingsPage.tsx` |
+| 7 | Update routes | `PopupApp.tsx` |
+| 8 | Fix inject.ts event handling | `inject.ts` |
+
+---
+
+## 7. Testing Với DApps Thực
+
+Sau khi hoàn thành, có thể test với:
+
+| DApp | URL | Test Actions |
+|------|-----|--------------|
+| PancakeSwap | pancakeswap.finance | Connect, Swap tokens |
+| Uniswap | app.uniswap.org | Connect, Switch chains |
+| OpenSea | opensea.io | Connect, Sign messages |
+
+---
+
+## 8. Kết Quả Mong Đợi
+
+Sau Phase 5:
+- Extension có thể kết nối với mọi DApp theo chuẩn EIP-1193
+- Users có thể phê duyệt/từ chối transactions trong popup
+- Users có thể ký messages cho các DApp
+- Users có thể quản lý connected DApps trong Settings
+- Events (chainChanged, accountsChanged) hoạt động đúng
+- Compatible với PancakeSwap, Uniswap, OpenSea, etc.
