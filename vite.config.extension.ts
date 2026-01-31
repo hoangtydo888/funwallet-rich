@@ -21,9 +21,18 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'esnext',
     rollupOptions: {
+      input: {
+        inpage: path.resolve(__dirname, 'src/extension/src/content/inpage.ts'),
+      },
       output: {
         chunkFileNames: 'assets/[name]-[hash].js',
-        entryFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: (chunkInfo) => {
+          // Output inpage.js to root for easy access
+          if (chunkInfo.name === 'inpage') {
+            return 'inpage.js';
+          }
+          return 'assets/[name]-[hash].js';
+        },
         assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },

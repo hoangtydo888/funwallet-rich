@@ -56,7 +56,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "tokens/*"],
+      "resources": ["icons/*", "tokens/*", "inpage.js"],
       "matches": ["<all_urls>"]
     }
   ]
