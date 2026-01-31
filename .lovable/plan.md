@@ -1,97 +1,71 @@
 
-# Kế Hoạch: FUN Wallet Hiển Thị Cùng MetaMask Trên DApps
+# Kế Hoạch: Hoàn Thiện Flow Kết Nối DApp
 
-## Mục Tiêu
+## Vấn Đề Hiện Tại
 
-Đảm bảo FUN Wallet xuất hiện trong danh sách wallet của PancakeSwap (và các DApp khác) ngay cả khi MetaMask đã được cài đặt.
+Khi DApp gọi `eth_requestAccounts`, popup FUN Wallet bung ra nhưng hiển thị **HomePage** thay vì **ConnectPage** để xác nhận kết nối.
 
 ---
 
-## Phân Tích Vấn Đề Hiện Tại
+## Nguyên Nhân Gốc
 
-### Vấn Đề 1: UUID Thay Đổi Mỗi Lần
-
+### Service Worker mở popup với URL hash:
 ```typescript
-// Hiện tại - SAI:
-uuid: 'fun-wallet-extension-' + Date.now()  // UUID thay đổi mỗi lần reload!
+// service-worker.ts dòng 759
+chrome.runtime.getURL(`popup.html#/connect?requestId=xxx&origin=xxx`)
 ```
 
-UUID phải **cố định và duy nhất** để DApp nhận diện ví giữa các lần tải trang.
-
-### Vấn Đề 2: RDNS Format
-
+### Nhưng main.tsx dùng MemoryRouter:
 ```typescript
-// Hiện tại:
-rdns: 'app.funwallet'
-
-// Chuẩn hơn (reverse domain):
-rdns: 'io.funwallet.wallet'
+// main.tsx
+<MemoryRouter>  {/* KHÔNG đọc được URL hash! */}
+  <PopupApp />
+</MemoryRouter>
 ```
 
-### Vấn Đề 3: Thiếu Announcement Kịp Thời
-
-DApps như PancakeSwap có thể load trước khi FUN Wallet announce. Cần:
-- Announce ngay khi inject
-- Re-announce khi có `eip6963:requestProvider`
-- Đợi DOMContentLoaded nếu cần
+`MemoryRouter` lưu history trong bộ nhớ và **bỏ qua URL hash**, nên luôn bắt đầu từ route mặc định `/` (HomePage).
 
 ---
 
 ## Giải Pháp
 
-### 1. Sử Dụng UUID Cố Định
+### Phương án 1: Chuyển sang HashRouter (Đề xuất)
 
-Thay thế UUID động bằng UUID cố định dựa trên extension ID:
-
-```typescript
-// Cố định, unique cho extension
-uuid: '550e8400-e29b-41d4-a716-446655440000'
-```
-
-### 2. Cập Nhật Provider Info Theo Chuẩn EIP-6963
+Thay `MemoryRouter` bằng `HashRouter` để router đọc được URL hash từ service worker.
 
 ```typescript
-info: {
-  uuid: '550e8400-e29b-41d4-a716-446655440000',  // Fixed UUID
-  name: 'FUN Wallet',
-  icon: iconDataUrl,  // PNG base64 đã có
-  rdns: 'io.funwallet.wallet',  // Reverse domain notation
-}
+// main.tsx - TRƯỚC
+import { MemoryRouter } from 'react-router-dom';
+<MemoryRouter>
+  <PopupApp />
+</MemoryRouter>
+
+// main.tsx - SAU
+import { HashRouter } from 'react-router-dom';
+<HashRouter>
+  <PopupApp />
+</HashRouter>
 ```
 
-### 3. Announce Nhiều Lần Để Đảm Bảo Detection
+### Phương án 2: Đọc initial route từ hash (Backup)
+
+Nếu cần giữ MemoryRouter vì lý do đặc biệt:
 
 ```typescript
-// Hàm announce provider
-function announceProvider() {
-  const event = new CustomEvent('eip6963:announceProvider', {
-    detail: Object.freeze({
-      info: providerInfo,
-      provider: provider,
-    }),
-  });
-  window.dispatchEvent(event);
-}
+// Đọc initial path từ hash
+const hash = window.location.hash;
+const initialPath = hash ? hash.replace('#', '') : '/';
 
-// Announce ngay lập tức
-announceProvider();
-
-// Announce lại khi DApp request
-window.addEventListener('eip6963:requestProvider', announceProvider);
-
-// Announce sau khi DOM ready (cho DApps load chậm)
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', announceProvider);
-}
-
-// Announce sau short delay (cho DApps init async)
-setTimeout(announceProvider, 100);
-setTimeout(announceProvider, 500);
+<MemoryRouter initialEntries={[initialPath]}>
+  <PopupApp />
+</MemoryRouter>
 ```
 
-### 4. Inject Script Sớm Nhất Có Thể
+---
 
-Đảm bảo content script chạy ở `"document_start"` trong manifest.json (đã được cấu hình).
+## Chọn Phương Án 1 (HashRouter)
+
+Đây là cách chuẩn và đơn giản nhất cho Chrome Extension popup.
 
 ---
 
@@ -99,101 +73,86 @@ setTimeout(announceProvider, 500);
 
 | File | Thay Đổi |
 |------|----------|
-| `src/extension/src/content/inpage.ts` | Sửa UUID cố định, cải thiện announcement logic |
+| `src/extension/src/popup/main.tsx` | Thay MemoryRouter bằng HashRouter |
 
 ---
 
-## Chi Tiết Thay Đổi inpage.ts
+## Chi Tiết Code Thay Đổi
 
-### Trước:
+### main.tsx
 
 ```typescript
-const announceEvent = new CustomEvent('eip6963:announceProvider', {
-  detail: Object.freeze({
-    info: {
-      uuid: 'fun-wallet-extension-' + Date.now(),  // ❌ Thay đổi mỗi lần
-      name: 'FUN Wallet',
-      icon: iconDataUrl,
-      rdns: 'app.funwallet',
-    },
-    provider: provider,
-  }),
-});
+// TRƯỚC:
+import { MemoryRouter } from 'react-router-dom';
 
-window.dispatchEvent(announceEvent);
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <MemoryRouter>
+      <PopupApp />
+    </MemoryRouter>
+  </React.StrictMode>,
+);
 
-window.addEventListener('eip6963:requestProvider', () => {
-  window.dispatchEvent(announceEvent);
-});
+// SAU:
+import { HashRouter } from 'react-router-dom';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <HashRouter>
+      <PopupApp />
+    </HashRouter>
+  </React.StrictMode>,
+);
 ```
 
-### Sau:
+---
 
-```typescript
-// Provider info theo chuẩn EIP-6963
-const providerInfo = {
-  uuid: '550e8400-e29b-41d4-a716-446655440000',  // ✅ Cố định
-  name: 'FUN Wallet',
-  icon: iconDataUrl,
-  rdns: 'io.funwallet.wallet',  // ✅ Chuẩn reverse domain
-};
+## Flow Sau Khi Sửa
 
-// Hàm announce để có thể gọi nhiều lần
-function announceProvider() {
-  window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
-    detail: Object.freeze({
-      info: providerInfo,
-      provider: provider,
-    }),
-  }));
-}
-
-// 1. Announce ngay lập tức
-announceProvider();
-
-// 2. Lắng nghe request từ DApp
-window.addEventListener('eip6963:requestProvider', announceProvider);
-
-// 3. Announce sau DOMContentLoaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', announceProvider);
-} else if (document.readyState === 'interactive') {
-  announceProvider();
-}
-
-// 4. Announce với delay cho DApps khởi tạo chậm
-setTimeout(announceProvider, 100);
-setTimeout(announceProvider, 500);
-setTimeout(announceProvider, 1000);
+```text
+1. DApp gọi eth_requestAccounts
+2. Service worker tạo pending request
+3. Service worker mở popup: popup.html#/connect?requestId=xxx&origin=xxx
+4. HashRouter đọc hash → navigate đến /connect
+5. ConnectPage render với params từ URL
+6. User nhấn "Cho phép"
+7. Gửi APPROVE_CONNECTION về service worker
+8. Service worker gửi accounts về content script
+9. DApp nhận được địa chỉ ví → kết nối thành công!
 ```
 
 ---
 
 ## Kết Quả Mong Đợi
 
-Sau khi apply thay đổi:
-
-1. Mở PancakeSwap → Click "Connect Wallet"
-2. Danh sách hiển thị **cả FUN Wallet và MetaMask**
-3. Click vào FUN Wallet → Popup bung ra
-4. Approve → Kết nối thành công
+Sau khi sửa, khi click "Kết nối ví" trên DApp:
 
 ```text
-+----------------------------------+
-|        Connect Wallet            |
-+----------------------------------+
-|  🦊 MetaMask                     |
-|  🎮 FUN Wallet      ← Hiển thị!  |
-|  🔵 Coinbase Wallet              |
-|  📱 WalletConnect                |
-+----------------------------------+
++------------------------------------------+
+|           Yêu cầu kết nối                |
++------------------------------------------+
+|              🛡️                          |
+|        Kết nối với DApp                  |
+|                                          |
+|   [ huggable-sparkle-core.lovable.app ]  |
+|                                          |
+|   Trang web này sẽ có quyền:             |
+|   👁️ Xem địa chỉ ví của bạn              |
+|   🔑 Yêu cầu phê duyệt giao dịch         |
+|                                          |
+|   ⚠️ Chỉ kết nối với trang web bạn tin   |
+|                                          |
+|        [✓ Cho phép]                      |
+|        [✕ Từ chối]                       |
++------------------------------------------+
 ```
 
 ---
 
 ## Sau Khi Implement
 
-1. **Build extension**: `npm run build:ext`
-2. **Reload extension** trong Chrome
-3. **Mở PancakeSwap** và click "Connect Wallet"
-4. **Xác nhận** FUN Wallet xuất hiện trong danh sách
+1. Build extension: `npm run build:ext`
+2. Reload extension trong Chrome
+3. Mở DApp (ví dụ trang profile) và click "Kết nối ví"
+4. Xác nhận popup hiển thị **ConnectPage** với nút Cho phép/Từ chối
+5. Click "Cho phép" → DApp nhận được địa chỉ ví
