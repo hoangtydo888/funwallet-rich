@@ -322,12 +322,15 @@ function injectProvider() {
       }
       
       // Announce provider (EIP-6963)
+      // Use a proper base64 PNG icon for professional appearance
+      const iconDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAEkElEQVR4nO2bW4hVVRjHf+OYY5qXvJRpZl7SHtKyIoLKCOqhIIhepDe7PAQF9dJDRBdC6KEuUD1EQReCrpRBRUQXetFurEuXoUJH0xwd7+N45szpYa3D7Dn7ss/eZ58958z+w2IG1t5r/f/f+ta31l57QUFBQUFBQUGnMQU4G7gQWALMB6YBk4FxQD/QCxwBeoADwE5gG/A18Bmwv91K5uF04HngAMEB15vdBdwLnNYuJfPiOuBHwgNttjmwHFjRDoXjYjpwN3AI/0CnlQ3AL8CVwJh2KB2FScAGwgObrHkB2Kfuc2nXAIfwD2xpn8uBp1XZxwnWA78RHuBE+wQ4y5c+eYKkwj7f4D6vUZZDvuQIJBGSKr8DP6j/XwZcpH5LJr8bGNsubcNZhZoZHwbWqvOZwD/q95+Bc9uhZBC+Ba7Ae9V/CHhY/T4P2K1++x6Y0w4lg5gJvEHlNf8YcKn6/S/genVuMnC4ncrGYRLwFnAE70f/J8o3wAwVBdcDN6jzS4Bf261oFNYBR9X5J4C71O9HgTeAS9T/dwKr2qNedFYCpwA9eCN+I7C9bBz4LzC0nUrGZQGwEW/FMgf4BlWzwPvARe1TMj7TgU+B4Xg/+r8L3Kp+Xwx80S4l0zA8rjMN+BY4Be/H/w/A7e1SNg/mA1tV2WP4VoHNwMx2KpoXZwAfqbJH8D7+TwC3qfPnAV+2U9ksmA18qsru57cZQC/wELBQnV8BfNdOZbNiDvAB3o+/G/gIWKh+nwvsaaeyeXAG3qLnONAFfIW3I1zeFOAn4OJ2K5sV04DPgH+B43jXwfXq/DTg53YrmyeTgO+ByuJnB3CHOj8FOKGN+uXGJOBbvAGvbHzeBC5W56cDJ9upbJ5MAXapt87JeL/4NqnzE4HBdiqbN5OAPXgD/p+IZUTOBwbaqWwRmAzsBU7iDXx1I3gycLydyhaBycAB4CTeK/6usvOAf9upbBGYChzGuwqcBOwvOw/4u53KFoGJwBG8AS8vcr7Du/KDNuhWFMbjDXhlkfMdcJlq34e3EhxqOKgGGAe8jTfglUXOJuCasv4j0MYnoqJwCt5d4CTet8CtuHLsgQPQGNeCjHK8MBrYTuVy2SigB47xwsngdKBbvXlO4gu8XNU+hLZ+JTasZY/1E3lPNJjjF1AdBuA1NZ2HA9n/5NduA9pnZVHzJfAdquQMvJ0hW9oGVPkeaJ8sF1Mu31KxXJ6xfA+0f6zLt8AbeTu1fAGt+xpoX1p5C6xg91i+B9rXGHkLrCFaexpo38wW3QKZynaB9y3u/dYGe6B94BbYBUZqDyT3lm+BNkBw4Dn0tneB0dqjCL0FNlAtfpL2QHJD+RZo47XAEqp/D7SvMfIWWEF4D4Qteo6S1wNNkPdAsgi5D1j+HmhfY8R+D7TeJWaL3gJrSO0tMGQPpHyA3AMtHQKj+B5IlrBbYCP3QDJnuQ/IaA8k78J9QOEPxdoFNnMPJPeg/Eu0eiC5F/0fCvdA0v+Qdlq6B5LbfQ+06BZYQf8L/gP8C+X/kP+T/gAAAABJRU5ErkJggg==';
+      
       const announceEvent = new CustomEvent('eip6963:announceProvider', {
         detail: Object.freeze({
           info: {
             uuid: 'fun-wallet-extension-' + Date.now(),
             name: 'FUN Wallet',
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🦊</text></svg>',
+            icon: iconDataUrl,
             rdns: 'app.funwallet',
           },
           provider: provider,

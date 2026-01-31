@@ -15,9 +15,9 @@ function OnboardingPage({ version, onImportWallet, onCreateWallet }: OnboardingP
     <div className="flex flex-col items-center justify-center h-full p-6 text-center relative">
       {/* Logo */}
       <img 
-        src="/icons/icon-128.png" 
+        src="/icons/logo.gif" 
         alt="FUN Wallet" 
-        className="w-20 h-20 mb-6"
+        className="w-24 h-24 mb-6"
       />
       
       {/* Welcome Message */}

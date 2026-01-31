@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface UnlockPageProps {
   onUnlock: () => void;
@@ -41,14 +41,15 @@ function UnlockPage({ onUnlock }: UnlockPageProps) {
   };
 
   return (
-    <div className="flex flex-col h-full p-4">
-      {/* Header */}
-      <div className="flex flex-col items-center py-8">
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-          <Lock className="w-8 h-8 text-primary" />
-        </div>
-        <h1 className="text-xl font-bold">FUN Wallet</h1>
-        <p className="text-sm text-muted-foreground mt-1">Ví đang bị khóa</p>
+    <div className="flex flex-col h-full p-6">
+      {/* Logo Header - giống MetaMask */}
+      <div className="flex flex-col items-center pt-8 pb-6">
+        <img 
+          src="/icons/logo.gif" 
+          alt="FUN Wallet" 
+          className="w-24 h-24 mb-4"
+        />
+        <h1 className="text-xl font-bold">Chào mừng trở lại!</h1>
       </div>
       
       {/* Form */}
