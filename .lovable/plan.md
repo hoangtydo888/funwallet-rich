@@ -1,205 +1,104 @@
 
-# Kế Hoạch Sửa Lỗi Import Path - Chrome Extension
 
-## Tổng Quan Vấn Đề
+# Cải Thiện UI Chrome Extension - FUN Wallet
 
-Vite config của Extension có cấu hình `root: './src/extension'` và alias `@shared` trỏ đến `./src/shared`. Các file đang dùng đường dẫn tương đối `../../../shared/...` hoặc `../../shared/...` nhưng với cấu hình này Vite không resolve được.
+## Tổng Quan Thay Đổi
 
-**Giải pháp:** Thay tất cả relative imports thành alias `@shared/...`
+Cải thiện giao diện Extension với 3 tính năng chính:
+1. Thay emoji 🦊 bằng logo FUN Wallet chính thức
+2. Thêm animation fade-in khi mở popup
+3. Hiển thị version number ở footer
 
 ---
 
-## Danh Sách 9 Files Cần Sửa
+## Chi Tiết Kỹ Thuật
 
-### 1. ChromeStorageAdapter.ts
-**Vị trí:** `src/extension/storage/ChromeStorageAdapter.ts`
+### 1. Thay Logo FUN Wallet
 
-```typescript
-// Dòng 1 - TRƯỚC:
-import { StorageAdapter } from '../../shared/storage/types';
+**File:** `src/extension/src/popup/PopupApp.tsx`
 
-// SAU:
-import { StorageAdapter } from '@shared/storage/types';
+Thay thế:
+```tsx
+// Trước
+<div className="text-4xl mb-4">🦊</div>
+
+// Sau
+<img 
+  src="/icons/icon-128.png" 
+  alt="FUN Wallet" 
+  className="w-16 h-16 mb-4"
+/>
 ```
 
 ---
 
-### 2. service-worker.ts
-**Vị trí:** `src/extension/src/background/service-worker.ts`
+### 2. Thêm Animation Fade-In
 
-```typescript
-// Dòng 12-21 - TRƯỚC:
-import { chromeStorageAdapter } from '../storage/ChromeStorageAdapter';
-import { STORAGE_KEYS } from '../../shared/storage/types';
-import { decryptPrivateKey } from '../../shared/lib/encryption';
-import { DAppConnection, PendingRequest, TransactionRequest, SecureWalletStorage } from '../../shared/types';
-import { BSC_MAINNET } from '../../shared/constants/tokens';
+**File:** `src/extension/index.css`
 
-// SAU:
-import { chromeStorageAdapter } from '../../storage/ChromeStorageAdapter';
-import { STORAGE_KEYS } from '@shared/storage/types';
-import { decryptPrivateKey } from '@shared/lib/encryption';
-import { DAppConnection, PendingRequest, TransactionRequest, SecureWalletStorage } from '@shared/types';
-import { BSC_MAINNET } from '@shared/constants/tokens';
+Thêm keyframe animation và class mới:
+```css
+@keyframes popup-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.popup-enter {
+  animation: popup-fade-in 0.3s ease-out;
+}
+```
+
+**File:** `src/extension/src/popup/components/PopupLayout.tsx`
+
+Áp dụng class animation:
+```tsx
+<div className="w-[360px] h-[540px] bg-background text-foreground overflow-hidden flex flex-col popup-enter">
 ```
 
 ---
 
-### 3. HomePage.tsx
-**Vị trí:** `src/extension/src/popup/pages/HomePage.tsx`
+### 3. Hiển Thị Version Number ở Footer
 
-```typescript
-// Dòng 11-16 - TRƯỚC:
-import { formatAddress } from '../../../shared/lib/wallet';
-import { COMMON_TOKENS } from '../../../shared/constants/tokens';
-import { STORAGE_KEYS } from '../../../shared/storage/types';
-import { useTokenPrices } from '../../../shared/hooks/useTokenPrices';
-import { useBalance } from '../../../shared/hooks/useBalance';
-import { formatPrice } from '../../../shared/lib/priceTracker';
+**File:** `src/extension/src/popup/PopupApp.tsx`
 
-// SAU:
-import { formatAddress } from '@shared/lib/wallet';
-import { COMMON_TOKENS } from '@shared/constants/tokens';
-import { STORAGE_KEYS } from '@shared/storage/types';
-import { useTokenPrices } from '@shared/hooks/useTokenPrices';
-import { useBalance } from '@shared/hooks/useBalance';
-import { formatPrice } from '@shared/lib/priceTracker';
+Đọc version từ manifest và hiển thị ở footer của màn hình onboarding:
+```tsx
+// Thêm state để lưu version
+const [version, setVersion] = useState('');
+
+// Lấy version từ manifest
+useEffect(() => {
+  const manifest = chrome.runtime.getManifest();
+  setVersion(manifest.version);
+}, []);
+
+// Hiển thị footer
+<div className="absolute bottom-4 text-xs text-muted-foreground">
+  v{version}
+</div>
 ```
 
 ---
 
-### 4. ReceivePage.tsx
-**Vị trí:** `src/extension/src/popup/pages/ReceivePage.tsx`
+## Danh Sách Files Cần Sửa
 
-```typescript
-// Dòng 5-6 - TRƯỚC:
-import { formatAddress } from '../../../shared/lib/wallet';
-import { STORAGE_KEYS } from '../../../shared/storage/types';
-
-// SAU:
-import { formatAddress } from '@shared/lib/wallet';
-import { STORAGE_KEYS } from '@shared/storage/types';
-```
+| File | Thay đổi |
+|------|----------|
+| `src/extension/src/popup/PopupApp.tsx` | Thay emoji bằng logo, thêm version footer |
+| `src/extension/src/popup/components/PopupLayout.tsx` | Thêm class animation |
+| `src/extension/index.css` | Thêm keyframe popup-fade-in |
 
 ---
 
-### 5. SendPage.tsx
-**Vị trí:** `src/extension/src/popup/pages/SendPage.tsx`
+## Kết Quả Mong Đợi
 
-```typescript
-// Dòng 4-14 - TRƯỚC:
-import { isValidAddress, formatBalance, sendNativeToken, sendToken, getNativeBalance, getTokenBalance } from '../../../shared/lib/wallet';
-import { COMMON_TOKENS } from '../../../shared/constants/tokens';
-import { decryptPrivateKey } from '../../../shared/lib/encryption';
-import { STORAGE_KEYS } from '../../../shared/storage/types';
+1. Logo FUN Wallet chính thức thay thế emoji 🦊
+2. Popup mở với hiệu ứng fade-in mượt mà (0.3s)
+3. Footer hiển thị "v1.0.0" ở góc dưới màn hình onboarding
 
-// SAU:
-import { isValidAddress, formatBalance, sendNativeToken, sendToken, getNativeBalance, getTokenBalance } from '@shared/lib/wallet';
-import { COMMON_TOKENS } from '@shared/constants/tokens';
-import { decryptPrivateKey } from '@shared/lib/encryption';
-import { STORAGE_KEYS } from '@shared/storage/types';
-```
-
----
-
-### 6. SettingsPage.tsx
-**Vị trí:** `src/extension/src/popup/pages/SettingsPage.tsx`
-
-```typescript
-// Dòng 4 - TRƯỚC:
-import { DAppConnection } from '../../../shared/types';
-
-// SAU:
-import { DAppConnection } from '@shared/types';
-```
-
----
-
-### 7. ApproveTxPage.tsx
-**Vị trí:** `src/extension/src/popup/pages/ApproveTxPage.tsx`
-
-```typescript
-// Dòng 5-7 - TRƯỚC:
-import { decryptPrivateKey } from '../../../shared/lib/encryption';
-import { SecureWalletStorage } from '../../../shared/types';
-import { BSC_MAINNET } from '../../../shared/constants/tokens';
-
-// SAU:
-import { decryptPrivateKey } from '@shared/lib/encryption';
-import { SecureWalletStorage } from '@shared/types';
-import { BSC_MAINNET } from '@shared/constants/tokens';
-```
-
----
-
-### 8. ApproveSignPage.tsx
-**Vị trí:** `src/extension/src/popup/pages/ApproveSignPage.tsx`
-
-```typescript
-// Dòng 5-6 - TRƯỚC:
-import { decryptPrivateKey } from '../../../shared/lib/encryption';
-import { SecureWalletStorage } from '../../../shared/types';
-
-// SAU:
-import { decryptPrivateKey } from '@shared/lib/encryption';
-import { SecureWalletStorage } from '@shared/types';
-```
-
----
-
-### 9. ConnectedDAppsPage.tsx
-**Vị trí:** `src/extension/src/popup/pages/ConnectedDAppsPage.tsx`
-
-```typescript
-// Dòng 4 - TRƯỚC:
-import { DAppConnection } from '../../../shared/types';
-
-// SAU:
-import { DAppConnection } from '@shared/types';
-```
-
----
-
-### 10. TokenList.tsx
-**Vị trí:** `src/extension/src/components/TokenList.tsx`
-
-```typescript
-// Dòng 6-7 - TRƯỚC:
-import { formatBalance } from '../../shared/lib/wallet';
-import { formatPrice } from '../../shared/lib/priceTracker';
-
-// SAU:
-import { formatBalance } from '@shared/lib/wallet';
-import { formatPrice } from '@shared/lib/priceTracker';
-```
-
----
-
-## Tóm Tắt Thay Đổi
-
-| STT | File | Số imports sửa |
-|-----|------|----------------|
-| 1 | ChromeStorageAdapter.ts | 1 |
-| 2 | service-worker.ts | 5 |
-| 3 | HomePage.tsx | 6 |
-| 4 | ReceivePage.tsx | 2 |
-| 5 | SendPage.tsx | 4 |
-| 6 | SettingsPage.tsx | 1 |
-| 7 | ApproveTxPage.tsx | 3 |
-| 8 | ApproveSignPage.tsx | 2 |
-| 9 | ConnectedDAppsPage.tsx | 1 |
-| 10 | TokenList.tsx | 2 |
-
-**Tổng: 27 imports cần sửa trong 10 files**
-
----
-
-## Sau Khi Sửa
-
-Chạy lại lệnh build:
-
-```bash
-npm run build:ext
-```
-
-Build thành công sẽ tạo folder `dist-extension/` để load vào Chrome.
