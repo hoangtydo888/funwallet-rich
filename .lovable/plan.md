@@ -1,118 +1,206 @@
 
+# Kế Hoạch: Sửa Lỗi FUN Wallet Không Popup Khi Kết Nối
 
-# Kế Hoạch: Cập Nhật Logo FUN Wallet & Cải Thiện Unlock Page
+## Vấn Đề Đã Xác Định
 
-## Mục Tiêu
+Từ console log trong ảnh:
+```javascript
+> window.funWallet
+  → Object (có thể expand)
+> window.funWallet.request({ method: 'eth_requestAccounts' })
+  → Uncaught TypeError: Cannot read properties of undefined (reading 'request')
+```
 
-1. **Thay đổi logo** từ hình ảnh hiện tại sang logo GIF mới được upload (`download_10.gif`)
-2. **Cải thiện UnlockPage** để hiển thị logo giống MetaMask (hình 1)
-
----
-
-## Phân Tích Hiện Tại
-
-### Popup Kết Nối - ĐÃ CÓ SẴN ✓
-
-FUN Wallet **đã có đầy đủ** flow popup giống MetaMask:
-- Khi DApp yêu cầu kết nối → Popup bung ra
-- Nếu ví khóa → Hiển thị trang Unlock (yêu cầu mật khẩu)
-- Nếu ví đã mở → Hiển thị trang Connect (xác nhận kết nối)
-
-### Logo Hiện Tại
-
-Logo đang sử dụng ở các vị trí:
-- `src/extension/public/icons/` - Icon extension (PNG)
-- `OnboardingPage.tsx` - Hiển thị khi chưa có ví
-- `inject.ts` - EIP-6963 provider icon (emoji SVG)
+**Nguyên nhân chính**: Content script sử dụng **inline script injection** bị chặn bởi **CSP (Content Security Policy)** của các DApp như PancakeSwap.
 
 ---
 
-## Thay Đổi Cần Thực Hiện
+## Giải Thích Kỹ Thuật
 
-### 1. Copy Logo GIF Vào Extension
-
-Copy file `download_10.gif` thành logo chính:
-
-| Nguồn | Đích |
-|-------|------|
-| `user-uploads://download_10.gif` | `src/extension/public/icons/logo.gif` |
-
----
-
-### 2. Cập Nhật UnlockPage - Thêm Logo
-
-Sửa `src/extension/src/popup/pages/UnlockPage.tsx`:
-
-**Thay đổi:**
-- Thay icon Lock bằng logo GIF
-- Bố cục giống MetaMask: Logo lớn → Input mật khẩu → Nút mở khóa
+### Tại Sao Lỗi Xảy Ra?
 
 ```text
-Trước:                        Sau:
-+------------------+          +------------------+
-|     [Lock 🔒]    |          |                  |
-|   FUN Wallet     |          |   [Logo GIF]     |
-|  Ví đang bị khóa |          |                  |
-|                  |          |   FUN Wallet     |
-| [Password Input] |          |                  |
-| [Mở khóa]        |          | [Password Input] |
-+------------------+          | [Mở khóa]        |
-                              | [Quên mật khẩu?] |
-                              +------------------+
+Hiện tại:
++------------------+     Inline Script      +----------------+
+| Content Script   | --------- X ---------> | Page Context   |
+| (inject.ts)      |    (Bị CSP chặn!)     | window.funWallet|
++------------------+                        +----------------+
+
+Cách sửa:
++------------------+     External Script    +----------------+
+| Content Script   | -------------------- > | Page Context   |
+| (inject.ts)      |   (Bypass CSP)        | window.funWallet|
++------------------+                        +----------------+
 ```
 
----
+### Chi Tiết Vấn Đề
 
-### 3. Cập Nhật OnboardingPage - Dùng Logo GIF
-
-Sửa `src/extension/src/popup/pages/OnboardingPage.tsx`:
-
-- Thay `/icons/icon-128.png` → `/icons/logo.gif`
+1. File `inject.ts` tạo một `<script>` tag với `textContent` chứa inline JavaScript
+2. Các trang web có CSP nghiêm ngặt (như PancakeSwap) chặn inline scripts
+3. Kết quả: `window.funWallet` được tạo một phần nhưng thiếu method `request`
 
 ---
 
-### 4. Cập Nhật EIP-6963 Provider Icon
+## Giải Pháp: Sử Dụng External Script File
 
-Sửa `src/extension/src/content/inject.ts`:
+### 1. Tạo File Injected Script Riêng
 
-- Thay emoji SVG bằng Data URI của logo thực
-- Hoặc reference đến file logo trong extension
+**File mới:** `src/extension/src/content/inpage.ts`
+
+Chuyển toàn bộ code provider (dòng 207-351 trong inject.ts) ra file riêng để được load như external script thay vì inline.
+
+### 2. Cập Nhật inject.ts
+
+Thay đổi cách inject từ inline script sang load external script file:
 
 ```typescript
-// Trước:
-icon: 'data:image/svg+xml,<svg...><text>🦊</text></svg>'
+// TRƯỚC (bị CSP chặn):
+const script = document.createElement('script');
+script.textContent = `(function() { ... })();`;
 
-// Sau:
-icon: chrome.runtime.getURL('icons/logo-64.png')
+// SAU (bypass CSP):
+const script = document.createElement('script');
+script.src = chrome.runtime.getURL('inpage.js');
 ```
 
-Lưu ý: EIP-6963 icon cần dạng PNG hoặc base64, không hỗ trợ GIF animation.
+### 3. Cập Nhật manifest.json
+
+Thêm `inpage.js` vào `web_accessible_resources`:
+
+```json
+"web_accessible_resources": [
+  {
+    "resources": ["icons/*", "tokens/*", "inpage.js"],
+    "matches": ["<all_urls>"]
+  }
+]
+```
+
+### 4. Cập Nhật Vite Config
+
+Thêm `inpage.ts` vào build entry points để tạo file `inpage.js` riêng.
 
 ---
 
-### 5. Tạo Thêm Logo PNG Cho Icon Extension
-
-Vì manifest.json cần PNG, cần:
-- Giữ nguyên các file `icon-16.png`, `icon-48.png`, `icon-128.png` cho manifest
-- Hoặc tạo PNG từ frame đầu của GIF
-
----
-
-## Tổng Kết Files Cần Thay Đổi
+## Chi Tiết Files Cần Thay Đổi
 
 | File | Loại | Mô Tả |
 |------|------|-------|
-| `src/extension/public/icons/logo.gif` | Copy mới | Logo GIF chính |
-| `src/extension/src/popup/pages/UnlockPage.tsx` | Sửa | Thêm logo, layout giống MetaMask |
-| `src/extension/src/popup/pages/OnboardingPage.tsx` | Sửa | Đổi sang logo.gif |
-| `src/extension/src/content/inject.ts` | Sửa | Cập nhật EIP-6963 icon |
+| `src/extension/src/content/inpage.ts` | Tạo mới | Provider code chạy trong page context |
+| `src/extension/src/content/inject.ts` | Sửa | Đổi sang load external script |
+| `src/extension/public/manifest.json` | Sửa | Thêm inpage.js vào resources |
+| `vite.config.extension.ts` | Sửa | Thêm entry point cho inpage.ts |
+
+---
+
+## Luồng Hoạt Động Sau Khi Sửa
+
+```text
+1. User mở PancakeSwap
+      ↓
+2. Content script (inject.ts) chạy ở document_start
+      ↓
+3. inject.ts tạo <script src="inpage.js"> (external file)
+      ↓
+4. Browser load inpage.js (bypass CSP vì từ extension)
+      ↓
+5. inpage.js tạo window.funWallet với đầy đủ methods
+      ↓
+6. inpage.js dispatch EIP-6963 announceProvider event
+      ↓
+7. PancakeSwap detect FUN Wallet qua EIP-6963
+      ↓
+8. User click "Connect Wallet" → Chọn FUN Wallet
+      ↓
+9. DApp gọi window.funWallet.request({ method: 'eth_requestAccounts' })
+      ↓
+10. inpage.js postMessage → Content script → Background
+      ↓
+11. Background mở popup → User approve
+      ↓
+12. Kết nối thành công!
+```
+
+---
+
+## Code Thay Đổi Chính
+
+### inpage.ts (File Mới)
+
+```typescript
+// Provider object cho page context
+const provider = {
+  isFunWallet: true,
+  isMetaMask: false,
+  chainId: '0x38',
+  networkVersion: '56',
+  selectedAddress: null,
+  _events: {},
+  _pendingRequests: new Map(),
+  
+  request: async function(args) {
+    return new Promise((resolve, reject) => {
+      const id = Date.now() + '_' + Math.random().toString(36).slice(2);
+      this._pendingRequests.set(id, { resolve, reject });
+      
+      window.addEventListener('message', function handler(event) {
+        if (event.data.type === 'FUN_WALLET_RESPONSE' && event.data.id === id) {
+          window.removeEventListener('message', handler);
+          provider._pendingRequests.delete(id);
+          if (event.data.error) {
+            reject(new Error(event.data.error));
+          } else {
+            resolve(event.data.result);
+          }
+        }
+      });
+      
+      window.postMessage({
+        type: 'FUN_WALLET_REQUEST',
+        id,
+        method: args.method,
+        params: args.params,
+      }, '*');
+    });
+  },
+  
+  // ... các methods khác
+};
+
+window.funWallet = provider;
+if (!window.ethereum) window.ethereum = provider;
+
+// Announce EIP-6963
+window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { ... }));
+```
+
+### inject.ts (Sửa)
+
+```typescript
+function injectProvider() {
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('inpage.js');
+  script.onload = () => script.remove();
+  
+  const container = document.head || document.documentElement;
+  container.insertBefore(script, container.firstChild);
+}
+```
 
 ---
 
 ## Kết Quả Mong Đợi
 
-1. UnlockPage hiển thị logo GIF animation đẹp mắt
-2. OnboardingPage hiển thị logo GIF thay vì PNG tĩnh
-3. EIP-6963 provider có icon chuyên nghiệp
-4. Giao diện nhất quán với brand identity của FUN Wallet
+1. FUN Wallet hiển thị trong danh sách ví của PancakeSwap (qua EIP-6963)
+2. Khi user click "Connect" → Popup FUN Wallet tự động bung ra
+3. Không còn lỗi "Cannot read properties of undefined"
+4. Hoạt động trên mọi DApp dù có CSP nghiêm ngặt
 
+---
+
+## Sau Khi Implement
+
+1. Build lại extension: `npm run build:ext`
+2. Reload extension trong Chrome
+3. Mở PancakeSwap → Connect Wallet
+4. FUN Wallet sẽ xuất hiện trong danh sách và popup khi kết nối
