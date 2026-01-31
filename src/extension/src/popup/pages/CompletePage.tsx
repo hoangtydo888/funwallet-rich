@@ -1,15 +1,16 @@
-import { Check, Shield, Lock, Sparkles } from 'lucide-react';
+import { Check, Shield, Lock, Sparkles, FileCheck } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 
 interface CompletePageProps {
   walletAddress: string;
+  isNewWallet?: boolean;
   onStart: () => void;
 }
 
 /**
- * Complete Page - Success screen after wallet import
+ * Complete Page - Success screen after wallet setup
  */
-function CompletePage({ walletAddress, onStart }: CompletePageProps) {
+function CompletePage({ walletAddress, isNewWallet = false, onStart }: CompletePageProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full p-6 text-center">
       {/* Success Icon */}
@@ -18,9 +19,11 @@ function CompletePage({ walletAddress, onStart }: CompletePageProps) {
       </div>
       
       {/* Success Message */}
-      <h1 className="text-xl font-bold mb-2">Import thành công!</h1>
+      <h1 className="text-xl font-bold mb-2">
+        {isNewWallet ? 'Tạo ví thành công!' : 'Import thành công!'}
+      </h1>
       <p className="text-muted-foreground text-sm mb-6">
-        Ví của bạn đã được import và bảo mật thành công
+        Ví của bạn đã được {isNewWallet ? 'tạo' : 'import'} và bảo mật thành công
       </p>
       
       {/* Wallet Address */}
@@ -52,6 +55,18 @@ function CompletePage({ walletAddress, onStart }: CompletePageProps) {
             <p className="text-xs text-muted-foreground">Ví được khóa khi không sử dụng</p>
           </div>
         </div>
+
+        {isNewWallet && (
+          <div className="flex items-center gap-3 p-3 bg-success/10 rounded-lg">
+            <div className="w-8 h-8 bg-success/20 rounded-full flex items-center justify-center flex-shrink-0">
+              <FileCheck className="w-4 h-4 text-success" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-medium">Seed phrase đã xác minh</p>
+              <p className="text-xs text-muted-foreground">Bạn đã backup seed phrase thành công</p>
+            </div>
+          </div>
+        )}
         
         <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-lg">
           <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">

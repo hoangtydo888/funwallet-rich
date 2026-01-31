@@ -12,17 +12,35 @@ import ApproveTxPage from './pages/ApproveTxPage';
 import ApproveSignPage from './pages/ApproveSignPage';
 import ConnectedDAppsPage from './pages/ConnectedDAppsPage';
 
-// Import flow pages
+// Onboarding flow pages
 import OnboardingPage from './pages/OnboardingPage';
 import ImportWalletPage from './pages/ImportWalletPage';
 import SetupPasswordPage from './pages/SetupPasswordPage';
 import CompletePage from './pages/CompletePage';
 
-type ImportStep = 'onboarding' | 'import' | 'password' | 'complete';
+// Create wallet flow pages
+import CreateWalletPage from './pages/CreateWalletPage';
+import BackupSeedPage from './pages/BackupSeedPage';
+import SeedQuizPage from './pages/SeedQuizPage';
+
+type OnboardingStep = 
+  | 'onboarding'  // Welcome screen
+  | 'import'      // Import existing wallet
+  | 'create'      // Create new - education
+  | 'backup'      // Show seed phrase
+  | 'quiz'        // Verify seed
+  | 'password'    // Setup password
+  | 'complete';   // Done
 
 interface ImportedWallet {
   address: string;
   privateKey: string;
+}
+
+interface CreatedWallet {
+  address: string;
+  privateKey: string;
+  mnemonic: string;
 }
 
 function PopupApp() {
@@ -30,9 +48,10 @@ function PopupApp() {
   const [hasWallet, setHasWallet] = useState<boolean | null>(null);
   const [version, setVersion] = useState('');
   
-  // Import flow state
-  const [importStep, setImportStep] = useState<ImportStep>('onboarding');
+  // Onboarding flow state
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('onboarding');
   const [importedWallet, setImportedWallet] = useState<ImportedWallet | null>(null);
+  const [createdWallet, setCreatedWallet] = useState<CreatedWallet | null>(null);
 
   useEffect(() => {
     // Check wallet state on load
@@ -62,24 +81,50 @@ function PopupApp() {
     setIsUnlocked(true);
   };
 
-  // Handle import success - move to password setup
+  // Import flow handlers
   const handleImportSuccess = (address: string, privateKey: string) => {
     setImportedWallet({ address, privateKey });
-    setImportStep('password');
+    setOnboardingStep('password');
   };
 
-  // Handle password setup complete
+  // Create flow handlers
+  const handleWalletCreated = (address: string, privateKey: string, mnemonic: string) => {
+    setCreatedWallet({ address, privateKey, mnemonic });
+    setOnboardingStep('backup');
+  };
+
+  const handleBackupComplete = () => {
+    setOnboardingStep('quiz');
+  };
+
+  const handleQuizComplete = () => {
+    setOnboardingStep('password');
+  };
+
+  // Password setup complete
   const handlePasswordComplete = () => {
-    setImportStep('complete');
+    setOnboardingStep('complete');
   };
 
-  // Handle start using wallet after complete
+  // Start using wallet after complete
   const handleStartUsing = () => {
     setHasWallet(true);
     setIsUnlocked(true);
-    // Reset import flow state
-    setImportStep('onboarding');
+    // Reset flow state
+    setOnboardingStep('onboarding');
     setImportedWallet(null);
+    setCreatedWallet(null);
+  };
+
+  // Get current wallet data for password setup
+  const getCurrentWalletData = () => {
+    if (createdWallet) {
+      return { address: createdWallet.address, privateKey: createdWallet.privateKey };
+    }
+    if (importedWallet) {
+      return { address: importedWallet.address, privateKey: importedWallet.privateKey };
+    }
+    return null;
   };
 
   // Loading state
@@ -93,33 +138,58 @@ function PopupApp() {
     );
   }
 
-  // No wallet setup yet - show import flow
+  // No wallet setup yet - show onboarding flow
   if (!hasWallet) {
+    const walletData = getCurrentWalletData();
+    const isNewWallet = !!createdWallet;
+
     return (
       <PopupLayout>
-        {importStep === 'onboarding' && (
+        {onboardingStep === 'onboarding' && (
           <OnboardingPage 
             version={version} 
-            onImportWallet={() => setImportStep('import')} 
+            onImportWallet={() => setOnboardingStep('import')}
+            onCreateWallet={() => setOnboardingStep('create')}
           />
         )}
-        {importStep === 'import' && (
+        {onboardingStep === 'import' && (
           <ImportWalletPage 
-            onBack={() => setImportStep('onboarding')}
+            onBack={() => setOnboardingStep('onboarding')}
             onImportSuccess={handleImportSuccess}
           />
         )}
-        {importStep === 'password' && importedWallet && (
-          <SetupPasswordPage 
-            walletAddress={importedWallet.address}
-            privateKey={importedWallet.privateKey}
-            onComplete={handlePasswordComplete}
-            onBack={() => setImportStep('import')}
+        {onboardingStep === 'create' && (
+          <CreateWalletPage
+            onBack={() => setOnboardingStep('onboarding')}
+            onWalletCreated={handleWalletCreated}
           />
         )}
-        {importStep === 'complete' && importedWallet && (
+        {onboardingStep === 'backup' && createdWallet && (
+          <BackupSeedPage
+            mnemonic={createdWallet.mnemonic}
+            onBack={() => setOnboardingStep('create')}
+            onContinue={handleBackupComplete}
+          />
+        )}
+        {onboardingStep === 'quiz' && createdWallet && (
+          <SeedQuizPage
+            mnemonic={createdWallet.mnemonic}
+            onBack={() => setOnboardingStep('backup')}
+            onComplete={handleQuizComplete}
+          />
+        )}
+        {onboardingStep === 'password' && walletData && (
+          <SetupPasswordPage 
+            walletAddress={walletData.address}
+            privateKey={walletData.privateKey}
+            onComplete={handlePasswordComplete}
+            onBack={() => setOnboardingStep(isNewWallet ? 'quiz' : 'import')}
+          />
+        )}
+        {onboardingStep === 'complete' && walletData && (
           <CompletePage 
-            walletAddress={importedWallet.address}
+            walletAddress={walletData.address}
+            isNewWallet={isNewWallet}
             onStart={handleStartUsing} 
           />
         )}
