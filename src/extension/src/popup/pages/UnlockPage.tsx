@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 
 interface UnlockPageProps {
@@ -6,10 +7,16 @@ interface UnlockPageProps {
 }
 
 function UnlockPage({ onUnlock }: UnlockPageProps) {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Get redirect path if coming from transaction/sign request
+  const redirectPath = searchParams.get('redirect');
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +37,12 @@ function UnlockPage({ onUnlock }: UnlockPageProps) {
       
       if (response?.success) {
         onUnlock();
+        
+        // If there's a redirect path (from transaction/sign request), navigate there
+        if (redirectPath) {
+          const decodedPath = decodeURIComponent(redirectPath);
+          navigate(`/${decodedPath}`);
+        }
       } else {
         setError(response?.error || 'Mật khẩu không đúng');
       }
@@ -50,6 +63,11 @@ function UnlockPage({ onUnlock }: UnlockPageProps) {
           className="w-24 h-24 mb-4"
         />
         <h1 className="text-xl font-bold">Chào mừng trở lại!</h1>
+        {redirectPath && (
+          <p className="text-sm text-muted-foreground mt-2 text-center">
+            Mở khóa ví để tiếp tục giao dịch
+          </p>
+        )}
       </div>
       
       {/* Form */}

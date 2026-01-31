@@ -44,6 +44,7 @@ export const useBalance = (
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const initialLoadDone = useRef(false);
 
   const fetchBalances = useCallback(async () => {
     if (!address || !enabled || tokens.length === 0) {
@@ -53,6 +54,7 @@ export const useBalance = (
 
     try {
       setError(null);
+      // DO NOT setLoading(true) here - prevents flickering on refresh
       const results: TokenBalance[] = [];
 
       // Fetch balances in parallel
@@ -93,6 +95,7 @@ export const useBalance = (
         results.sort((a, b) => (b.balanceUsd || 0) - (a.balanceUsd || 0));
         setBalances(results);
         setLoading(false);
+        initialLoadDone.current = true;
       }
     } catch (err) {
       if (mountedRef.current) {
@@ -102,10 +105,15 @@ export const useBalance = (
     }
   }, [address, tokens, priceMap, enabled]);
 
-  // Initial fetch
+  // Initial fetch - only show loading on first load
   useEffect(() => {
     mountedRef.current = true;
-    setLoading(true);
+    
+    // Only show loading skeleton if we haven't loaded data yet
+    if (!initialLoadDone.current) {
+      setLoading(true);
+    }
+    
     fetchBalances();
 
     return () => {

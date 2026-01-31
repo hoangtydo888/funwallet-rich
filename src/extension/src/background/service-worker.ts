@@ -444,6 +444,7 @@ async function handleSwitchChain(payload: { chainId: string }): Promise<MessageR
 
 /**
  * Handle transaction sending
+ * If wallet is locked, opens unlock popup with redirect to approve-tx
  */
 async function handleSendTransaction(
   tx: TransactionRequest, 
@@ -451,10 +452,6 @@ async function handleSendTransaction(
   tabId?: number,
   sendResponse?: (response: MessageResponse) => void
 ): Promise<MessageResponse | null> {
-  if (isLocked) {
-    return { success: false, error: 'Wallet is locked' };
-  }
-  
   // Parse origin if needed
   let parsedOrigin: string | undefined;
   if (origin) {
@@ -465,8 +462,20 @@ async function handleSendTransaction(
     }
   }
   
+  // Check DApp connection FIRST (before unlock check)
   if (parsedOrigin && !connectedDApps.has(parsedOrigin)) {
     return { success: false, error: 'DApp not connected' };
+  }
+  
+  // Build params for approve-tx page
+  const txParams: Record<string, string> = {
+    to: tx.to || '',
+    value: tx.value || '0',
+    origin: parsedOrigin || 'unknown',
+  };
+  
+  if (tx.data) {
+    txParams.data = tx.data;
   }
   
   // Create pending request
@@ -480,20 +489,16 @@ async function handleSendTransaction(
     tabId,
   });
   
-  // Build query params
-  const params = new URLSearchParams({
-    requestId,
-    to: tx.to || '',
-    value: tx.value || '0',
-    origin: parsedOrigin || 'unknown',
-  });
+  txParams.requestId = requestId;
   
-  if (tx.data) {
-    params.set('data', tx.data);
+  // If wallet is locked, open unlock popup with redirect to approve-tx
+  if (isLocked) {
+    await openPopupWithUnlockRedirect('approve-tx', txParams);
+    return null;
   }
   
-  // Open popup for user approval
-  await openPopup('approve-tx', Object.fromEntries(params));
+  // Wallet is unlocked, open approve-tx directly
+  await openPopup('approve-tx', txParams);
   
   return null;
 }
@@ -543,6 +548,7 @@ function handleRejectTransaction(payload: { requestId: string }): MessageRespons
 
 /**
  * Handle personal sign
+ * If wallet is locked, opens unlock popup with redirect to approve-sign
  */
 async function handlePersonalSign(
   payload: { message: string; address?: string },
@@ -550,10 +556,6 @@ async function handlePersonalSign(
   tabId?: number,
   sendResponse?: (response: MessageResponse) => void
 ): Promise<MessageResponse | null> {
-  if (isLocked) {
-    return { success: false, error: 'Wallet is locked' };
-  }
-  
   let parsedOrigin: string | undefined;
   if (origin) {
     try {
@@ -563,6 +565,7 @@ async function handlePersonalSign(
     }
   }
   
+  // Check DApp connection FIRST
   if (parsedOrigin && !connectedDApps.has(parsedOrigin)) {
     return { success: false, error: 'DApp not connected' };
   }
@@ -578,19 +581,28 @@ async function handlePersonalSign(
     tabId,
   });
   
-  // Open popup for user approval
-  await openPopup('approve-sign', { 
+  const signParams = { 
     requestId, 
     message: payload.message,
     origin: parsedOrigin || 'unknown',
     method: 'personal_sign',
-  });
+  };
+  
+  // If wallet is locked, open unlock popup with redirect
+  if (isLocked) {
+    await openPopupWithUnlockRedirect('approve-sign', signParams);
+    return null;
+  }
+  
+  // Open popup for user approval
+  await openPopup('approve-sign', signParams);
   
   return null;
 }
 
 /**
  * Handle typed data signing (EIP-712)
+ * If wallet is locked, opens unlock popup with redirect to approve-sign
  */
 async function handleSignTypedData(
   payload: { address: string; data: string },
@@ -598,10 +610,6 @@ async function handleSignTypedData(
   tabId?: number,
   sendResponse?: (response: MessageResponse) => void
 ): Promise<MessageResponse | null> {
-  if (isLocked) {
-    return { success: false, error: 'Wallet is locked' };
-  }
-  
   let parsedOrigin: string | undefined;
   if (origin) {
     try {
@@ -611,6 +619,7 @@ async function handleSignTypedData(
     }
   }
   
+  // Check DApp connection FIRST
   if (parsedOrigin && !connectedDApps.has(parsedOrigin)) {
     return { success: false, error: 'DApp not connected' };
   }
@@ -626,13 +635,21 @@ async function handleSignTypedData(
     tabId,
   });
   
-  // Open popup for user approval
-  await openPopup('approve-sign', { 
+  const signParams = { 
     requestId, 
     message: payload.data,
     origin: parsedOrigin || 'unknown',
     method: 'eth_signTypedData_v4',
-  });
+  };
+  
+  // If wallet is locked, open unlock popup with redirect
+  if (isLocked) {
+    await openPopupWithUnlockRedirect('approve-sign', signParams);
+    return null;
+  }
+  
+  // Open popup for user approval
+  await openPopup('approve-sign', signParams);
   
   return null;
 }
@@ -757,6 +774,30 @@ async function openPopup(page: string, params?: Record<string, unknown>): Promis
     
   await chrome.windows.create({
     url: chrome.runtime.getURL(`popup.html#/${page}${queryString}`),
+    type: 'popup',
+    width: 360,
+    height: 600,
+    focused: true,
+  });
+}
+
+/**
+ * Open popup with unlock redirect
+ * If wallet is locked, opens unlock page first
+ * After unlock, automatically redirects to target page with params
+ */
+async function openPopupWithUnlockRedirect(
+  targetPage: string, 
+  params: Record<string, unknown>
+): Promise<void> {
+  const queryString = new URLSearchParams(params as Record<string, string>).toString();
+  const redirectPath = `${targetPage}?${queryString}`;
+  
+  // Encode redirect path to pass through URL
+  const encodedRedirect = encodeURIComponent(redirectPath);
+  
+  await chrome.windows.create({
+    url: chrome.runtime.getURL(`popup.html#/unlock?redirect=${encodedRedirect}`),
     type: 'popup',
     width: 360,
     height: 600,
