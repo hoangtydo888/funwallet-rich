@@ -1,4 +1,4 @@
-import { StorageAdapter } from '../../shared/storage/types';
+import { StorageAdapter } from '@shared/storage/types';
 
 /**
  * Chrome Storage Adapter for Extension

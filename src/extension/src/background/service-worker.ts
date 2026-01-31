@@ -9,16 +9,16 @@
  */
 
 import { ethers } from 'ethers';
-import { chromeStorageAdapter } from '../storage/ChromeStorageAdapter';
-import { STORAGE_KEYS } from '../../shared/storage/types';
-import { decryptPrivateKey } from '../../shared/lib/encryption';
+import { chromeStorageAdapter } from '../../storage/ChromeStorageAdapter';
+import { STORAGE_KEYS } from '@shared/storage/types';
+import { decryptPrivateKey } from '@shared/lib/encryption';
 import { 
   DAppConnection, 
   PendingRequest,
   TransactionRequest,
   SecureWalletStorage
-} from '../../shared/types';
-import { BSC_MAINNET } from '../../shared/constants/tokens';
+} from '@shared/types';
+import { BSC_MAINNET } from '@shared/constants/tokens';
 
 // Message types
 type MessageType = 

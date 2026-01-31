@@ -3,8 +3,8 @@
  * Compact version optimized for popup display
  */
 
-import { formatBalance } from '../../shared/lib/wallet';
-import { formatPrice } from '../../shared/lib/priceTracker';
+import { formatBalance } from '@shared/lib/wallet';
+import { formatPrice } from '@shared/lib/priceTracker';
 import { Skeleton } from './ui/Skeleton';
 
 interface TokenBalance {

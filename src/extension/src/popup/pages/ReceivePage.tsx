@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { formatAddress } from '../../../shared/lib/wallet';
-import { STORAGE_KEYS } from '../../../shared/storage/types';
+import { formatAddress } from '@shared/lib/wallet';
+import { STORAGE_KEYS } from '@shared/storage/types';
 
 function ReceivePage() {
   const navigate = useNavigate();

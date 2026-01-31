@@ -8,10 +8,10 @@ import {
   sendToken,
   getNativeBalance,
   getTokenBalance 
-} from '../../../shared/lib/wallet';
-import { COMMON_TOKENS } from '../../../shared/constants/tokens';
-import { decryptPrivateKey } from '../../../shared/lib/encryption';
-import { STORAGE_KEYS } from '../../../shared/storage/types';
+} from '@shared/lib/wallet';
+import { COMMON_TOKENS } from '@shared/constants/tokens';
+import { decryptPrivateKey } from '@shared/lib/encryption';
+import { STORAGE_KEYS } from '@shared/storage/types';
 
 interface TokenOption {
   symbol: string;
