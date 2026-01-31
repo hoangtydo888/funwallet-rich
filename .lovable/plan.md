@@ -1,206 +1,199 @@
 
-# Kế Hoạch: Sửa Lỗi FUN Wallet Không Popup Khi Kết Nối
+# Kế Hoạch: FUN Wallet Hiển Thị Cùng MetaMask Trên DApps
 
-## Vấn Đề Đã Xác Định
+## Mục Tiêu
 
-Từ console log trong ảnh:
-```javascript
-> window.funWallet
-  → Object (có thể expand)
-> window.funWallet.request({ method: 'eth_requestAccounts' })
-  → Uncaught TypeError: Cannot read properties of undefined (reading 'request')
-```
-
-**Nguyên nhân chính**: Content script sử dụng **inline script injection** bị chặn bởi **CSP (Content Security Policy)** của các DApp như PancakeSwap.
+Đảm bảo FUN Wallet xuất hiện trong danh sách wallet của PancakeSwap (và các DApp khác) ngay cả khi MetaMask đã được cài đặt.
 
 ---
 
-## Giải Thích Kỹ Thuật
+## Phân Tích Vấn Đề Hiện Tại
 
-### Tại Sao Lỗi Xảy Ra?
-
-```text
-Hiện tại:
-+------------------+     Inline Script      +----------------+
-| Content Script   | --------- X ---------> | Page Context   |
-| (inject.ts)      |    (Bị CSP chặn!)     | window.funWallet|
-+------------------+                        +----------------+
-
-Cách sửa:
-+------------------+     External Script    +----------------+
-| Content Script   | -------------------- > | Page Context   |
-| (inject.ts)      |   (Bypass CSP)        | window.funWallet|
-+------------------+                        +----------------+
-```
-
-### Chi Tiết Vấn Đề
-
-1. File `inject.ts` tạo một `<script>` tag với `textContent` chứa inline JavaScript
-2. Các trang web có CSP nghiêm ngặt (như PancakeSwap) chặn inline scripts
-3. Kết quả: `window.funWallet` được tạo một phần nhưng thiếu method `request`
-
----
-
-## Giải Pháp: Sử Dụng External Script File
-
-### 1. Tạo File Injected Script Riêng
-
-**File mới:** `src/extension/src/content/inpage.ts`
-
-Chuyển toàn bộ code provider (dòng 207-351 trong inject.ts) ra file riêng để được load như external script thay vì inline.
-
-### 2. Cập Nhật inject.ts
-
-Thay đổi cách inject từ inline script sang load external script file:
+### Vấn Đề 1: UUID Thay Đổi Mỗi Lần
 
 ```typescript
-// TRƯỚC (bị CSP chặn):
-const script = document.createElement('script');
-script.textContent = `(function() { ... })();`;
-
-// SAU (bypass CSP):
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('inpage.js');
+// Hiện tại - SAI:
+uuid: 'fun-wallet-extension-' + Date.now()  // UUID thay đổi mỗi lần reload!
 ```
 
-### 3. Cập Nhật manifest.json
+UUID phải **cố định và duy nhất** để DApp nhận diện ví giữa các lần tải trang.
 
-Thêm `inpage.js` vào `web_accessible_resources`:
-
-```json
-"web_accessible_resources": [
-  {
-    "resources": ["icons/*", "tokens/*", "inpage.js"],
-    "matches": ["<all_urls>"]
-  }
-]
-```
-
-### 4. Cập Nhật Vite Config
-
-Thêm `inpage.ts` vào build entry points để tạo file `inpage.js` riêng.
-
----
-
-## Chi Tiết Files Cần Thay Đổi
-
-| File | Loại | Mô Tả |
-|------|------|-------|
-| `src/extension/src/content/inpage.ts` | Tạo mới | Provider code chạy trong page context |
-| `src/extension/src/content/inject.ts` | Sửa | Đổi sang load external script |
-| `src/extension/public/manifest.json` | Sửa | Thêm inpage.js vào resources |
-| `vite.config.extension.ts` | Sửa | Thêm entry point cho inpage.ts |
-
----
-
-## Luồng Hoạt Động Sau Khi Sửa
-
-```text
-1. User mở PancakeSwap
-      ↓
-2. Content script (inject.ts) chạy ở document_start
-      ↓
-3. inject.ts tạo <script src="inpage.js"> (external file)
-      ↓
-4. Browser load inpage.js (bypass CSP vì từ extension)
-      ↓
-5. inpage.js tạo window.funWallet với đầy đủ methods
-      ↓
-6. inpage.js dispatch EIP-6963 announceProvider event
-      ↓
-7. PancakeSwap detect FUN Wallet qua EIP-6963
-      ↓
-8. User click "Connect Wallet" → Chọn FUN Wallet
-      ↓
-9. DApp gọi window.funWallet.request({ method: 'eth_requestAccounts' })
-      ↓
-10. inpage.js postMessage → Content script → Background
-      ↓
-11. Background mở popup → User approve
-      ↓
-12. Kết nối thành công!
-```
-
----
-
-## Code Thay Đổi Chính
-
-### inpage.ts (File Mới)
+### Vấn Đề 2: RDNS Format
 
 ```typescript
-// Provider object cho page context
-const provider = {
-  isFunWallet: true,
-  isMetaMask: false,
-  chainId: '0x38',
-  networkVersion: '56',
-  selectedAddress: null,
-  _events: {},
-  _pendingRequests: new Map(),
-  
-  request: async function(args) {
-    return new Promise((resolve, reject) => {
-      const id = Date.now() + '_' + Math.random().toString(36).slice(2);
-      this._pendingRequests.set(id, { resolve, reject });
-      
-      window.addEventListener('message', function handler(event) {
-        if (event.data.type === 'FUN_WALLET_RESPONSE' && event.data.id === id) {
-          window.removeEventListener('message', handler);
-          provider._pendingRequests.delete(id);
-          if (event.data.error) {
-            reject(new Error(event.data.error));
-          } else {
-            resolve(event.data.result);
-          }
-        }
-      });
-      
-      window.postMessage({
-        type: 'FUN_WALLET_REQUEST',
-        id,
-        method: args.method,
-        params: args.params,
-      }, '*');
-    });
-  },
-  
-  // ... các methods khác
+// Hiện tại:
+rdns: 'app.funwallet'
+
+// Chuẩn hơn (reverse domain):
+rdns: 'io.funwallet.wallet'
+```
+
+### Vấn Đề 3: Thiếu Announcement Kịp Thời
+
+DApps như PancakeSwap có thể load trước khi FUN Wallet announce. Cần:
+- Announce ngay khi inject
+- Re-announce khi có `eip6963:requestProvider`
+- Đợi DOMContentLoaded nếu cần
+
+---
+
+## Giải Pháp
+
+### 1. Sử Dụng UUID Cố Định
+
+Thay thế UUID động bằng UUID cố định dựa trên extension ID:
+
+```typescript
+// Cố định, unique cho extension
+uuid: '550e8400-e29b-41d4-a716-446655440000'
+```
+
+### 2. Cập Nhật Provider Info Theo Chuẩn EIP-6963
+
+```typescript
+info: {
+  uuid: '550e8400-e29b-41d4-a716-446655440000',  // Fixed UUID
+  name: 'FUN Wallet',
+  icon: iconDataUrl,  // PNG base64 đã có
+  rdns: 'io.funwallet.wallet',  // Reverse domain notation
+}
+```
+
+### 3. Announce Nhiều Lần Để Đảm Bảo Detection
+
+```typescript
+// Hàm announce provider
+function announceProvider() {
+  const event = new CustomEvent('eip6963:announceProvider', {
+    detail: Object.freeze({
+      info: providerInfo,
+      provider: provider,
+    }),
+  });
+  window.dispatchEvent(event);
+}
+
+// Announce ngay lập tức
+announceProvider();
+
+// Announce lại khi DApp request
+window.addEventListener('eip6963:requestProvider', announceProvider);
+
+// Announce sau khi DOM ready (cho DApps load chậm)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', announceProvider);
+}
+
+// Announce sau short delay (cho DApps init async)
+setTimeout(announceProvider, 100);
+setTimeout(announceProvider, 500);
+```
+
+### 4. Inject Script Sớm Nhất Có Thể
+
+Đảm bảo content script chạy ở `"document_start"` trong manifest.json (đã được cấu hình).
+
+---
+
+## Files Cần Thay Đổi
+
+| File | Thay Đổi |
+|------|----------|
+| `src/extension/src/content/inpage.ts` | Sửa UUID cố định, cải thiện announcement logic |
+
+---
+
+## Chi Tiết Thay Đổi inpage.ts
+
+### Trước:
+
+```typescript
+const announceEvent = new CustomEvent('eip6963:announceProvider', {
+  detail: Object.freeze({
+    info: {
+      uuid: 'fun-wallet-extension-' + Date.now(),  // ❌ Thay đổi mỗi lần
+      name: 'FUN Wallet',
+      icon: iconDataUrl,
+      rdns: 'app.funwallet',
+    },
+    provider: provider,
+  }),
+});
+
+window.dispatchEvent(announceEvent);
+
+window.addEventListener('eip6963:requestProvider', () => {
+  window.dispatchEvent(announceEvent);
+});
+```
+
+### Sau:
+
+```typescript
+// Provider info theo chuẩn EIP-6963
+const providerInfo = {
+  uuid: '550e8400-e29b-41d4-a716-446655440000',  // ✅ Cố định
+  name: 'FUN Wallet',
+  icon: iconDataUrl,
+  rdns: 'io.funwallet.wallet',  // ✅ Chuẩn reverse domain
 };
 
-window.funWallet = provider;
-if (!window.ethereum) window.ethereum = provider;
-
-// Announce EIP-6963
-window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { ... }));
-```
-
-### inject.ts (Sửa)
-
-```typescript
-function injectProvider() {
-  const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('inpage.js');
-  script.onload = () => script.remove();
-  
-  const container = document.head || document.documentElement;
-  container.insertBefore(script, container.firstChild);
+// Hàm announce để có thể gọi nhiều lần
+function announceProvider() {
+  window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+    detail: Object.freeze({
+      info: providerInfo,
+      provider: provider,
+    }),
+  }));
 }
+
+// 1. Announce ngay lập tức
+announceProvider();
+
+// 2. Lắng nghe request từ DApp
+window.addEventListener('eip6963:requestProvider', announceProvider);
+
+// 3. Announce sau DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', announceProvider);
+} else if (document.readyState === 'interactive') {
+  announceProvider();
+}
+
+// 4. Announce với delay cho DApps khởi tạo chậm
+setTimeout(announceProvider, 100);
+setTimeout(announceProvider, 500);
+setTimeout(announceProvider, 1000);
 ```
 
 ---
 
 ## Kết Quả Mong Đợi
 
-1. FUN Wallet hiển thị trong danh sách ví của PancakeSwap (qua EIP-6963)
-2. Khi user click "Connect" → Popup FUN Wallet tự động bung ra
-3. Không còn lỗi "Cannot read properties of undefined"
-4. Hoạt động trên mọi DApp dù có CSP nghiêm ngặt
+Sau khi apply thay đổi:
+
+1. Mở PancakeSwap → Click "Connect Wallet"
+2. Danh sách hiển thị **cả FUN Wallet và MetaMask**
+3. Click vào FUN Wallet → Popup bung ra
+4. Approve → Kết nối thành công
+
+```text
++----------------------------------+
+|        Connect Wallet            |
++----------------------------------+
+|  🦊 MetaMask                     |
+|  🎮 FUN Wallet      ← Hiển thị!  |
+|  🔵 Coinbase Wallet              |
+|  📱 WalletConnect                |
++----------------------------------+
+```
 
 ---
 
 ## Sau Khi Implement
 
-1. Build lại extension: `npm run build:ext`
-2. Reload extension trong Chrome
-3. Mở PancakeSwap → Connect Wallet
-4. FUN Wallet sẽ xuất hiện trong danh sách và popup khi kết nối
+1. **Build extension**: `npm run build:ext`
+2. **Reload extension** trong Chrome
+3. **Mở PancakeSwap** và click "Connect Wallet"
+4. **Xác nhận** FUN Wallet xuất hiện trong danh sách
