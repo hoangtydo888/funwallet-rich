@@ -12,10 +12,27 @@ import ApproveTxPage from './pages/ApproveTxPage';
 import ApproveSignPage from './pages/ApproveSignPage';
 import ConnectedDAppsPage from './pages/ConnectedDAppsPage';
 
+// Import flow pages
+import OnboardingPage from './pages/OnboardingPage';
+import ImportWalletPage from './pages/ImportWalletPage';
+import SetupPasswordPage from './pages/SetupPasswordPage';
+import CompletePage from './pages/CompletePage';
+
+type ImportStep = 'onboarding' | 'import' | 'password' | 'complete';
+
+interface ImportedWallet {
+  address: string;
+  privateKey: string;
+}
+
 function PopupApp() {
   const [isUnlocked, setIsUnlocked] = useState<boolean | null>(null);
   const [hasWallet, setHasWallet] = useState<boolean | null>(null);
   const [version, setVersion] = useState('');
+  
+  // Import flow state
+  const [importStep, setImportStep] = useState<ImportStep>('onboarding');
+  const [importedWallet, setImportedWallet] = useState<ImportedWallet | null>(null);
 
   useEffect(() => {
     // Check wallet state on load
@@ -45,6 +62,26 @@ function PopupApp() {
     setIsUnlocked(true);
   };
 
+  // Handle import success - move to password setup
+  const handleImportSuccess = (address: string, privateKey: string) => {
+    setImportedWallet({ address, privateKey });
+    setImportStep('password');
+  };
+
+  // Handle password setup complete
+  const handlePasswordComplete = () => {
+    setImportStep('complete');
+  };
+
+  // Handle start using wallet after complete
+  const handleStartUsing = () => {
+    setHasWallet(true);
+    setIsUnlocked(true);
+    // Reset import flow state
+    setImportStep('onboarding');
+    setImportedWallet(null);
+  };
+
   // Loading state
   if (isUnlocked === null || hasWallet === null) {
     return (
@@ -56,32 +93,36 @@ function PopupApp() {
     );
   }
 
-  // No wallet setup yet - show onboarding
+  // No wallet setup yet - show import flow
   if (!hasWallet) {
     return (
       <PopupLayout>
-        <div className="flex flex-col items-center justify-center h-full p-4 text-center relative">
-          <img 
-            src="/icons/icon-128.png" 
-            alt="FUN Wallet" 
-            className="w-16 h-16 mb-4"
+        {importStep === 'onboarding' && (
+          <OnboardingPage 
+            version={version} 
+            onImportWallet={() => setImportStep('import')} 
           />
-          <h1 className="text-xl font-bold mb-2">Chào mừng đến FUN Wallet</h1>
-          <p className="text-muted-foreground text-sm mb-4">
-            Vui lòng sử dụng ứng dụng PWA để tạo ví mới trước khi sử dụng extension.
-          </p>
-          <a 
-            href="https://wallet-fun-rich.lovable.app" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium"
-          >
-            Mở FUN Wallet PWA
-          </a>
-          <div className="absolute bottom-4 text-xs text-muted-foreground">
-            v{version}
-          </div>
-        </div>
+        )}
+        {importStep === 'import' && (
+          <ImportWalletPage 
+            onBack={() => setImportStep('onboarding')}
+            onImportSuccess={handleImportSuccess}
+          />
+        )}
+        {importStep === 'password' && importedWallet && (
+          <SetupPasswordPage 
+            walletAddress={importedWallet.address}
+            privateKey={importedWallet.privateKey}
+            onComplete={handlePasswordComplete}
+            onBack={() => setImportStep('import')}
+          />
+        )}
+        {importStep === 'complete' && importedWallet && (
+          <CompletePage 
+            walletAddress={importedWallet.address}
+            onStart={handleStartUsing} 
+          />
+        )}
       </PopupLayout>
     );
   }
