@@ -56,6 +56,10 @@ export interface SecureWalletStorage {
   wallets: {
     [address: string]: EncryptedKeyData;
   };
+  // Encrypted mnemonics (only for wallets created in-app, not imported)
+  mnemonics?: {
+    [address: string]: EncryptedKeyData;
+  };
   lastAccess: number;
 }
 
