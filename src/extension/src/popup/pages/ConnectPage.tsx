@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { Shield, X, Check } from 'lucide-react';
+import { Shield, X, Check, Eye, Key, AlertCircle } from 'lucide-react';
 
 function ConnectPage() {
   const [searchParams] = useSearchParams();
@@ -8,16 +8,31 @@ function ConnectPage() {
 
   const handleApprove = async () => {
     if (requestId) {
+      // Send approval to background with requestId
       await chrome.runtime.sendMessage({
-        type: 'CONNECT_DAPP',
+        type: 'APPROVE_CONNECTION',
         payload: { requestId, origin }
       });
     }
     window.close();
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
+    if (requestId) {
+      await chrome.runtime.sendMessage({
+        type: 'REJECT_CONNECTION',
+        payload: { requestId }
+      });
+    }
     window.close();
+  };
+
+  const getHostname = () => {
+    try {
+      return new URL(origin).hostname;
+    } catch {
+      return origin;
+    }
   };
 
   return (
@@ -35,12 +50,31 @@ function ConnectPage() {
         <h2 className="text-lg font-medium mb-2">Kết nối với DApp</h2>
         
         <div className="bg-muted px-4 py-2 rounded-lg mb-4">
-          <p className="text-sm font-mono">{new URL(origin).hostname}</p>
+          <p className="text-sm font-mono">{getHostname()}</p>
         </div>
         
-        <p className="text-sm text-muted-foreground text-center mb-6">
-          Trang web này muốn kết nối với ví của bạn để xem địa chỉ ví.
-        </p>
+        {/* Permissions List */}
+        <div className="w-full bg-muted/50 rounded-xl p-3 mb-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground mb-2">
+            Trang web này sẽ có quyền:
+          </p>
+          <div className="flex items-center gap-2 text-sm">
+            <Eye className="w-4 h-4 text-primary" />
+            <span>Xem địa chỉ ví của bạn</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Key className="w-4 h-4 text-primary" />
+            <span>Yêu cầu phê duyệt giao dịch</span>
+          </div>
+        </div>
+        
+        {/* Warning */}
+        <div className="flex items-start gap-2 p-2 bg-warning/10 rounded-lg mb-4 w-full">
+          <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-warning">
+            Chỉ kết nối với trang web bạn tin tưởng
+          </p>
+        </div>
         
         <div className="w-full space-y-2">
           <button 

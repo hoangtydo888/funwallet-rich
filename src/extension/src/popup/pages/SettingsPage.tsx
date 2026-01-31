@@ -1,8 +1,26 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Lock, ExternalLink, Trash2 } from 'lucide-react';
+import { ArrowLeft, Lock, ExternalLink, Link2, ChevronRight } from 'lucide-react';
+import { DAppConnection } from '../../../shared/types';
 
 function SettingsPage() {
   const navigate = useNavigate();
+  const [dappsCount, setDappsCount] = useState(0);
+
+  useEffect(() => {
+    loadDAppsCount();
+  }, []);
+
+  const loadDAppsCount = async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'GET_CONNECTED_DAPPS' });
+      if (response?.success) {
+        setDappsCount((response.data as DAppConnection[])?.length || 0);
+      }
+    } catch {
+      // Ignore errors
+    }
+  };
 
   const handleLock = async () => {
     await chrome.runtime.sendMessage({ type: 'LOCK_WALLET' });
@@ -29,6 +47,23 @@ function SettingsPage() {
       </div>
       
       <div className="flex-1 p-4 space-y-2">
+        {/* Connected DApps */}
+        <button 
+          onClick={() => navigate('/connected-dapps')}
+          className="w-full flex items-center justify-between p-3 bg-muted rounded-xl hover:bg-muted/80"
+        >
+          <div className="flex items-center gap-3">
+            <Link2 className="w-5 h-5 text-muted-foreground" />
+            <div className="text-left">
+              <span className="block">DApps đã kết nối</span>
+              {dappsCount > 0 && (
+                <span className="text-xs text-muted-foreground">{dappsCount} DApp</span>
+              )}
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </button>
+        
         {/* Lock Wallet */}
         <button 
           onClick={handleLock}
@@ -45,14 +80,6 @@ function SettingsPage() {
         >
           <ExternalLink className="w-5 h-5 text-muted-foreground" />
           <span>Mở FUN Wallet PWA</span>
-        </button>
-        
-        {/* Connected Sites */}
-        <button 
-          className="w-full flex items-center gap-3 p-3 bg-muted rounded-xl hover:bg-muted/80"
-        >
-          <Trash2 className="w-5 h-5 text-muted-foreground" />
-          <span>Quản lý kết nối DApp</span>
         </button>
       </div>
       
