@@ -11,6 +11,7 @@ import ConnectPage from './pages/ConnectPage';
 import ApproveTxPage from './pages/ApproveTxPage';
 import ApproveSignPage from './pages/ApproveSignPage';
 import ConnectedDAppsPage from './pages/ConnectedDAppsPage';
+import BackupSeedSettingsPage from './pages/BackupSeedSettingsPage';
 
 // Onboarding flow pages
 import OnboardingPage from './pages/OnboardingPage';
@@ -182,6 +183,7 @@ function PopupApp() {
           <SetupPasswordPage 
             walletAddress={walletData.address}
             privateKey={walletData.privateKey}
+            mnemonic={createdWallet?.mnemonic}
             onComplete={handlePasswordComplete}
             onBack={() => setOnboardingStep(isNewWallet ? 'quiz' : 'import')}
           />
@@ -255,6 +257,14 @@ function PopupApp() {
           element={
             isUnlocked 
               ? <ConnectedDAppsPage /> 
+              : <Navigate to="/unlock" replace />
+          } 
+        />
+        <Route 
+          path="/backup-seed" 
+          element={
+            isUnlocked 
+              ? <BackupSeedSettingsPage /> 
               : <Navigate to="/unlock" replace />
           } 
         />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Lock, ExternalLink, Link2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Lock, ExternalLink, Link2, ChevronRight, Shield } from 'lucide-react';
 import { DAppConnection } from '@shared/types';
 
 function SettingsPage() {
@@ -47,6 +47,18 @@ function SettingsPage() {
       </div>
       
       <div className="flex-1 p-4 space-y-2">
+        {/* Backup Seed Phrase */}
+        <button 
+          onClick={() => navigate('/backup-seed')}
+          className="w-full flex items-center justify-between p-3 bg-muted rounded-xl hover:bg-muted/80"
+        >
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 text-muted-foreground" />
+            <span>Sao lưu Seed Phrase</span>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </button>
+
         {/* Connected DApps */}
         <button 
           onClick={() => navigate('/connected-dapps')}

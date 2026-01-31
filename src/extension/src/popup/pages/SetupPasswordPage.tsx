@@ -9,6 +9,7 @@ import { SecureWalletStorage, WalletAccount } from '@shared/types';
 interface SetupPasswordPageProps {
   walletAddress: string;
   privateKey: string;
+  mnemonic?: string; // Only present when creating new wallet
   onComplete: () => void;
   onBack: () => void;
 }
@@ -18,7 +19,8 @@ interface SetupPasswordPageProps {
  */
 function SetupPasswordPage({ 
   walletAddress, 
-  privateKey, 
+  privateKey,
+  mnemonic,
   onComplete, 
   onBack 
 }: SetupPasswordPageProps) {
@@ -57,6 +59,12 @@ function SetupPasswordPage({
         wallets: { [walletAddress]: encryptedData },
         lastAccess: Date.now()
       };
+
+      // 2b. If mnemonic exists (new wallet), encrypt and store it too
+      if (mnemonic) {
+        const encryptedMnemonic = await encryptPrivateKey(mnemonic, password);
+        walletStorage.mnemonics = { [walletAddress]: encryptedMnemonic };
+      }
 
       // 3. Create wallet account
       const walletAccount: WalletAccount = {
