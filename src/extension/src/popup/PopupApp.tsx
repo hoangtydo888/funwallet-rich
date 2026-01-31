@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+
 import PopupLayout from './components/PopupLayout';
 import UnlockPage from './pages/UnlockPage';
 import HomePage from './pages/HomePage';
@@ -14,10 +15,14 @@ import ConnectedDAppsPage from './pages/ConnectedDAppsPage';
 function PopupApp() {
   const [isUnlocked, setIsUnlocked] = useState<boolean | null>(null);
   const [hasWallet, setHasWallet] = useState<boolean | null>(null);
+  const [version, setVersion] = useState('');
 
   useEffect(() => {
     // Check wallet state on load
     checkWalletState();
+    // Get version from manifest
+    const manifest = chrome.runtime.getManifest();
+    setVersion(manifest.version);
   }, []);
 
   const checkWalletState = async () => {
@@ -55,8 +60,12 @@ function PopupApp() {
   if (!hasWallet) {
     return (
       <PopupLayout>
-        <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-          <div className="text-4xl mb-4">🦊</div>
+        <div className="flex flex-col items-center justify-center h-full p-4 text-center relative">
+          <img 
+            src="/icons/icon-128.png" 
+            alt="FUN Wallet" 
+            className="w-16 h-16 mb-4"
+          />
           <h1 className="text-xl font-bold mb-2">Chào mừng đến FUN Wallet</h1>
           <p className="text-muted-foreground text-sm mb-4">
             Vui lòng sử dụng ứng dụng PWA để tạo ví mới trước khi sử dụng extension.
@@ -69,6 +78,9 @@ function PopupApp() {
           >
             Mở FUN Wallet PWA
           </a>
+          <div className="absolute bottom-4 text-xs text-muted-foreground">
+            v{version}
+          </div>
         </div>
       </PopupLayout>
     );
