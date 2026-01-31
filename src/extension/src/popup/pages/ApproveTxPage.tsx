@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send, X, Check, AlertTriangle, Eye, EyeOff, Fuel, FileCode } from 'lucide-react';
 import { ethers } from 'ethers';
-import { decryptPrivateKey } from '../../../shared/lib/encryption';
-import { SecureWalletStorage } from '../../../shared/types';
-import { BSC_MAINNET } from '../../../shared/constants/tokens';
+import { decryptPrivateKey } from '@shared/lib/encryption';
+import { SecureWalletStorage } from '@shared/types';
+import { BSC_MAINNET } from '@shared/constants/tokens';
 
 function ApproveTxPage() {
   const [searchParams] = useSearchParams();

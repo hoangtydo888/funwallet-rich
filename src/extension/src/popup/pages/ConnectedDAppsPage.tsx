@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Link2Off, Globe, Trash2 } from 'lucide-react';
-import { DAppConnection } from '../../../shared/types';
+import { DAppConnection } from '@shared/types';
 
 function ConnectedDAppsPage() {
   const navigate = useNavigate();

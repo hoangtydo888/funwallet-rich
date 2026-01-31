@@ -8,12 +8,12 @@ import {
   ExternalLink,
   RefreshCw 
 } from 'lucide-react';
-import { formatAddress } from '../../../shared/lib/wallet';
-import { COMMON_TOKENS } from '../../../shared/constants/tokens';
-import { STORAGE_KEYS } from '../../../shared/storage/types';
-import { useTokenPrices } from '../../../shared/hooks/useTokenPrices';
-import { useBalance } from '../../../shared/hooks/useBalance';
-import { formatPrice } from '../../../shared/lib/priceTracker';
+import { formatAddress } from '@shared/lib/wallet';
+import { COMMON_TOKENS } from '@shared/constants/tokens';
+import { STORAGE_KEYS } from '@shared/storage/types';
+import { useTokenPrices } from '@shared/hooks/useTokenPrices';
+import { useBalance } from '@shared/hooks/useBalance';
+import { formatPrice } from '@shared/lib/priceTracker';
 import { TokenList } from '../../components/TokenList';
 
 function HomePage() {

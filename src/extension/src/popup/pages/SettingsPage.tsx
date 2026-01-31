@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Lock, ExternalLink, Link2, ChevronRight } from 'lucide-react';
-import { DAppConnection } from '../../../shared/types';
+import { DAppConnection } from '@shared/types';
 
 function SettingsPage() {
   const navigate = useNavigate();

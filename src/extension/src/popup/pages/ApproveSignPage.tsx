@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { PenTool, X, Check, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { ethers } from 'ethers';
-import { decryptPrivateKey } from '../../../shared/lib/encryption';
-import { SecureWalletStorage } from '../../../shared/types';
+import { decryptPrivateKey } from '@shared/lib/encryption';
+import { SecureWalletStorage } from '@shared/types';
 
 interface PendingSignRequest {
   id: string;
