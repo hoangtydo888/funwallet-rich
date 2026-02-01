@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Shield, AlertTriangle, Eye, Loader2, Wallet } from 'lucide-react';
+import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { Button } from '../../components/ui/Button';
 import { createNewWallet } from '@shared/lib/wallet';
 
@@ -43,9 +44,9 @@ function CreateWalletPage({ onBack, onWalletCreated }: CreateWalletPageProps) {
 
   // Education state
   return (
-    <div className="flex flex-col h-full p-4">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+    <div className="flex flex-col h-full">
+      {/* Header - Fixed */}
+      <div className="flex items-center gap-3 p-4 pb-2 flex-shrink-0">
         <button 
           onClick={onBack}
           className="p-2 hover:bg-muted rounded-lg transition-colors"
@@ -55,70 +56,80 @@ function CreateWalletPage({ onBack, onWalletCreated }: CreateWalletPageProps) {
         <h1 className="text-lg font-bold">Tạo Ví Mới</h1>
       </div>
 
-      {/* Security Education */}
-      <div className="flex-1 space-y-4">
-        <div className="bg-primary/10 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-              <Shield className="w-5 h-5 text-primary" />
+      {/* Content - Scrollable */}
+      <ScrollAreaPrimitive.Root className="flex-1 overflow-hidden">
+        <ScrollAreaPrimitive.Viewport className="h-full w-full">
+          <div className="px-4 pb-4 space-y-4">
+            <div className="bg-primary/10 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-medium mb-1">Seed Phrase là gì?</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Seed Phrase (cụm từ khôi phục) gồm 12 từ ngẫu nhiên, 
+                    là chìa khóa duy nhất để khôi phục ví của bạn.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <h3 className="font-medium mb-1">Seed Phrase là gì?</h3>
-              <p className="text-sm text-muted-foreground">
-                Seed Phrase (cụm từ khôi phục) gồm 12 từ ngẫu nhiên, 
-                là chìa khóa duy nhất để khôi phục ví của bạn.
-              </p>
+
+            <div className="bg-destructive/10 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-destructive/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="font-medium mb-1">Cảnh báo quan trọng</h3>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Không chia sẻ seed phrase với bất kỳ ai</li>
+                    <li>• Ghi lại và lưu trữ ở nơi an toàn</li>
+                    <li>• Mất seed phrase = mất ví vĩnh viễn</li>
+                  </ul>
+                </div>
+              </div>
             </div>
+
+            <div className="bg-muted rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-muted-foreground/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Eye className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <h3 className="font-medium mb-1">Bước tiếp theo</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Sau khi tạo ví, bạn sẽ thấy 12 từ. Hãy ghi lại cẩn thận 
+                    và xác minh bằng quiz trước khi hoàn tất.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Checkbox */}
+            <label className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={understood}
+                onChange={(e) => setUnderstood(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-primary text-primary focus:ring-primary"
+              />
+              <span className="text-sm">
+                Tôi hiểu rằng việc mất seed phrase đồng nghĩa với việc mất quyền truy cập ví vĩnh viễn
+              </span>
+            </label>
           </div>
-        </div>
+        </ScrollAreaPrimitive.Viewport>
+        <ScrollAreaPrimitive.Scrollbar
+          orientation="vertical"
+          className="flex touch-none select-none transition-colors h-full w-2 border-l border-l-transparent p-[1px]"
+        >
+          <ScrollAreaPrimitive.Thumb className="relative flex-1 rounded-full bg-border" />
+        </ScrollAreaPrimitive.Scrollbar>
+      </ScrollAreaPrimitive.Root>
 
-        <div className="bg-destructive/10 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-destructive/20 rounded-full flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-            </div>
-            <div>
-              <h3 className="font-medium mb-1">Cảnh báo quan trọng</h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Không chia sẻ seed phrase với bất kỳ ai</li>
-                <li>• Ghi lại và lưu trữ ở nơi an toàn</li>
-                <li>• Mất seed phrase = mất ví vĩnh viễn</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-muted rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-muted-foreground/20 rounded-full flex items-center justify-center flex-shrink-0">
-              <Eye className="w-5 h-5 text-muted-foreground" />
-            </div>
-            <div>
-              <h3 className="font-medium mb-1">Bước tiếp theo</h3>
-              <p className="text-sm text-muted-foreground">
-                Sau khi tạo ví, bạn sẽ thấy 12 từ. Hãy ghi lại cẩn thận 
-                và xác minh bằng quiz trước khi hoàn tất.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Checkbox */}
-        <label className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg cursor-pointer">
-          <input
-            type="checkbox"
-            checked={understood}
-            onChange={(e) => setUnderstood(e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded border-primary text-primary focus:ring-primary"
-          />
-          <span className="text-sm">
-            Tôi hiểu rằng việc mất seed phrase đồng nghĩa với việc mất quyền truy cập ví vĩnh viễn
-          </span>
-        </label>
-      </div>
-
-      {/* Action Button */}
-      <div className="pt-4">
+      {/* Footer Button - Fixed */}
+      <div className="p-4 pt-3 flex-shrink-0 border-t border-border/50">
         <Button
           onClick={handleGenerate}
           disabled={!understood}
