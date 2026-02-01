@@ -160,16 +160,40 @@ async function handleMessage(
       
     // Transactions
     case 'eth_sendTransaction':
-    case 'SIGN_TRANSACTION':
-      return handleSendTransaction(message.payload as TransactionRequest, origin, tabId, sendResponse);
+    case 'SIGN_TRANSACTION': {
+      // EIP-1193: params là array [txObject] hoặc object trực tiếp
+      const rawPayload = message.payload;
+      const txRequest = Array.isArray(rawPayload) 
+        ? rawPayload[0] as TransactionRequest
+        : rawPayload as TransactionRequest;
+      return handleSendTransaction(txRequest, origin, tabId, sendResponse);
+    }
       
     // Signing
     case 'personal_sign':
-    case 'PERSONAL_SIGN':
-      return handlePersonalSign(message.payload as { message: string; address?: string }, origin, tabId, sendResponse);
+    case 'PERSONAL_SIGN': {
+      // EIP-1193: params là array [message, address] hoặc object
+      const rawSignPayload = message.payload;
+      let signPayload: { message: string; address?: string };
+      if (Array.isArray(rawSignPayload)) {
+        signPayload = { message: rawSignPayload[0] as string, address: rawSignPayload[1] as string };
+      } else {
+        signPayload = rawSignPayload as { message: string; address?: string };
+      }
+      return handlePersonalSign(signPayload, origin, tabId, sendResponse);
+    }
       
-    case 'eth_signTypedData_v4':
-      return handleSignTypedData(message.payload as { address: string; data: string }, origin, tabId, sendResponse);
+    case 'eth_signTypedData_v4': {
+      // EIP-1193: params là array [address, data] hoặc object
+      const rawTypedPayload = message.payload;
+      let typedPayload: { address: string; data: string };
+      if (Array.isArray(rawTypedPayload)) {
+        typedPayload = { address: rawTypedPayload[0] as string, data: rawTypedPayload[1] as string };
+      } else {
+        typedPayload = rawTypedPayload as { address: string; data: string };
+      }
+      return handleSignTypedData(typedPayload, origin, tabId, sendResponse);
+    }
       
     // Pending request management
     case 'GET_PENDING_REQUEST':

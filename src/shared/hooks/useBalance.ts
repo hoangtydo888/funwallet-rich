@@ -3,7 +3,7 @@
  * Fetches token balances from blockchain with caching
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getNativeBalance, getTokenBalance } from '../lib/wallet';
 import { Token } from '../types';
 
@@ -46,6 +46,10 @@ export const useBalance = (
   const mountedRef = useRef(true);
   const initialLoadDone = useRef(false);
 
+  // Stabilize priceMap để tránh re-render không cần thiết khi giá thay đổi
+  const stablePriceMapKey = useMemo(() => JSON.stringify(priceMap), [priceMap]);
+  const stablePriceMap = useMemo(() => priceMap, [stablePriceMapKey]);
+
   const fetchBalances = useCallback(async () => {
     if (!address || !enabled || tokens.length === 0) {
       setLoading(false);
@@ -71,7 +75,7 @@ export const useBalance = (
               balance = await getTokenBalance(token.address, address);
             }
 
-            const priceUsd = priceMap[token.symbol.toUpperCase()] || 0;
+            const priceUsd = stablePriceMap[token.symbol.toUpperCase()] || 0;
             const balanceUsd = parseFloat(balance) * priceUsd;
 
             results.push({
@@ -103,7 +107,7 @@ export const useBalance = (
         setLoading(false);
       }
     }
-  }, [address, tokens, priceMap, enabled]);
+  }, [address, tokens, stablePriceMap, enabled]);
 
   // Initial fetch - only show loading on first load
   useEffect(() => {
