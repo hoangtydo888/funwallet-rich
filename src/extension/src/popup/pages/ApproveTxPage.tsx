@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send, X, Check, AlertTriangle, Eye, EyeOff, Fuel, FileCode } from 'lucide-react';
 import { ethers } from 'ethers';
@@ -6,17 +6,42 @@ import { decryptPrivateKey } from '@shared/lib/encryption';
 import { SecureWalletStorage } from '@shared/types';
 import { BSC_MAINNET } from '@shared/constants/tokens';
 
+/**
+ * Helper: Convert value (có thể là hex hoặc string số) sang ether display string
+ * Xử lý cả hex (wei) và string số, validate không âm
+ */
+const parseTransactionValue = (rawValue: string): string => {
+  if (!rawValue || rawValue === '0' || rawValue === '0x0') return '0';
+  
+  try {
+    if (rawValue.startsWith('0x')) {
+      // Hex (wei) → ether
+      const weiValue = BigInt(rawValue);
+      if (weiValue < 0n) return '0'; // Không cho phép âm
+      return ethers.formatEther(weiValue);
+    } else {
+      // String số → validate
+      const numValue = parseFloat(rawValue);
+      if (isNaN(numValue) || numValue < 0) return '0';
+      return rawValue;
+    }
+  } catch {
+    console.warn('[ApproveTxPage] Failed to parse value:', rawValue);
+    return '0';
+  }
+};
+
 function ApproveTxPage() {
   const [searchParams] = useSearchParams();
   const requestId = searchParams.get('requestId') || '';
   
-  // Parse transaction data from URL
-  const txData = {
+  // Parse transaction data from URL với value được normalize
+  const txData = useMemo(() => ({
     to: searchParams.get('to') || '',
-    value: searchParams.get('value') || '0',
+    value: parseTransactionValue(searchParams.get('value') || '0'),
     data: searchParams.get('data') || '',
     origin: searchParams.get('origin') || 'Unknown',
-  };
+  }), [searchParams]);
   
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
