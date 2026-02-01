@@ -21,8 +21,8 @@ function HomePage() {
   const [address, setAddress] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
-  // Get top 5 tokens
-  const topTokens = COMMON_TOKENS.slice(0, 5);
+  // Get all tokens (không giới hạn 5)
+  const topTokens = COMMON_TOKENS;
   const tokenSymbols = topTokens.map(t => t.symbol);
 
   // Fetch prices using shared hook

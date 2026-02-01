@@ -129,22 +129,32 @@ function ApproveTxPage() {
       const txResponse = await wallet.sendTransaction(tx);
       console.log('[ApproveTxPage] Transaction sent:', txResponse.hash);
       
-      // Notify background of success
-      await chrome.runtime.sendMessage({
+      // Notify background of success - CRITICAL: phải gửi đúng requestId
+      console.log('[ApproveTxPage] Sending APPROVE_TRANSACTION with requestId:', requestId);
+      
+      const response = await chrome.runtime.sendMessage({
         type: 'APPROVE_TRANSACTION',
         payload: { requestId, txHash: txResponse.hash }
       });
       
-      // Close popup
-      window.close();
+      console.log('[ApproveTxPage] APPROVE_TRANSACTION response:', response);
+      
+      // Wait a moment before closing to ensure message is sent
+      setTimeout(() => window.close(), 500);
     } catch (err) {
       console.error('[ApproveTxPage] Transaction error:', err);
-      if (err instanceof Error && err.message.includes('decrypt')) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      
+      if (errorMessage.includes('decrypt')) {
         setError('Mật khẩu không đúng');
-      } else if (err instanceof Error && err.message.includes('insufficient funds')) {
-        setError('Số dư không đủ để thực hiện giao dịch');
+      } else if (errorMessage.includes('insufficient funds')) {
+        setError('Số dư không đủ để trả phí gas');
+      } else if (errorMessage.includes('nonce')) {
+        setError('Lỗi nonce, vui lòng thử lại');
+      } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
+        setError('Lỗi mạng, vui lòng thử lại');
       } else {
-        setError(err instanceof Error ? err.message : 'Giao dịch thất bại');
+        setError(`Giao dịch thất bại: ${errorMessage}`);
       }
     } finally {
       setSending(false);

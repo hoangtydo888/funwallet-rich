@@ -531,18 +531,33 @@ async function handleSendTransaction(
  * Handle transaction approval from popup
  */
 async function handleApproveTransaction(payload: { requestId: string; signedTx?: string; txHash?: string }): Promise<MessageResponse> {
+  console.log('[Service Worker] handleApproveTransaction called with:', payload);
+  
   const request = pendingRequests.get(payload.requestId);
   if (!request) {
+    console.warn('[Service Worker] Request not found:', payload.requestId);
     return { success: false, error: 'Request not found or expired' };
   }
   
+  console.log('[Service Worker] Found pending request:', request);
+  
   // Send tx hash to content script
-  if (request.tabId && payload.txHash) {
-    chrome.tabs.sendMessage(request.tabId, {
-      type: 'FUN_WALLET_RESPONSE',
-      requestId: payload.requestId,
-      result: payload.txHash,
-    }).catch(console.error);
+  if (payload.txHash) {
+    if (request.tabId) {
+      try {
+        await chrome.tabs.sendMessage(request.tabId, {
+          type: 'FUN_WALLET_RESPONSE',
+          requestId: payload.requestId,
+          result: payload.txHash,
+        });
+        console.log('[Service Worker] Sent response to tab:', request.tabId);
+      } catch (err) {
+        console.error('[Service Worker] Failed to send to tab:', request.tabId, err);
+        // Tab có thể đã đóng hoặc không còn tồn tại
+      }
+    } else {
+      console.warn('[Service Worker] No tabId for request, cannot send response to DApp');
+    }
   }
   
   pendingRequests.delete(payload.requestId);

@@ -46,8 +46,8 @@ function SendPage() {
       
       if (!address) return;
 
-      // Load top tokens with balances
-      const topTokens = COMMON_TOKENS.slice(0, 5);
+      // Load all tokens with balances (not limited to 5)
+      const topTokens = COMMON_TOKENS;
       const tokenBalances: TokenOption[] = [];
 
       for (const token of topTokens) {
@@ -261,7 +261,7 @@ function SendPage() {
           </button>
 
           {showTokenSelect && (
-            <div className="mt-2 bg-muted rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+            <div className="mt-2 bg-muted rounded-xl overflow-hidden max-h-60 overflow-y-auto">
               {tokens.map((token) => (
                 <button
                   key={token.symbol}
