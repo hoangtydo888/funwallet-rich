@@ -1,236 +1,225 @@
 
-# Kế Hoạch: Sửa Lỗi Extension FUN Wallet
+# Kế Hoạch: Sửa Lỗi Gửi Tiền & Token Flickering
 
-## Các Vấn Đề Đã Xác Định
+## Vấn Đề Đã Xác Định
 
-### 1. Lỗi "Wallet is locked" khi gửi tiền từ FUN Profile
-**Nguyên nhân**: 
-- Khi DApp (FUN Profile PWA) gọi `eth_sendTransaction`, service worker kiểm tra `isLocked` 
-- Nếu ví bị khóa → trả về lỗi ngay mà KHÔNG mở popup phê duyệt
-- Service worker có cơ chế auto-lock sau 15 phút không hoạt động
+### 1. Lỗi "Value âm" khi gửi tiền (-0.0001)
+Hình ảnh cho thấy:
+- Input hiển thị `-0,0001` (số âm)
+- Lỗi: `Number "-100000000000000n" is not in safe integer range`
+- `C value: -0.0001 ETH`
 
-**Dòng code gây lỗi** (service-worker.ts dòng 454-456):
+**Nguyên nhân gốc**: Cách parse `params` từ DApp không đúng!
+
+Khi DApp gọi `eth_sendTransaction`, nó gửi:
+```javascript
+// DApp (viem) gửi
+provider.request({
+  method: 'eth_sendTransaction',
+  params: [{
+    to: '0x...',
+    value: '0x...',  // Dạng hex
+    data: '0x...'
+  }]
+})
+```
+
+Nhưng flow hiện tại:
+```
+inpage.ts → inject.ts → service-worker
+   |            |              |
+params = [{tx}] → payload = [{tx}] → tx = payload (ARRAY!)
+                                    → tx.value = undefined!
+```
+
+Service worker đang cast `payload` thành `TransactionRequest`, nhưng `payload` là một **ARRAY** chứa object, không phải object!
+
+### 2. Token list chớp nháy
+Hook `useBalance` vẫn có thể gây flickering nếu `priceMap` thay đổi liên tục.
+
+---
+
+## Giải Pháp
+
+### Fix 1: Parse params đúng trong service-worker.ts
+
 ```typescript
-if (isLocked) {
-  return { success: false, error: 'Wallet is locked' };
+// TRƯỚC (sai):
+case 'eth_sendTransaction':
+  return handleSendTransaction(message.payload as TransactionRequest, ...);
+
+// SAU (đúng):
+case 'eth_sendTransaction':
+  // params theo EIP-1193 là array: [txObject]
+  const txParams = Array.isArray(message.payload) 
+    ? message.payload[0] as TransactionRequest
+    : message.payload as TransactionRequest;
+  return handleSendTransaction(txParams, ...);
+```
+
+### Fix 2: Convert value từ hex sang ether trong ApproveTxPage
+
+```typescript
+// TRƯỚC:
+const txData = {
+  value: searchParams.get('value') || '0',
+};
+// value có thể là hex: "0x5AF3107A4000" hoặc string: "0.0001"
+
+// SAU:
+const rawValue = searchParams.get('value') || '0';
+// Chuyển hex sang ether string nếu cần
+let displayValue = '0';
+try {
+  if (rawValue.startsWith('0x')) {
+    // Hex value (wei) → ether
+    displayValue = ethers.formatEther(BigInt(rawValue));
+  } else {
+    displayValue = rawValue;
+  }
+  // Validate không âm
+  if (parseFloat(displayValue) < 0) {
+    displayValue = '0';
+  }
+} catch {
+  displayValue = '0';
 }
 ```
 
-**Giải pháp**: Thay vì từ chối ngay, mở popup unlock trước rồi tiếp tục flow phê duyệt giao dịch
+### Fix 3: Validate value trong service-worker trước khi lưu
 
----
-
-### 2. Token list chớp nháy (flickering)
-**Nguyên nhân**:
-- `useBalance` hook có `setLoading(true)` mỗi khi `fetchBalances` được gọi lại
-- Khi `priceMap` thay đổi → `useCallback` tạo `fetchBalances` mới → `useEffect` chạy lại → `setLoading(true)` → hiện skeleton → fetch xong → hiện data
-- Chu kỳ này lặp lại liên tục gây flickering
-
-**Dòng code gây lỗi** (useBalance.ts dòng 106-108):
 ```typescript
-useEffect(() => {
-  mountedRef.current = true;
-  setLoading(true);  // <- Gây flickering!
-  fetchBalances();
+// Trong handleSendTransaction
+let valueStr = tx.value || '0';
+
+// Nếu là hex, giữ nguyên
+// Nếu là string số, validate không âm
+if (!valueStr.startsWith('0x')) {
+  const numValue = parseFloat(valueStr);
+  if (isNaN(numValue) || numValue < 0) {
+    return { success: false, error: 'Invalid transaction value' };
+  }
+}
+
+const txParams = {
+  value: valueStr,
+  // ...
+};
 ```
 
-**Giải pháp**: Chỉ `setLoading(true)` lần đầu tiên, các lần sau dùng background refresh
+### Fix 4: Ổn định useBalance hook
+
+Thêm dependency stability:
+```typescript
+// Thêm useMemo cho priceMap để tránh re-render không cần thiết
+const stablePriceMap = useMemo(() => priceMap, [JSON.stringify(priceMap)]);
+```
 
 ---
 
-## Các File Cần Thay Đổi
+## Files Cần Thay Đổi
 
 | File | Thay Đổi |
 |------|----------|
-| `src/extension/src/background/service-worker.ts` | Thêm logic unlock trước khi xử lý transaction/sign |
-| `src/shared/hooks/useBalance.ts` | Sửa logic loading để tránh flickering |
+| `src/extension/src/background/service-worker.ts` | Parse params array đúng cách, validate value |
+| `src/extension/src/popup/pages/ApproveTxPage.tsx` | Convert hex value, validate không âm |
+| `src/shared/hooks/useBalance.ts` | Stabilize dependencies nếu cần |
 
 ---
 
 ## Chi Tiết Thay Đổi
 
-### 1. service-worker.ts - Xử lý "Wallet is locked"
+### 1. service-worker.ts
 
-**Vấn đề hiện tại với `eth_sendTransaction`:**
+**Dòng ~162-164**: Sửa case eth_sendTransaction
+
 ```typescript
-async function handleSendTransaction(...) {
-  if (isLocked) {
-    return { success: false, error: 'Wallet is locked' };  // Từ chối ngay!
-  }
-  // ...
+// TRƯỚC
+case 'eth_sendTransaction':
+case 'SIGN_TRANSACTION':
+  return handleSendTransaction(message.payload as TransactionRequest, origin, tabId, sendResponse);
+
+// SAU
+case 'eth_sendTransaction':
+case 'SIGN_TRANSACTION': {
+  // EIP-1193: params là array [txObject] hoặc object trực tiếp
+  const rawPayload = message.payload;
+  const txRequest = Array.isArray(rawPayload) 
+    ? rawPayload[0] as TransactionRequest
+    : rawPayload as TransactionRequest;
+  return handleSendTransaction(txRequest, origin, tabId, sendResponse);
 }
 ```
 
-**Sửa thành:**
+**Dòng ~470-475**: Validate và normalize value
+
 ```typescript
-async function handleSendTransaction(
-  tx: TransactionRequest, 
-  origin?: string, 
-  tabId?: number,
-  sendResponse?: (response: MessageResponse) => void
-): Promise<MessageResponse | null> {
-  // Parse origin
-  let parsedOrigin: string | undefined;
-  if (origin) {
-    try {
-      parsedOrigin = new URL(origin).origin;
-    } catch {
-      parsedOrigin = origin;
-    }
+// Build params for approve-tx page
+let valueToPass = tx.value || '0';
+
+// Validate: nếu không phải hex và là số âm → reject
+if (!valueToPass.startsWith('0x')) {
+  const numVal = parseFloat(valueToPass);
+  if (isNaN(numVal) || numVal < 0) {
+    return { success: false, error: 'Invalid transaction value: must be positive' };
   }
-  
-  // Kiểm tra DApp đã kết nối chưa (phải check trước khi unlock)
-  if (parsedOrigin && !connectedDApps.has(parsedOrigin)) {
-    return { success: false, error: 'DApp not connected' };
-  }
-  
-  // NẾU VÍ BỊ KHÓA: Tạo pending request và mở popup unlock
-  // Sau khi unlock sẽ tự redirect sang approve-tx
-  if (isLocked) {
-    const requestId = `tx_${Date.now()}`;
-    pendingRequests.set(requestId, {
-      id: requestId,
-      method: 'eth_sendTransaction',
-      params: [tx],
-      origin: parsedOrigin || 'unknown',
-      timestamp: Date.now(),
-      tabId,
-    });
-    
-    // Mở popup unlock với redirect sau khi unlock
-    await openPopupWithUnlockRedirect('approve-tx', {
-      requestId,
-      to: tx.to || '',
-      value: tx.value || '0',
-      data: tx.data || '',
-      origin: parsedOrigin || 'unknown',
-    });
-    
-    return null; // Response sẽ được gửi sau khi approve
-  }
-  
-  // Ví đã unlock → tạo pending request và mở popup approve-tx
-  const requestId = `tx_${Date.now()}`;
-  pendingRequests.set(requestId, { ... });
-  await openPopup('approve-tx', { ... });
-  
-  return null;
 }
-```
 
-**Thêm helper function mới:**
-```typescript
-/**
- * Mở popup với unlock redirect
- * Nếu ví đang bị khóa, mở trang unlock trước
- * Sau khi unlock sẽ tự redirect đến target page
- */
-async function openPopupWithUnlockRedirect(
-  targetPage: string, 
-  params: Record<string, unknown>
-): Promise<void> {
-  const queryString = new URLSearchParams(params as Record<string, string>).toString();
-  const redirectPath = `${targetPage}?${queryString}`;
-  
-  // Encode redirect path để truyền qua URL
-  const encodedRedirect = encodeURIComponent(redirectPath);
-  
-  await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html#/unlock?redirect=${encodedRedirect}`),
-    type: 'popup',
-    width: 360,
-    height: 600,
-    focused: true,
-  });
-}
-```
-
-**Tương tự cho `handlePersonalSign` và `handleSignTypedData`**
-
----
-
-### 2. UnlockPage.tsx - Thêm redirect sau unlock
-
-**Thêm logic đọc redirect URL:**
-```typescript
-function UnlockPage({ onUnlock }: UnlockPageProps) {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  
-  const redirectPath = searchParams.get('redirect');
-  
-  const handleUnlock = async () => {
-    // ... unlock logic ...
-    
-    if (success) {
-      onUnlock();
-      
-      // Nếu có redirect path, navigate đến đó
-      if (redirectPath) {
-        navigate(decodeURIComponent(redirectPath));
-      }
-    }
-  };
-}
-```
-
----
-
-### 3. useBalance.ts - Sửa flickering
-
-**Thay đổi logic loading:**
-```typescript
-export const useBalance = (...) => {
-  const [balances, setBalances] = useState<TokenBalance[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const mountedRef = useRef(true);
-  const initialLoadDone = useRef(false);  // <-- THÊM MỚI
-
-  const fetchBalances = useCallback(async () => {
-    if (!address || !enabled || tokens.length === 0) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setError(null);
-      // KHÔNG setLoading(true) ở đây nữa!
-      
-      const results: TokenBalance[] = [];
-      // ... fetch logic ...
-
-      if (mountedRef.current) {
-        results.sort((a, b) => (b.balanceUsd || 0) - (a.balanceUsd || 0));
-        setBalances(results);
-        setLoading(false);
-        initialLoadDone.current = true;
-      }
-    } catch (err) {
-      // ... error handling ...
-    }
-  }, [address, tokens, priceMap, enabled]);
-
-  // Initial fetch - CHỈ set loading lần đầu
-  useEffect(() => {
-    mountedRef.current = true;
-    
-    // Chỉ hiện loading nếu chưa có data
-    if (!initialLoadDone.current) {
-      setLoading(true);
-    }
-    
-    fetchBalances();
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [fetchBalances]);
-
-  // ... rest of hook
+const txParams: Record<string, string> = {
+  to: tx.to || '',
+  value: valueToPass,
+  origin: parsedOrigin || 'unknown',
 };
+```
+
+### 2. ApproveTxPage.tsx
+
+**Thêm helper để parse value**:
+
+```typescript
+// Helper: Convert value (có thể là hex hoặc string số) sang display string
+const parseTransactionValue = (rawValue: string): string => {
+  if (!rawValue || rawValue === '0') return '0';
+  
+  try {
+    if (rawValue.startsWith('0x')) {
+      // Hex (wei) → ether
+      const weiValue = BigInt(rawValue);
+      if (weiValue < 0n) return '0'; // Không cho phép âm
+      return ethers.formatEther(weiValue);
+    } else {
+      // String số → validate
+      const numValue = parseFloat(rawValue);
+      if (isNaN(numValue) || numValue < 0) return '0';
+      return rawValue;
+    }
+  } catch {
+    return '0';
+  }
+};
+```
+
+**Sử dụng trong component**:
+
+```typescript
+const txData = {
+  to: searchParams.get('to') || '',
+  value: parseTransactionValue(searchParams.get('value') || '0'),
+  data: searchParams.get('data') || '',
+  origin: searchParams.get('origin') || 'Unknown',
+};
+```
+
+**Sửa estimateGas và handleApprove**:
+
+```typescript
+// Trong estimateGas
+const tx: ethers.TransactionRequest = {
+  to: txData.to,
+  value: txData.value !== '0' ? ethers.parseEther(txData.value) : 0n,
+};
+
+// Trong handleApprove - giữ nguyên vì txData.value đã được normalize
 ```
 
 ---
@@ -238,55 +227,28 @@ export const useBalance = (...) => {
 ## Flow Sau Khi Sửa
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    FLOW GỬI TIỀN MỚI                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. User click "Gửi" trên FUN Profile                          │
-│                      ↓                                          │
-│  2. DApp gọi eth_sendTransaction                                │
-│                      ↓                                          │
-│  3. Service worker nhận request                                 │
-│                      ↓                                          │
-│  4. Kiểm tra isLocked?                                          │
-│         │                                                       │
-│    ┌────┴────┐                                                  │
-│    ↓         ↓                                                  │
-│  [YES]     [NO]                                                 │
-│    ↓         ↓                                                  │
-│  Mở popup   Mở popup                                            │
-│  /unlock?   /approve-tx                                         │
-│  redirect=  trực tiếp                                           │
-│  approve-tx                                                     │
-│    ↓         │                                                  │
-│  User nhập  │                                                   │
-│  mật khẩu   │                                                   │
-│    ↓         │                                                  │
-│  Redirect ──→┘                                                  │
-│  /approve-tx                                                    │
-│    ↓                                                            │
-│  5. User xem và phê duyệt giao dịch                            │
-│                      ↓                                          │
-│  6. Giao dịch được ký và gửi lên blockchain                    │
-│                      ↓                                          │
-│  7. Trả txHash về DApp → Hiển thị thành công!                  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+DApp gọi eth_sendTransaction với params = [{to, value: "0x...", data}]
+                    ↓
+inject.ts truyền payload = [{to, value, data}]
+                    ↓
+service-worker nhận message.payload
+    → Parse: txRequest = payload[0]  ← FIX!
+    → Validate: value >= 0
+    → Mở popup với value (hex hoặc string)
+                    ↓
+ApproveTxPage nhận value từ URL
+    → parseTransactionValue(): hex → ether string  ← FIX!
+    → Hiển thị: "0.0001 BNB"
+    → Gửi tx thành công!
 ```
 
 ---
 
 ## Kết Quả Mong Đợi
 
-### Sau khi sửa lỗi "Wallet is locked":
-- Khi user click "Gửi" trên FUN Profile
-- Nếu ví bị khóa → popup unlock bung ra
-- User nhập mật khẩu → popup chuyển sang màn hình phê duyệt giao dịch
-- User click "Phê duyệt" → giao dịch được gửi thành công
-
-### Sau khi sửa flickering:
-- Token list hiển thị ổn định, không chớp nháy
-- Data được cập nhật "ngầm" mà không hiện loading skeleton mỗi lần refresh
+1. **Gửi tiền thành công**: Value được parse đúng từ hex sang ether
+2. **Token list không chớp nháy**: Loading skeleton chỉ hiện lần đầu
+3. **Validation chặt chẽ**: Reject các giá trị âm hoặc không hợp lệ
 
 ---
 
@@ -294,6 +256,7 @@ export const useBalance = (...) => {
 
 1. Build extension: `npm run build:ext`
 2. Reload extension trong Chrome
-3. Mở FUN Profile và thử gửi tiền
-4. Xác nhận popup unlock/approve-tx hoạt động đúng
-5. Kiểm tra token list không còn chớp nháy
+3. Mở FUN Profile, kết nối ví
+4. Thử gửi 0.0001 BNB
+5. Xác nhận popup approve-tx hiển thị số dương đúng
+6. Xác nhận giao dịch thành công
