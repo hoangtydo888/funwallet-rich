@@ -29,8 +29,13 @@
   "permissions": [
     "storage",
     "activeTab",
-    "notifications"
+    "notifications",
+    "sidePanel"
   ],
+  
+  "side_panel": {
+    "default_path": "popup.html"
+  },
   
   "host_permissions": [
     "https://bsc-dataseed.binance.org/*",
