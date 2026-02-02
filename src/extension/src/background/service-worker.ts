@@ -166,7 +166,9 @@ async function handleMessage(
       const txRequest = Array.isArray(rawPayload) 
         ? rawPayload[0] as TransactionRequest
         : rawPayload as TransactionRequest;
-      return handleSendTransaction(txRequest, origin, tabId, sendResponse);
+      // CRITICAL: Lấy requestId gốc từ inject.ts để response về đúng DApp
+      const originalTxRequestId = (message as { requestId?: string }).requestId;
+      return handleSendTransaction(txRequest, origin, tabId, sendResponse, originalTxRequestId);
     }
       
     // Signing
@@ -180,7 +182,9 @@ async function handleMessage(
       } else {
         signPayload = rawSignPayload as { message: string; address?: string };
       }
-      return handlePersonalSign(signPayload, origin, tabId, sendResponse);
+      // CRITICAL: Lấy requestId gốc từ inject.ts
+      const originalSignRequestId = (message as { requestId?: string }).requestId;
+      return handlePersonalSign(signPayload, origin, tabId, sendResponse, originalSignRequestId);
     }
       
     case 'eth_signTypedData_v4': {
@@ -192,7 +196,9 @@ async function handleMessage(
       } else {
         typedPayload = rawTypedPayload as { address: string; data: string };
       }
-      return handleSignTypedData(typedPayload, origin, tabId, sendResponse);
+      // CRITICAL: Lấy requestId gốc từ inject.ts
+      const originalTypedRequestId = (message as { requestId?: string }).requestId;
+      return handleSignTypedData(typedPayload, origin, tabId, sendResponse, originalTypedRequestId);
     }
       
     // Pending request management
@@ -474,7 +480,8 @@ async function handleSendTransaction(
   tx: TransactionRequest, 
   origin?: string, 
   tabId?: number,
-  sendResponse?: (response: MessageResponse) => void
+  sendResponse?: (response: MessageResponse) => void,
+  originalRequestId?: string  // THÊM: ID gốc từ DApp
 ): Promise<MessageResponse | null> {
   // Parse origin if needed
   let parsedOrigin: string | undefined;
@@ -502,8 +509,10 @@ async function handleSendTransaction(
     txParams.data = tx.data;
   }
   
-  // Create pending request
-  const requestId = `tx_${Date.now()}`;
+  // CRITICAL: Sử dụng ID gốc từ DApp nếu có, fallback tạo mới
+  const requestId = originalRequestId || `tx_${Date.now()}`;
+  console.log('[Service Worker] handleSendTransaction - Using requestId:', requestId, 'Original:', originalRequestId);
+  
   pendingRequests.set(requestId, {
     id: requestId,
     method: 'eth_sendTransaction',
@@ -593,7 +602,8 @@ async function handlePersonalSign(
   payload: { message: string; address?: string },
   origin?: string,
   tabId?: number,
-  sendResponse?: (response: MessageResponse) => void
+  sendResponse?: (response: MessageResponse) => void,
+  originalRequestId?: string  // THÊM: ID gốc từ DApp
 ): Promise<MessageResponse | null> {
   let parsedOrigin: string | undefined;
   if (origin) {
@@ -609,8 +619,10 @@ async function handlePersonalSign(
     return { success: false, error: 'DApp not connected' };
   }
   
-  // Create pending request
-  const requestId = `sign_${Date.now()}`;
+  // CRITICAL: Sử dụng ID gốc từ DApp nếu có
+  const requestId = originalRequestId || `sign_${Date.now()}`;
+  console.log('[Service Worker] handlePersonalSign - Using requestId:', requestId, 'Original:', originalRequestId);
+  
   pendingRequests.set(requestId, {
     id: requestId,
     method: 'personal_sign',
@@ -647,7 +659,8 @@ async function handleSignTypedData(
   payload: { address: string; data: string },
   origin?: string,
   tabId?: number,
-  sendResponse?: (response: MessageResponse) => void
+  sendResponse?: (response: MessageResponse) => void,
+  originalRequestId?: string  // THÊM: ID gốc từ DApp
 ): Promise<MessageResponse | null> {
   let parsedOrigin: string | undefined;
   if (origin) {
@@ -663,8 +676,10 @@ async function handleSignTypedData(
     return { success: false, error: 'DApp not connected' };
   }
   
-  // Create pending request
-  const requestId = `signTyped_${Date.now()}`;
+  // CRITICAL: Sử dụng ID gốc từ DApp nếu có
+  const requestId = originalRequestId || `signTyped_${Date.now()}`;
+  console.log('[Service Worker] handleSignTypedData - Using requestId:', requestId, 'Original:', originalRequestId);
+  
   pendingRequests.set(requestId, {
     id: requestId,
     method: 'eth_signTypedData_v4',
