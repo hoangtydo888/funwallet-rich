@@ -97,6 +97,13 @@ async function initialize() {
     currentChainId = parseInt(chainId);
   }
   
+  // Configure Side Panel behavior - open on action click
+  if (chrome.sidePanel) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+      .catch(console.error);
+    console.log('[FUN Wallet] Side Panel configured');
+  }
+  
   console.log('[FUN Wallet] Service worker initialized');
 }
 
@@ -819,24 +826,54 @@ async function saveDAppConnections(): Promise<void> {
 }
 
 /**
- * Open popup window
+ * Open Side Panel instead of popup window
+ * Falls back to popup window if Side Panel not supported
  */
 async function openPopup(page: string, params?: Record<string, unknown>): Promise<void> {
   const queryString = params 
     ? `?${new URLSearchParams(params as Record<string, string>).toString()}`
     : '';
-    
-  await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html#/${page}${queryString}`),
-    type: 'popup',
-    width: 360,
-    height: 600,
-    focused: true,
-  });
+  
+  // Get current active tab
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  
+  if (tab?.id && chrome.sidePanel) {
+    try {
+      // Set the path for side panel
+      await chrome.sidePanel.setOptions({
+        tabId: tab.id,
+        path: `popup.html#/${page}${queryString}`,
+        enabled: true
+      });
+      
+      // Open the side panel
+      await chrome.sidePanel.open({ tabId: tab.id });
+      console.log('[FUN Wallet] Side Panel opened for page:', page);
+    } catch (err) {
+      console.error('[FUN Wallet] Side Panel error, falling back to popup:', err);
+      // Fallback to popup window
+      await chrome.windows.create({
+        url: chrome.runtime.getURL(`popup.html#/${page}${queryString}`),
+        type: 'popup',
+        width: 360,
+        height: 600,
+        focused: true,
+      });
+    }
+  } else {
+    // Fallback to popup window
+    await chrome.windows.create({
+      url: chrome.runtime.getURL(`popup.html#/${page}${queryString}`),
+      type: 'popup',
+      width: 360,
+      height: 600,
+      focused: true,
+    });
+  }
 }
 
 /**
- * Open popup with unlock redirect
+ * Open Side Panel with unlock redirect
  * If wallet is locked, opens unlock page first
  * After unlock, automatically redirects to target page with params
  */
@@ -850,13 +887,37 @@ async function openPopupWithUnlockRedirect(
   // Encode redirect path to pass through URL
   const encodedRedirect = encodeURIComponent(redirectPath);
   
-  await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html#/unlock?redirect=${encodedRedirect}`),
-    type: 'popup',
-    width: 360,
-    height: 600,
-    focused: true,
-  });
+  // Get current active tab
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  
+  if (tab?.id && chrome.sidePanel) {
+    try {
+      await chrome.sidePanel.setOptions({
+        tabId: tab.id,
+        path: `popup.html#/unlock?redirect=${encodedRedirect}`,
+        enabled: true
+      });
+      await chrome.sidePanel.open({ tabId: tab.id });
+      console.log('[FUN Wallet] Side Panel opened with unlock redirect');
+    } catch (err) {
+      console.error('[FUN Wallet] Side Panel error, falling back to popup:', err);
+      await chrome.windows.create({
+        url: chrome.runtime.getURL(`popup.html#/unlock?redirect=${encodedRedirect}`),
+        type: 'popup',
+        width: 360,
+        height: 600,
+        focused: true,
+      });
+    }
+  } else {
+    await chrome.windows.create({
+      url: chrome.runtime.getURL(`popup.html#/unlock?redirect=${encodedRedirect}`),
+      type: 'popup',
+      width: 360,
+      height: 600,
+      focused: true,
+    });
+  }
 }
 
 /**
