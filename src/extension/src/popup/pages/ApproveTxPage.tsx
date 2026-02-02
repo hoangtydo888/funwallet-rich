@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 import { decryptPrivateKey } from '@shared/lib/encryption';
 import { SecureWalletStorage } from '@shared/types';
 import { BSC_MAINNET } from '@shared/constants/tokens';
+import { STORAGE_KEYS } from '@shared/storage/types';
 
 /**
  * Helper: Convert value (có thể là hex hoặc string số) sang ether display string
@@ -90,8 +91,8 @@ function ApproveTxPage() {
     
     try {
       // Get encrypted wallet data
-      const encryptedData = await chrome.storage.local.get('fun_wallet_encrypted_keys');
-      const data = encryptedData.fun_wallet_encrypted_keys;
+      const encryptedData = await chrome.storage.local.get(STORAGE_KEYS.ENCRYPTED_KEYS);
+      const data = encryptedData[STORAGE_KEYS.ENCRYPTED_KEYS];
       
       if (!data) {
         throw new Error('Không tìm thấy ví');
