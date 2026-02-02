@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { ArrowLeft, Check, X, RefreshCw } from 'lucide-react';
+import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { Button } from '../../components/ui/Button';
 
 interface SeedQuizPageProps {
@@ -100,9 +101,9 @@ function SeedQuizPage({ mnemonic, onBack, onComplete }: SeedQuizPageProps) {
   };
 
   return (
-    <div className="flex flex-col h-full p-4">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+    <div className="flex flex-col h-full">
+      {/* Header - Cố định */}
+      <div className="flex items-center gap-3 p-4 pb-2 flex-shrink-0">
         <button 
           onClick={onBack}
           className="p-2 hover:bg-muted rounded-lg transition-colors"
@@ -112,92 +113,103 @@ function SeedQuizPage({ mnemonic, onBack, onComplete }: SeedQuizPageProps) {
         <h1 className="text-lg font-bold">Xác minh Seed Phrase</h1>
       </div>
 
-      {/* Progress Bar */}
-      <div className="mb-6">
-        <div className="flex justify-between text-sm text-muted-foreground mb-2">
-          <span>Câu hỏi {currentQuestion + 1}/{totalQuestions}</span>
-          <span>{correctCount} đúng</span>
-        </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Question */}
-      <div className="flex-1">
-        <div className="text-center mb-6">
-          <p className="text-muted-foreground text-sm mb-2">Chọn từ đúng</p>
-          <h2 className="text-2xl font-bold">
-            Từ thứ <span className="text-primary">{currentQ.wordIndex + 1}</span> là gì?
-          </h2>
-        </div>
-
-        {/* Options Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {currentQ.options.map((option, index) => {
-            let buttonClass = "h-14 text-base font-medium transition-all";
-            
-            if (selectedAnswer === option) {
-              if (isCorrect) {
-                buttonClass += " bg-success text-success-foreground hover:bg-success";
-              } else {
-                buttonClass += " bg-destructive text-destructive-foreground hover:bg-destructive";
-              }
-            } else if (selectedAnswer !== null && option === currentQ.correctWord) {
-              // Show correct answer when wrong selected
-              buttonClass += " bg-success/20 border-success";
-            }
-
-            return (
-              <Button
-                key={index}
-                onClick={() => handleSelect(option)}
-                variant={selectedAnswer === option ? "default" : "outline"}
-                className={buttonClass}
-                disabled={selectedAnswer !== null && selectedAnswer !== option}
-              >
-                {option}
-                {selectedAnswer === option && isCorrect && (
-                  <Check className="w-5 h-5 ml-2" />
-                )}
-                {selectedAnswer === option && !isCorrect && (
-                  <X className="w-5 h-5 ml-2" />
-                )}
-              </Button>
-            );
-          })}
-        </div>
-
-        {/* Wrong Answer Actions */}
-        {isCorrect === false && (
-          <div className="mt-6 space-y-3">
-            <p className="text-center text-destructive text-sm">
-              Sai rồi! Từ đúng là "{currentQ.correctWord}"
-            </p>
-            <div className="flex gap-2">
-              <Button
-                onClick={onBack}
-                variant="outline"
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Xem lại seed
-              </Button>
-              <Button
-                onClick={handleRetry}
-                variant="secondary"
-                className="flex-1"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Thử lại
-              </Button>
+      {/* Content - Cuộn được */}
+      <ScrollAreaPrimitive.Root className="flex-1 overflow-hidden">
+        <ScrollAreaPrimitive.Viewport className="h-full w-full">
+          <div className="px-4 pb-4">
+            {/* Progress Bar */}
+            <div className="mb-6">
+              <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                <span>Câu hỏi {currentQuestion + 1}/{totalQuestions}</span>
+                <span>{correctCount} đúng</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
             </div>
+
+            {/* Question */}
+            <div className="text-center mb-6">
+              <p className="text-muted-foreground text-sm mb-2">Chọn từ đúng</p>
+              <h2 className="text-2xl font-bold">
+                Từ thứ <span className="text-primary">{currentQ.wordIndex + 1}</span> là gì?
+              </h2>
+            </div>
+
+            {/* Options Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              {currentQ.options.map((option, index) => {
+                let buttonClass = "h-14 text-base font-medium transition-all";
+                
+                if (selectedAnswer === option) {
+                  if (isCorrect) {
+                    buttonClass += " bg-success text-success-foreground hover:bg-success";
+                  } else {
+                    buttonClass += " bg-destructive text-destructive-foreground hover:bg-destructive";
+                  }
+                } else if (selectedAnswer !== null && option === currentQ.correctWord) {
+                  // Show correct answer when wrong selected
+                  buttonClass += " bg-success/20 border-success";
+                }
+
+                return (
+                  <Button
+                    key={index}
+                    onClick={() => handleSelect(option)}
+                    variant={selectedAnswer === option ? "default" : "outline"}
+                    className={buttonClass}
+                    disabled={selectedAnswer !== null && selectedAnswer !== option}
+                  >
+                    {option}
+                    {selectedAnswer === option && isCorrect && (
+                      <Check className="w-5 h-5 ml-2" />
+                    )}
+                    {selectedAnswer === option && !isCorrect && (
+                      <X className="w-5 h-5 ml-2" />
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
+
+            {/* Wrong Answer Actions */}
+            {isCorrect === false && (
+              <div className="mt-6 space-y-3">
+                <p className="text-center text-destructive text-sm">
+                  Sai rồi! Từ đúng là "{currentQ.correctWord}"
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={onBack}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Xem lại seed
+                  </Button>
+                  <Button
+                    onClick={handleRetry}
+                    variant="secondary"
+                    className="flex-1"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Thử lại
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </ScrollAreaPrimitive.Viewport>
+        <ScrollAreaPrimitive.Scrollbar 
+          orientation="vertical"
+          className="flex touch-none select-none transition-colors h-full w-2.5 border-l border-l-transparent p-[1px]"
+        >
+          <ScrollAreaPrimitive.Thumb className="relative flex-1 rounded-full bg-border" />
+        </ScrollAreaPrimitive.Scrollbar>
+      </ScrollAreaPrimitive.Root>
     </div>
   );
 }
