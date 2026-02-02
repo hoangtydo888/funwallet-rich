@@ -4,6 +4,7 @@ import { PenTool, X, Check, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { ethers } from 'ethers';
 import { decryptPrivateKey } from '@shared/lib/encryption';
 import { SecureWalletStorage } from '@shared/types';
+import { STORAGE_KEYS } from '@shared/storage/types';
 
 interface PendingSignRequest {
   id: string;
@@ -59,8 +60,8 @@ function ApproveSignPage() {
     
     try {
       // Get encrypted wallet data
-      const encryptedData = await chrome.storage.local.get('fun_wallet_encrypted_keys');
-      const data = encryptedData.fun_wallet_encrypted_keys;
+      const encryptedData = await chrome.storage.local.get(STORAGE_KEYS.ENCRYPTED_KEYS);
+      const data = encryptedData[STORAGE_KEYS.ENCRYPTED_KEYS];
       
       if (!data) {
         throw new Error('Không tìm thấy ví');
