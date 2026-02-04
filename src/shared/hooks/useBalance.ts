@@ -95,8 +95,15 @@ export const useBalance = (
       );
 
       if (mountedRef.current) {
-        // Sort by USD value (descending)
-        results.sort((a, b) => (b.balanceUsd || 0) - (a.balanceUsd || 0));
+        // Keep original order from tokens array - DO NOT sort by USD value
+        // This prevents flickering when prices change
+        const tokenOrderMap = new Map(tokens.map((t, i) => [t.symbol, i]));
+        results.sort((a, b) => {
+          const orderA = tokenOrderMap.get(a.symbol) ?? 999;
+          const orderB = tokenOrderMap.get(b.symbol) ?? 999;
+          return orderA - orderB;
+        });
+        
         setBalances(results);
         setLoading(false);
         initialLoadDone.current = true;
