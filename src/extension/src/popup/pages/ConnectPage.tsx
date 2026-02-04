@@ -8,13 +8,22 @@ function ConnectPage() {
 
   const handleApprove = async () => {
     if (requestId) {
-      // Send approval to background with requestId
-      await chrome.runtime.sendMessage({
-        type: 'APPROVE_CONNECTION',
-        payload: { requestId, origin }
+      // Send approval to background with requestId - sử dụng Promise với callback
+      await new Promise<void>((resolve) => {
+        chrome.runtime.sendMessage({
+          type: 'APPROVE_CONNECTION',
+          payload: { requestId, origin }
+        }, () => {
+          resolve();
+        });
       });
+      
+      // Broadcast event để các component khác refresh data (số dư, etc.)
+      chrome.runtime.sendMessage({ type: 'REFRESH_BALANCES' }).catch(() => {});
     }
-    window.close();
+    
+    // Đợi đủ thời gian để message được xử lý
+    setTimeout(() => window.close(), 500);
   };
 
   const handleReject = async () => {

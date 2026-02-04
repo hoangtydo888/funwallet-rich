@@ -45,6 +45,27 @@ function HomePage() {
     loadWalletAddress();
   }, []);
 
+  // Auto-refresh balances khi popup được mở/focus hoặc sau khi connect
+  useEffect(() => {
+    if (address) {
+      // Trigger refresh ngay khi có address
+      refreshBalances();
+    }
+    
+    // Refresh khi popup được focus lại
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && address) {
+        refreshBalances();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [address, refreshBalances]);
+
   const loadWalletAddress = async () => {
     try {
       const walletData = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_WALLET);

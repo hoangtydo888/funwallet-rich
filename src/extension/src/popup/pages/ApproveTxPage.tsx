@@ -130,18 +130,30 @@ function ApproveTxPage() {
       const txResponse = await wallet.sendTransaction(tx);
       console.log('[ApproveTxPage] Transaction sent:', txResponse.hash);
       
-      // Notify background of success - CRITICAL: phải gửi đúng requestId
+      // CRITICAL: Đợi transaction được broadcast trước khi đóng popup
+      try {
+        await txResponse.wait(0); // Đợi ít nhất 0 confirmations (broadcast xong)
+        console.log('[ApproveTxPage] Transaction broadcasted successfully');
+      } catch (waitErr) {
+        // Có thể fail nếu timeout, nhưng tx đã được gửi
+        console.warn('[ApproveTxPage] wait(0) failed but tx may still be sent:', waitErr);
+      }
+      
+      // Notify background of success - sử dụng Promise với callback để đảm bảo message được gửi
       console.log('[ApproveTxPage] Sending APPROVE_TRANSACTION with requestId:', requestId);
       
-      const response = await chrome.runtime.sendMessage({
-        type: 'APPROVE_TRANSACTION',
-        payload: { requestId, txHash: txResponse.hash }
+      await new Promise<void>((resolve) => {
+        chrome.runtime.sendMessage({
+          type: 'APPROVE_TRANSACTION',
+          payload: { requestId, txHash: txResponse.hash }
+        }, (response) => {
+          console.log('[ApproveTxPage] APPROVE_TRANSACTION response:', response);
+          resolve();
+        });
       });
       
-      console.log('[ApproveTxPage] APPROVE_TRANSACTION response:', response);
-      
-      // Wait a moment before closing to ensure message is sent
-      setTimeout(() => window.close(), 500);
+      // Đợi đủ thời gian để message được xử lý hoàn toàn bởi background
+      setTimeout(() => window.close(), 1000);
     } catch (err) {
       console.error('[ApproveTxPage] Transaction error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
