@@ -1,56 +1,36 @@
 
-# Kế Hoạch: Chuyển Từ Side Panel Sang Popup Window Nổi Bên Phải Màn Hình
+# Kế Hoạch: Sửa Lỗi Nhấp Nháy Và Cố Định Vị Trí Token
 
-## Mục Tiêu
+## Vấn Đề Đã Xác Định
 
-Khi user click "FUN Wallet" trong modal kết nối ví của DApp, FUN Wallet sẽ hiển thị như một **popup window nổi** (floating window) bên phải màn hình, không phải Side Panel cố định gắn vào trình duyệt.
+Sau khi phân tích code, tôi phát hiện **nguyên nhân gốc** gây ra hiện tượng nhấp nháy và thay đổi vị trí token:
 
-## Phân Tích Hiện Tại
-
-Code hiện tại đang sử dụng `chrome.sidePanel.open()` trong `openPopup()` và `openPopupWithUnlockRedirect()`:
-
+### 1. Sorting Liên Tục Theo USD Value
+Trong file `src/shared/hooks/useBalance.ts` (dòng 99):
 ```typescript
-// Dòng 840-850
-if (tab?.id && chrome.sidePanel) {
-  await chrome.sidePanel.setOptions({...});
-  await chrome.sidePanel.open({ tabId: tab.id });  // ← Side Panel cố định
-}
+// Sort by USD value (descending)
+results.sort((a, b) => (b.balanceUsd || 0) - (a.balanceUsd || 0));
 ```
 
-## Giải Pháp: Sử Dụng Popup Window Với Vị Trí Bên Phải
+Mỗi khi giá token thay đổi (mỗi 30 giây) → balanceUsd thay đổi → thứ tự token thay đổi → UI nhấp nháy!
 
-Thay đổi để sử dụng `chrome.windows.create()` với vị trí được tính toán để hiển thị bên **phải màn hình**:
+### 2. priceMap Dependency Không Ổn Định
+Mỗi khi `priceMap` thay đổi → `fetchBalances` được gọi lại → toàn bộ danh sách token được render lại.
 
-```typescript
-async function openPopup(page: string, params?: Record<string, unknown>): Promise<void> {
-  const queryString = params 
-    ? `?${new URLSearchParams(params as Record<string, string>).toString()}`
-    : '';
-  
-  // Lấy thông tin cửa sổ hiện tại để tính vị trí
-  const currentWindow = await chrome.windows.getCurrent();
-  
-  // Kích thước popup
-  const popupWidth = 360;
-  const popupHeight = 600;
-  
-  // Tính vị trí để popup hiển thị bên phải cửa sổ trình duyệt
-  // Top: Căn giữa theo chiều dọc của cửa sổ
-  // Left: Sát bên phải của cửa sổ trình duyệt
-  const top = Math.round((currentWindow.top || 0) + ((currentWindow.height || 600) - popupHeight) / 2);
-  const left = Math.round((currentWindow.left || 0) + (currentWindow.width || 1200) - popupWidth - 20);
-  
-  await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html#/${page}${queryString}`),
-    type: 'popup',
-    width: popupWidth,
-    height: popupHeight,
-    top: top > 0 ? top : 100,
-    left: left > 0 ? left : 100,
-    focused: true,
-  });
-}
-```
+---
+
+## Giải Pháp
+
+### 1. Bỏ Sort Hoặc Sort Theo Thứ Tự Cố Định
+Giữ nguyên thứ tự như trong `COMMON_TOKENS` (thứ tự ưu tiên đã được định nghĩa sẵn):
+- CAMLY, BTCB, USDT, BNB... (không thay đổi theo giá)
+
+### 2. Tối Ưu Dependencies Để Giảm Re-render
+- Tách biệt việc cập nhật giá và cập nhật số dư
+- Chỉ re-render khi có thay đổi thực sự cần thiết
+
+### 3. Thêm CSS Transition Mượt Mà (Tùy chọn)
+Nếu vẫn muốn sort theo USD, thêm animation để transition mượt hơn.
 
 ---
 
@@ -58,112 +38,94 @@ async function openPopup(page: string, params?: Record<string, unknown>): Promis
 
 | File | Thay Đổi |
 |------|----------|
-| `src/extension/src/background/service-worker.ts` | Bỏ Side Panel, dùng popup window với vị trí bên phải |
-| `src/extension/public/manifest.json` | Giữ nguyên (hoặc bỏ sidePanel nếu không cần) |
+| `src/shared/hooks/useBalance.ts` | Bỏ sort hoặc sort theo thứ tự cố định trong COMMON_TOKENS |
 
 ---
 
 ## Chi Tiết Thay Đổi
 
-### 1. service-worker.ts - Hàm openPopup()
+### useBalance.ts - Bỏ Dynamic Sort
 
-**Trước** (dùng Side Panel):
+**Trước** (gây nhấp nháy):
 ```typescript
-async function openPopup(page: string, params?: Record<string, unknown>): Promise<void> {
-  // ...
-  if (tab?.id && chrome.sidePanel) {
-    await chrome.sidePanel.setOptions({...});
-    await chrome.sidePanel.open({ tabId: tab.id });
-  } else {
-    await chrome.windows.create({...});
-  }
+if (mountedRef.current) {
+  // Sort by USD value (descending) ← NGUYÊN NHÂN GÂY NHẤP NHÁY
+  results.sort((a, b) => (b.balanceUsd || 0) - (a.balanceUsd || 0));
+  setBalances(results);
+  setLoading(false);
+  initialLoadDone.current = true;
 }
 ```
 
-**Sau** (dùng Popup Window nổi bên phải):
+**Sau** (cố định vị trí theo thứ tự trong COMMON_TOKENS):
 ```typescript
-async function openPopup(page: string, params?: Record<string, unknown>): Promise<void> {
-  const queryString = params 
-    ? `?${new URLSearchParams(params as Record<string, string>).toString()}`
-    : '';
+if (mountedRef.current) {
+  // Keep original order from tokens array - DO NOT sort dynamically
+  // This prevents flickering when prices change
   
-  // Lấy thông tin cửa sổ hiện tại
-  const currentWindow = await chrome.windows.getCurrent();
-  
-  const popupWidth = 360;
-  const popupHeight = 600;
-  
-  // Vị trí bên phải cửa sổ trình duyệt
-  const top = Math.round((currentWindow.top || 0) + ((currentWindow.height || 600) - popupHeight) / 2);
-  const left = Math.round((currentWindow.left || 0) + (currentWindow.width || 1200) - popupWidth - 20);
-  
-  await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html#/${page}${queryString}`),
-    type: 'popup',
-    width: popupWidth,
-    height: popupHeight,
-    top: Math.max(top, 0),
-    left: Math.max(left, 0),
-    focused: true,
+  // Sort to match original token order (từ mảng tokens đầu vào)
+  const tokenOrderMap = new Map(tokens.map((t, i) => [t.symbol, i]));
+  results.sort((a, b) => {
+    const orderA = tokenOrderMap.get(a.symbol) ?? 999;
+    const orderB = tokenOrderMap.get(b.symbol) ?? 999;
+    return orderA - orderB;
   });
+  
+  setBalances(results);
+  setLoading(false);
+  initialLoadDone.current = true;
 }
-```
-
-### 2. service-worker.ts - Hàm openPopupWithUnlockRedirect()
-
-Tương tự, thay đổi để sử dụng popup window thay vì Side Panel.
-
-### 3. service-worker.ts - Hàm initialize()
-
-Bỏ hoặc giữ lại cấu hình Side Panel tùy ý (nếu muốn click icon vẫn mở Side Panel):
-```typescript
-// Có thể comment out hoặc bỏ dòng này
-// if (chrome.sidePanel) {
-//   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-//     .catch(console.error);
-// }
 ```
 
 ---
 
-## Sơ Đồ Vị Trí Popup
+## Sơ Đồ So Sánh
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│  Trình duyệt Chrome                                                    │
-│ ┌──────────────────────────────────────────────────────┬─────────────┐ │
-│ │                                                      │ FUN Wallet  │ │
-│ │                                                      │ ┌─────────┐ │ │
-│ │          Nội dung trang DApp                         │ │  Popup  │ │ │
-│ │                                                      │ │  Window │ │ │
-│ │     ┌───────────────────────┐                        │ │  (nổi)  │ │ │
-│ │     │ Kết nối một chiếc ví  │                        │ │         │ │ │
-│ │     │                       │                        │ │ 360x600 │ │ │
-│ │     │   [FUN Wallet]  ←─────┼────────────────────────┼─│         │ │ │
-│ │     │   [MetaMask]          │                        │ └─────────┘ │ │
-│ │     └───────────────────────┘                        │             │ │
-│ │                                                      │ 20px margin │ │
-│ └──────────────────────────────────────────────────────┴─────────────┘ │
-└────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                     TRƯỚC (GÂY NHẤP NHÁY)                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  T0: ADA → BNB → CAMLY → BTCB (sort theo USD value)                │
+│       │                                                             │
+│       ▼ Giá BNB tăng                                               │
+│                                                                     │
+│  T1: BNB → ADA → BTCB → CAMLY (thứ tự thay đổi!)                  │
+│       │                                                             │
+│       ▼ Giá CAMLY tăng                                             │
+│                                                                     │
+│  T2: CAMLY → BNB → ADA → BTCB (thứ tự thay đổi lại!)              │
+│                                                                     │
+│  → UI nhấp nháy liên tục mỗi 30 giây!                              │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     SAU (CỐ ĐỊNH VỊ TRÍ)                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  T0: CAMLY → BTCB → USDT → BNB (theo COMMON_TOKENS)                │
+│       │                                                             │
+│       ▼ Giá thay đổi - thứ tự KHÔNG đổi                            │
+│                                                                     │
+│  T1: CAMLY → BTCB → USDT → BNB (giữ nguyên vị trí)                │
+│       │                                                             │
+│       ▼ Giá thay đổi tiếp - thứ tự vẫn KHÔNG đổi                   │
+│                                                                     │
+│  T2: CAMLY → BTCB → USDT → BNB (ổn định!)                         │
+│                                                                     │
+│  → UI ổn định, chỉ cập nhật số tiền                                │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## Lợi Ích
-
-1. **Popup nổi**: Cửa sổ độc lập, có thể di chuyển tự do
-2. **Vị trí thông minh**: Mở bên phải màn hình để không che DApp
-3. **Trải nghiệm quen thuộc**: Giống cách nhiều ví khác hoạt động
-4. **Không cần API mới**: `chrome.windows.create()` được hỗ trợ trên mọi phiên bản Chrome
 
 ---
 
 ## Kết Quả Mong Đợi
 
-1. Click "FUN Wallet" trong modal → Popup window nổi mở bên phải màn hình
-2. Popup có thể di chuyển tự do
-3. User nhập mật khẩu và phê duyệt giao dịch trong popup
-4. Popup tự đóng sau khi hoàn thành
+1. **Vị trí token cố định**: Theo thứ tự trong `COMMON_TOKENS` (CAMLY → BTCB → USDT → BNB → ...)
+2. **Không còn nhấp nháy**: Chỉ cập nhật giá trị USD, không thay đổi vị trí
+3. **Trải nghiệm mượt mà**: User có thể cuộn và xem token mà không bị nhảy
 
 ---
 
@@ -171,6 +133,7 @@ Bỏ hoặc giữ lại cấu hình Side Panel tùy ý (nếu muốn click icon 
 
 1. `npm run build:ext`
 2. Reload extension trong Chrome
-3. Mở FUN Profile DApp → Click "Connect Wallet"
-4. Chọn "FUN Wallet" → **Xác nhận popup nổi mở bên phải màn hình**
-5. Gửi giao dịch → Popup phê duyệt mở đúng vị trí
+3. Mở popup → Xem danh sách token
+4. **Đợi 30-60 giây** để giá tự động cập nhật
+5. **Xác nhận**: Thứ tự token giữ nguyên, chỉ có số tiền USD thay đổi
+6. Cuộn lên xuống → Token không nhảy vị trí
