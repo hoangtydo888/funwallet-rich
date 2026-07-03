@@ -16,14 +16,19 @@ export type Database = {
     Tables: {
       kyc_submissions: {
         Row: {
+          address: string | null
           created_at: string
+          date_of_birth: string | null
           full_name: string | null
           id: string
           id_back_path: string | null
           id_front_path: string | null
           id_number: string | null
+          nationality: string | null
+          phone: string | null
           rejection_reason: string | null
           reviewed_at: string | null
+          reviewed_by: string | null
           selfie_path: string | null
           status: string
           submitted_at: string
@@ -31,14 +36,19 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          address?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string | null
           id?: string
           id_back_path?: string | null
           id_front_path?: string | null
           id_number?: string | null
+          nationality?: string | null
+          phone?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
+          reviewed_by?: string | null
           selfie_path?: string | null
           status?: string
           submitted_at?: string
@@ -46,17 +56,49 @@ export type Database = {
           user_id: string
         }
         Update: {
+          address?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string | null
           id?: string
           id_back_path?: string | null
           id_front_path?: string | null
           id_number?: string | null
+          nationality?: string | null
+          phone?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
+          reviewed_by?: string | null
           selfie_path?: string | null
           status?: string
           submitted_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          kyc_status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          kyc_status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          kyc_status?: string
           updated_at?: string
           user_id?: string
         }
