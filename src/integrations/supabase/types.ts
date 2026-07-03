@@ -97,6 +97,39 @@ export type Database = {
         }
         Relationships: []
       }
+      encrypted_wallet_keys: {
+        Row: {
+          created_at: string
+          encrypted_key: string
+          id: string
+          key_iv: string
+          key_salt: string
+          updated_at: string
+          user_id: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_key: string
+          id?: string
+          key_iv: string
+          key_salt: string
+          updated_at?: string
+          user_id: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_key?: string
+          id?: string
+          key_iv?: string
+          key_salt?: string
+          updated_at?: string
+          user_id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       kyc_submissions: {
         Row: {
           address: string | null
@@ -514,6 +547,39 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          bulk_send_defaults: Json | null
+          created_at: string
+          favorite_token: string | null
+          id: string
+          recent_addresses: Json | null
+          updated_at: string
+          user_id: string
+          walletconnect_sessions: Json | null
+        }
+        Insert: {
+          bulk_send_defaults?: Json | null
+          created_at?: string
+          favorite_token?: string | null
+          id?: string
+          recent_addresses?: Json | null
+          updated_at?: string
+          user_id: string
+          walletconnect_sessions?: Json | null
+        }
+        Update: {
+          bulk_send_defaults?: Json | null
+          created_at?: string
+          favorite_token?: string | null
+          id?: string
+          recent_addresses?: Json | null
+          updated_at?: string
+          user_id?: string
+          walletconnect_sessions?: Json | null
         }
         Relationships: []
       }
