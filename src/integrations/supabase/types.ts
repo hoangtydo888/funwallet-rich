@@ -14,6 +14,89 @@ export type Database = {
   }
   public: {
     Tables: {
+      bulk_transfer_items: {
+        Row: {
+          amount: string
+          bulk_transfer_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          recipient_address: string
+          status: string
+          tx_hash: string | null
+        }
+        Insert: {
+          amount: string
+          bulk_transfer_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_address: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Update: {
+          amount?: string
+          bulk_transfer_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_address?: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_transfer_items_bulk_transfer_id_fkey"
+            columns: ["bulk_transfer_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bulk_transfers: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          failed_count: number
+          id: string
+          status: string
+          successful_count: number
+          token_address: string | null
+          token_symbol: string
+          total_amount: string
+          total_recipients: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          failed_count?: number
+          id?: string
+          status?: string
+          successful_count?: number
+          token_address?: string | null
+          token_symbol: string
+          total_amount?: string
+          total_recipients?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          failed_count?: number
+          id?: string
+          status?: string
+          successful_count?: number
+          token_address?: string | null
+          token_symbol?: string
+          total_amount?: string
+          total_recipients?: number
+        }
+        Relationships: []
+      }
       kyc_submissions: {
         Row: {
           address: string | null
@@ -104,6 +187,93 @@ export type Database = {
         }
         Relationships: []
       }
+      rewards: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          reward_amount: string
+          reward_symbol: string | null
+          reward_type: string
+          sent_at: string | null
+          status: string
+          user_id: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          reward_amount: string
+          reward_symbol?: string | null
+          reward_type: string
+          sent_at?: string | null
+          status?: string
+          user_id: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          reward_amount?: string
+          reward_symbol?: string | null
+          reward_type?: string
+          sent_at?: string | null
+          status?: string
+          user_id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: string | null
+          created_at: string
+          from_address: string | null
+          id: string
+          status: string
+          to_address: string | null
+          token_address: string | null
+          token_symbol: string | null
+          tx_hash: string | null
+          tx_type: string
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          amount?: string | null
+          created_at?: string
+          from_address?: string | null
+          id?: string
+          status?: string
+          to_address?: string | null
+          token_address?: string | null
+          token_symbol?: string | null
+          tx_hash?: string | null
+          tx_type: string
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          amount?: string | null
+          created_at?: string
+          from_address?: string | null
+          id?: string
+          status?: string
+          to_address?: string | null
+          token_address?: string | null
+          token_symbol?: string | null
+          tx_hash?: string | null
+          tx_type?: string
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -121,6 +291,33 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          address: string
+          chain: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          chain?: string
+          created_at?: string
+          id?: string
+          name?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          chain?: string
+          created_at?: string
+          id?: string
+          name?: string
           user_id?: string
         }
         Relationships: []

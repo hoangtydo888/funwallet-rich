@@ -115,7 +115,7 @@ export const useAdmin = () => {
 
       // Combine profiles with their wallets
       const usersWithWallets: UserWithWallets[] = (profiles || []).map((profile) => ({
-        id: profile.id,
+        id: profile.user_id,
         user_id: profile.user_id,
         email: profile.email,
         display_name: profile.display_name,
