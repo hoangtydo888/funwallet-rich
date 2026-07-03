@@ -1,80 +1,39 @@
-# Kế Hoạch: Khôi Phục Backup KYC vào Project Mới
+## Mục tiêu
+1. Người dùng nộp KYC (form + upload 3 ảnh) → lưu vào `kyc_submissions` (status=pending) + ảnh vào bucket `kyc-documents/<user_id>/`.
+2. Trang admin xem danh sách hồ sơ KYC, xem ảnh, approve/reject (ghi `reviewed_by`, `reviewed_at`, cập nhật `kyc_status` trên profile người dùng).
+3. Gán record `kyc_submissions` hiện có (`user_id=036666a4-...`) sang user thật của cha: `e5c1e619-0188-4210-94b2-7ac3c12cc23a` (hoangtydo88@gmail.com), đồng thời move ảnh trong storage sang thư mục mới.
 
-## Bối Cảnh
+## Tình trạng hiện tại
+- Đã có file UI: `src/pages/KYC.tsx`, `src/pages/Admin.tsx`, `src/components/admin/KYCTable.tsx`, hook `src/hooks/useKYC.ts`, `src/hooks/useAdminKYC.ts`, route `/kyc` và `/admin` đã đăng ký trong `App.tsx`.
+- Code hiện tại tham chiếu các cột/bảng chưa tồn tại: `profiles` (email, display_name, kyc_status), và các cột phụ trên `kyc_submissions` (`date_of_birth`, `nationality`, `phone`, `address`, `reviewed_by`). Cần bổ sung schema để code chạy được.
 
-File backup cha gởi (`xavgatuwiaeewdfpkycn.storage.zip`) chứa **15 ảnh KYC** của 1 user từ project Supabase cũ:
+## Kế hoạch thực hiện
 
-```text
-kyc-documents/
-└── 036666a4-61a2-48d8-8a06-a0fe0f3a1804/  (user_id cũ)
-    ├── id_front_*.jpg   (5 phiên bản)
-    ├── id_back_*.jpg    (5 phiên bản)
-    └── selfie_*.jpg     (5 phiên bản)
-```
+### Bước 1 — Migration bổ sung schema
+- Thêm cột vào `public.kyc_submissions`: `date_of_birth date`, `nationality text`, `phone text`, `address text`, `reviewed_by uuid`.
+- Tạo bảng `public.profiles` (`user_id uuid PK ref auth.users on delete cascade`, `email text`, `display_name text`, `kyc_status text default 'pending'`, `created_at`, `updated_at`) + GRANT + RLS (user tự xem/sửa profile của mình; admin xem tất cả) + trigger `update_updated_at_column`.
+- Trigger `handle_new_user` (SECURITY DEFINER) trên `auth.users` để tự tạo row `profiles` khi có user mới.
+- Backfill row profile cho user hiện tại `e5c1e619-...`.
+- Cấp role `admin` cho `e5c1e619-...` trong `user_roles` để có thể vào trang `/admin`.
 
-Project hiện tại **chưa có** bucket này và **chưa có** bảng KYC nào. Con sẽ tạo mới toàn bộ hạ tầng KYC và upload ảnh backup vào.
+### Bước 2 — Gán record KYC cũ sang tài khoản mới
+- Copy 15 file trong storage từ `kyc-documents/036666a4-.../` sang `kyc-documents/e5c1e619-.../` (dùng script exec với service role), xoá thư mục cũ.
+- UPDATE record `be2c7445-...`: đổi `user_id` sang `e5c1e619-...`, đổi các path `id_front_path/id_back_path/selfie_path` sang prefix thư mục mới.
+- Đặt `profiles.kyc_status='submitted'` cho user này để đồng bộ.
 
----
+### Bước 3 — Rà soát UI (không đổi logic lớn)
+- Xác nhận `src/pages/KYC.tsx` + `useKYC` hoạt động sau khi migration chạy (types Supabase regenerate). Không đổi UI trừ khi lỗi build.
+- Xác nhận `src/pages/Admin.tsx` + `KYCTable` render danh sách, preview ảnh (signed URL 1h) và approve/reject.
+- Thêm link "KYC" trong Dashboard/Settings nếu chưa có (điều hướng `/kyc`), và link "Admin" chỉ hiện với user có role admin.
 
-## Các Bước Thực Hiện
+### Bước 4 — Kiểm thử
+- Build check (tsgo), mở `/kyc` với tài khoản `hoangtydo88@gmail.com`, thấy trạng thái "submitted" (do record đã gán).
+- Mở `/admin` → thấy 1 hồ sơ pending → xem ảnh → approve → `kyc_status` cập nhật thành `approved`.
 
-### Bước 1: Tạo Storage Bucket `kyc-documents` (Private)
-- Dùng tool `supabase--storage_create_bucket` với `public: false`
-- Bucket private để bảo vệ dữ liệu nhạy cảm (CMND, selfie)
-- Truy cập thông qua signed URL hoặc RLS policy
+## Ghi chú kỹ thuật
+- RLS `kyc_submissions` đã đúng (user tự sửa khi pending, admin sửa mọi lúc).
+- Storage bucket `kyc-documents` private, dùng signed URL trong trang admin.
+- Không thay đổi `src/integrations/supabase/types.ts` thủ công — sẽ tự regenerate sau migration.
 
-### Bước 2: Tạo Bảng `kyc_submissions`
-Migration tạo bảng lưu trạng thái KYC của mỗi user:
-
-| Trường | Mục đích |
-|---|---|
-| user_id | Liên kết tới auth user |
-| full_name | Họ tên trên CMND |
-| id_number | Số CMND/CCCD |
-| id_front_path | Đường dẫn ảnh mặt trước trong bucket |
-| id_back_path | Đường dẫn ảnh mặt sau |
-| selfie_path | Đường dẫn ảnh selfie |
-| status | pending / approved / rejected |
-| rejection_reason | Lý do từ chối (nếu có) |
-| submitted_at, reviewed_at | Mốc thời gian |
-
-- Enable RLS
-- Policy: User chỉ xem/tạo/sửa hồ sơ KYC của chính mình
-- Policy: Admin (dùng bảng `user_roles` + `has_role`) có thể xem & duyệt tất cả
-- Trigger `update_updated_at_column`
-
-### Bước 3: Tạo Bảng `user_roles` (nếu chưa có) + Enum `app_role`
-- Cần để phân quyền admin duyệt KYC
-- Theo đúng best practice bảo mật (không lưu role trên profile)
-
-### Bước 4: RLS Policies cho `storage.objects` (bucket kyc-documents)
-- User chỉ upload/đọc file trong thư mục `{auth.uid()}/...` của chính mình
-- Admin đọc được tất cả file trong bucket
-
-### Bước 5: Khôi Phục 15 Ảnh Vào Bucket
-- Copy file từ `/mnt/user-uploads/xavgatuwiaeewdfpkycn.storage.zip` → giải nén
-- Upload bằng script Node/Deno dùng service role key vào path:
-  `kyc-documents/036666a4-61a2-48d8-8a06-a0fe0f3a1804/<filename>.jpg`
-- Giữ nguyên `user_id` cũ trong path (để tương thích nếu user đó có tài khoản ở project mới)
-
-### Bước 6: Insert 1 Record `kyc_submissions`
-- Tạo 1 dòng ứng với user `036666a4-...` với `status = 'pending'`, trỏ tới ảnh mới nhất (timestamp cao nhất) trong mỗi loại
-
----
-
-## Lưu Ý Quan Trọng Cho Cha
-
-1. **User ID `036666a4-61a2-48d8-8a06-a0fe0f3a1804` là từ project Supabase cũ** — user này có thể không tồn tại trong project mới. Ảnh vẫn được lưu để tham khảo, nhưng RLS policy sẽ chỉ cho phép user cùng ID đó truy cập. Nếu cha muốn gán cho user khác, cha báo con user_id mới sau khi cha đăng nhập.
-
-2. **Không có tính năng KYC nào trong UI hiện tại** — kế hoạch này chỉ khôi phục **dữ liệu backend** (bucket + bảng + ảnh). Nếu cha muốn có form UI cho user submit KYC và trang admin duyệt KYC, con cần lập kế hoạch UI riêng ở lần sau.
-
-3. **Không phải backup toàn bộ project** — file zip cha gởi chỉ chứa 1 bucket storage. Code, database schema, và các data khác của FUN Wallet **không** nằm trong backup này.
-
----
-
-## Kết Quả Mong Đợi
-
-- Bucket `kyc-documents` (private) tồn tại trong Supabase mới
-- 15 ảnh KYC được upload đầy đủ vào bucket
-- Bảng `kyc_submissions` + `user_roles` sẵn sàng cho tính năng KYC sau này
-- Không ảnh hưởng gì tới các tính năng ví hiện tại (wallet, send, connect DApp...)
+## Câu hỏi xác nhận
+Con dùng user `hoangtydo88@gmail.com` (`e5c1e619-...`) làm chủ mới của record KYC và cấp quyền admin luôn cho user này, đúng không cha?
