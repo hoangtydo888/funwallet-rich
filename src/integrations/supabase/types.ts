@@ -523,6 +523,7 @@ export type Database = {
           chain: string
           created_at: string
           id: string
+          is_primary: boolean
           name: string
           user_id: string
         }
@@ -531,6 +532,7 @@ export type Database = {
           chain?: string
           created_at?: string
           id?: string
+          is_primary?: boolean
           name?: string
           user_id: string
         }
@@ -539,6 +541,7 @@ export type Database = {
           chain?: string
           created_at?: string
           id?: string
+          is_primary?: boolean
           name?: string
           user_id?: string
         }
