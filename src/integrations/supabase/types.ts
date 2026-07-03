@@ -160,6 +160,75 @@ export type Database = {
         }
         Relationships: []
       }
+      learning_progress: {
+        Row: {
+          completed_at: string | null
+          course_id: string
+          created_at: string
+          id: string
+          progress: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          course_id: string
+          created_at?: string
+          id?: string
+          progress?: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          course_id?: string
+          created_at?: string
+          id?: string
+          progress?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      nft_collections: {
+        Row: {
+          chain: string
+          contract_address: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          metadata_url: string | null
+          name: string | null
+          token_id: string
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          chain?: string
+          contract_address: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          metadata_url?: string | null
+          name?: string | null
+          token_id: string
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          chain?: string
+          contract_address?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          metadata_url?: string | null
+          name?: string | null
+          token_id?: string
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -229,6 +298,90 @@ export type Database = {
         }
         Relationships: []
       }
+      security_logs: {
+        Row: {
+          created_at: string
+          event_details: Json | null
+          event_type: string
+          id: string
+          ip_address: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_details?: Json | null
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_details?: Json | null
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      staking_positions: {
+        Row: {
+          amount: string
+          apy: number
+          created_at: string
+          earned: string
+          ends_at: string | null
+          id: string
+          lock_days: number
+          pool_name: string
+          status: string
+          token_address: string | null
+          token_symbol: string
+          updated_at: string
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          amount: string
+          apy?: number
+          created_at?: string
+          earned?: string
+          ends_at?: string | null
+          id?: string
+          lock_days?: number
+          pool_name: string
+          status?: string
+          token_address?: string | null
+          token_symbol: string
+          updated_at?: string
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          amount?: string
+          apy?: number
+          created_at?: string
+          earned?: string
+          ends_at?: string | null
+          id?: string
+          lock_days?: number
+          pool_name?: string
+          status?: string
+          token_address?: string | null
+          token_symbol?: string
+          updated_at?: string
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: string | null
@@ -271,6 +424,75 @@ export type Database = {
           tx_type?: string
           user_id?: string
           wallet_id?: string | null
+        }
+        Relationships: []
+      }
+      user_cards: {
+        Row: {
+          balance: number
+          card_number: string
+          card_tier: string
+          created_at: string
+          id: string
+          is_locked: boolean
+          nft_badge_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          card_number: string
+          card_tier?: string
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          nft_badge_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          card_number?: string
+          card_tier?: string
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          nft_badge_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_learning_stats: {
+        Row: {
+          certificates_earned: string[]
+          created_at: string
+          id: string
+          last_activity_date: string | null
+          level: number
+          streak_days: number
+          user_id: string
+          xp: number
+        }
+        Insert: {
+          certificates_earned?: string[]
+          created_at?: string
+          id?: string
+          last_activity_date?: string | null
+          level?: number
+          streak_days?: number
+          user_id: string
+          xp?: number
+        }
+        Update: {
+          certificates_earned?: string[]
+          created_at?: string
+          id?: string
+          last_activity_date?: string | null
+          level?: number
+          streak_days?: number
+          user_id?: string
+          xp?: number
         }
         Relationships: []
       }
