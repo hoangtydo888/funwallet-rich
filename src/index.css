@@ -4,140 +4,88 @@
 @tailwind components;
 @tailwind utilities;
 
-/* FUN Wallet Design System - Premium Emerald / Teal / Gold */
-/* Cảm hứng: Apple + Stripe + Coinbase + Linear */
+/* FUN Wallet Design System - Rainbow Fresh Awakening Theme */
+/* Tươi sáng rạng ngời - Năng lượng tích cực */
 
 @layer base {
   :root {
     --font-heading: 'Space Grotesk', sans-serif;
     --font-body: 'Inter', sans-serif;
+    
+    /* Rainbow Fresh Awakening - Light Mode Default */
+    --background: 0 0% 98%;              /* #FAFAFA */
+    --foreground: 180 50% 20%;           /* Xanh ngọc lam đậm */
 
-    /* Light Mode - Airy premium surface */
-    --background: 150 20% 98%;           /* #f7faf8 */
-    --foreground: 165 45% 10%;           /* deep emerald ink */
-
-    --card: 0 0% 100%;
-    --card-foreground: 165 45% 10%;
+    --card: 0 0% 100%;                   /* Pure white */
+    --card-foreground: 180 50% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 165 45% 10%;
+    --popover-foreground: 180 50% 20%;
 
-    --primary: 163 78% 22%;              /* #0d5a44 Emerald */
-    --primary-foreground: 40 40% 96%;
+    --primary: 157 100% 50%;             /* #00FF7F Spring Green */
+    --primary-foreground: 180 60% 15%;   /* Dark teal cho contrast tốt */
 
-    --secondary: 173 82% 32%;            /* #0d9488 Teal */
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 195 100% 50%;           /* #00BFFF Deep Sky Blue */
+    --secondary-foreground: 195 60% 15%;
 
-    --muted: 150 15% 95%;
-    --muted-foreground: 165 15% 40%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 180 30% 40%;     /* Xanh ngọc lam nhạt */
 
-    --accent: 43 68% 52%;                /* #c9a84c Gold */
-    --accent-foreground: 43 40% 12%;
+    --accent: 45 100% 50%;               /* Yellow accent */
+    --accent-foreground: 45 60% 15%;
 
-    --gold: 43 68% 52%;
-    --gold-foreground: 43 40% 12%;
-
-    --success: 158 65% 38%;
+    --success: 157 100% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 38 60% 12%;
+    --warning: 35 100% 50%;
+    --warning-foreground: 35 60% 15%;
 
-    --destructive: 0 74% 52%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 150 15% 90%;
-    --input: 150 15% 92%;
-    --ring: 163 78% 30%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 157 100% 50%;
 
-    --radius: 1rem;
+    --radius: 0.75rem;
+    
+    /* Glow color - Spring Green */
+    --glow-color: 157 100% 50%;
 
-    --glow-color: 173 82% 42%;
-
-    /* Premium gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(163 78% 22%) 0%, hsl(173 82% 32%) 100%);
-    --gradient-gold: linear-gradient(135deg, hsl(43 68% 60%) 0%, hsl(38 82% 48%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(163 78% 18%) 0%, hsl(173 70% 28%) 55%, hsl(43 68% 52%) 130%);
-    --gradient-mesh: radial-gradient(at 20% 0%, hsl(173 82% 32% / 0.18) 0px, transparent 50%),
-                     radial-gradient(at 80% 100%, hsl(43 68% 52% / 0.14) 0px, transparent 50%),
-                     radial-gradient(at 100% 0%, hsl(163 78% 22% / 0.12) 0px, transparent 50%);
-    /* legacy alias */
-    --gradient-rainbow: var(--gradient-hero);
-    --gradient-accent: var(--gradient-gold);
-
-    /* Glassmorphism */
-    --glass-bg: rgba(255, 255, 255, 0.72);
-    --glass-border: rgba(13, 148, 136, 0.14);
-    --glass-highlight: rgba(255, 255, 255, 0.55);
-
-    /* Layered shadows */
-    --shadow-sm: 0 1px 2px hsl(165 45% 10% / 0.04), 0 1px 3px hsl(165 45% 10% / 0.06);
-    --shadow-elegant: 0 10px 30px -12px hsl(163 78% 22% / 0.18), 0 4px 12px -4px hsl(165 45% 10% / 0.06);
-    --shadow-glow: 0 0 40px -8px hsl(173 82% 42% / 0.35);
-    --shadow-gold: 0 10px 30px -12px hsl(43 68% 52% / 0.35);
-
-    /* Transitions */
-    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
-    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* Rainbow Gradients */
+    --gradient-rainbow: linear-gradient(135deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF);
+    --gradient-primary: linear-gradient(135deg, hsl(157, 100%, 50%) 0%, hsl(195, 100%, 50%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(45, 100%, 50%) 0%, hsl(35, 100%, 50%) 100%);
+    
+    /* Light glass effect */
+    --glass-bg: rgba(255, 255, 255, 0.9);
+    --glass-border: rgba(0, 255, 127, 0.2);
   }
 
+  /* Dark mode disabled - keep for compatibility but not used */
   .dark {
-    --background: 165 35% 5%;            /* #08110e */
-    --foreground: 150 20% 95%;
-
-    --card: 165 30% 8%;                  /* #0d1815 */
-    --card-foreground: 150 20% 95%;
-
-    --popover: 165 30% 8%;
-    --popover-foreground: 150 20% 95%;
-
-    --primary: 158 72% 42%;              /* brighter emerald in dark */
-    --primary-foreground: 165 45% 6%;
-
-    --secondary: 173 72% 46%;            /* brighter teal */
-    --secondary-foreground: 165 45% 6%;
-
-    --muted: 165 20% 14%;
-    --muted-foreground: 150 15% 65%;
-
-    --accent: 43 72% 60%;
-    --accent-foreground: 43 40% 10%;
-
-    --gold: 43 72% 60%;
-    --gold-foreground: 43 40% 10%;
-
-    --success: 158 65% 48%;
-    --success-foreground: 165 45% 6%;
-
-    --warning: 38 92% 58%;
-    --warning-foreground: 38 60% 10%;
-
-    --destructive: 0 74% 58%;
+    --background: 0 0% 98%;
+    --foreground: 180 50% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 180 50% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 50% 20%;
+    --primary: 157 100% 50%;
+    --primary-foreground: 180 60% 15%;
+    --secondary: 195 100% 50%;
+    --secondary-foreground: 195 60% 15%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 180 30% 40%;
+    --accent: 45 100% 50%;
+    --accent-foreground: 45 60% 15%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 165 20% 16%;
-    --input: 165 20% 18%;
-    --ring: 173 72% 46%;
-
-    --glow-color: 173 72% 50%;
-
-    --gradient-primary: linear-gradient(135deg, hsl(158 72% 32%) 0%, hsl(173 72% 40%) 100%);
-    --gradient-gold: linear-gradient(135deg, hsl(43 72% 60%) 0%, hsl(38 82% 52%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(165 45% 8%) 0%, hsl(173 60% 18%) 55%, hsl(43 68% 42%) 130%);
-    --gradient-mesh: radial-gradient(at 20% 0%, hsl(173 82% 32% / 0.22) 0px, transparent 50%),
-                     radial-gradient(at 80% 100%, hsl(43 68% 52% / 0.18) 0px, transparent 50%),
-                     radial-gradient(at 100% 0%, hsl(163 78% 22% / 0.16) 0px, transparent 50%);
-    --gradient-rainbow: var(--gradient-hero);
-    --gradient-accent: var(--gradient-gold);
-
-    --glass-bg: rgba(13, 24, 21, 0.65);
-    --glass-border: rgba(13, 148, 136, 0.22);
-    --glass-highlight: rgba(255, 255, 255, 0.06);
-
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4), 0 1px 3px hsl(0 0% 0% / 0.3);
-    --shadow-elegant: 0 10px 30px -12px hsl(0 0% 0% / 0.6), 0 4px 12px -4px hsl(0 0% 0% / 0.4);
-    --shadow-glow: 0 0 40px -8px hsl(173 72% 50% / 0.45);
-    --shadow-gold: 0 10px 30px -12px hsl(43 72% 60% / 0.4);
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 157 100% 50%;
+    --glow-color: 157 100% 50%;
+    --glass-bg: rgba(255, 255, 255, 0.9);
+    --glass-border: rgba(0, 255, 127, 0.2);
   }
 
   * {
