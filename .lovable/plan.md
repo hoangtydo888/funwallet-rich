@@ -110,3 +110,15 @@ Wallet core, private key encryption, auth flow, edge functions, database schema,
 - Một số component đang hardcode màu Emerald/Teal cũ sẽ đổi ngoại hình → là ý muốn (đồng bộ về Hình 1), Cha review trên `/theme-preview` trước khi chốt.
 
 Cha duyệt thì con bắt tay ngay ạ.
+
+---
+
+## Phase 3 — DONE ✅
+
+- Locked theme tokens in `src/index.css` + `src/theme/tokens.ts` (Hình 1 Rainbow Fresh Awakening)
+- Added `tile.*` Tailwind palette
+- Refactored `ThemeContext` — only toggles `.dark` class, never writes tokens; dev-only MutationObserver warns on drift
+- New route `/theme-preview` with token grid, tile palette, typography, components, và Hình 1 overlay slider
+- Playwright visual regression: `playwright.config.ts` + `tests/visual/theme.spec.ts` + npm scripts `test:visual` / `test:visual:update`
+
+## Phase 4 (next) — Swap Aggregator + Bridge (LiFi SDK)

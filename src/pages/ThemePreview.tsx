@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Sun, Moon, ArrowUpRight, ArrowDownLeft, ArrowDownUp, Layers, Plus, Users, Bell, Globe, Shield, Link2, QrCode, Coins, SendHorizontal, ClipboardList, CreditCard, GraduationCap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,15 +30,16 @@ function hslToHex(hslStr: string): string {
 
 function Swatch({ name, cssVar }: { name: string; cssVar: string }) {
   const [hsl, setHsl] = useState("");
+  useEffect(() => {
+    const read = () => setHsl(getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim());
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+    return () => obs.disconnect();
+  }, [cssVar]);
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div
-        ref={(el) => {
-          if (el) setHsl(getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim());
-        }}
-        className="h-16"
-        style={{ background: `hsl(${hsl})` }}
-      />
+      <div className="h-16" style={{ background: hsl ? `hsl(${hsl})` : undefined }} />
       <div className="p-2 text-xs">
         <div className="font-mono font-semibold">{name}</div>
         <div className="text-muted-foreground font-mono truncate">{hsl}</div>
