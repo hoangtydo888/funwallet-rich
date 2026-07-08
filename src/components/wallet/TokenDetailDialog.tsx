@@ -90,8 +90,12 @@ export const TokenDetailDialog = ({
                 className="w-12 h-12 object-contain"
                 onError={(e) => {
                   e.currentTarget.style.display = "none";
-                  if (e.currentTarget.parentElement) {
-                    e.currentTarget.parentElement.innerHTML = `<span class="text-xl font-bold">${token.symbol.charAt(0)}</span>`;
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    const span = document.createElement("span");
+                    span.className = "text-xl font-bold";
+                    span.textContent = token.symbol.charAt(0);
+                    parent.appendChild(span);
                   }
                 }}
               />
