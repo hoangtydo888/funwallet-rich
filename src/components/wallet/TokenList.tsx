@@ -195,8 +195,12 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
                     className="w-10 h-10 object-contain"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
-                      if (e.currentTarget.parentElement) {
-                        e.currentTarget.parentElement.innerHTML = `<span class="text-lg font-bold">${token.symbol.charAt(0)}</span>`;
+                      const parent = e.currentTarget.parentElement;
+                      if (parent) {
+                        const span = document.createElement('span');
+                        span.className = 'text-lg font-bold';
+                        span.textContent = token.symbol.charAt(0);
+                        parent.appendChild(span);
                       }
                     }}
                   />

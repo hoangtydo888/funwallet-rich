@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 // MegaNode BSCTrace API - Free alternative for BSC
 const API_KEY = Deno.env.get("MEGANODE_API_KEY") || "";
@@ -16,6 +17,28 @@ serve(async (req) => {
   }
 
   try {
+    // Require authenticated Supabase user (protects MEGANODE_API_KEY quota)
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", status: "0", result: [] }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", status: "0", result: [] }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { address, action, page = 1, offset = 50 } = await req.json();
     
     console.log(`[MegaNode] Fetching ${action} for ${address}, page ${page}`);
@@ -27,16 +50,12 @@ serve(async (req) => {
       );
     }
 
-    // Determine category based on action
-    // "20" = BEP-20 token transfers, "external" = native BNB transfers
     const category = action === "tokentx" ? ["20"] : ["external"];
     const halfOffset = Math.max(Math.floor(offset / 2), 10);
     
     console.log(`[MegaNode] Using category: ${JSON.stringify(category)}, halfOffset: ${halfOffset}`);
 
-    // Make two separate requests: one for SENT, one for RECEIVED
     const [sentResponse, receivedResponse] = await Promise.all([
-      // Request 1: Transactions SENT from this address
       fetch(MEGANODE_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,7 +71,6 @@ serve(async (req) => {
           }]
         })
       }),
-      // Request 2: Transactions RECEIVED to this address
       fetch(MEGANODE_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,69 +93,44 @@ serve(async (req) => {
       receivedResponse.json()
     ]);
 
-    console.log(`[MegaNode] Sent response:`, sentData.error ? sentData.error : `${sentData.result?.transfers?.length || 0} transfers`);
-    console.log(`[MegaNode] Received response:`, receivedData.error ? receivedData.error : `${receivedData.result?.transfers?.length || 0} transfers`);
+    if (sentData.error) console.error(`[MegaNode] Sent API Error:`, sentData.error);
+    if (receivedData.error) console.error(`[MegaNode] Received API Error:`, receivedData.error);
 
-    // Check for errors
-    if (sentData.error) {
-      console.error(`[MegaNode] Sent API Error:`, sentData.error);
-    }
-    if (receivedData.error) {
-      console.error(`[MegaNode] Received API Error:`, receivedData.error);
-    }
-
-    // Combine transfers from both requests
     const sentTransfers = sentData.result?.transfers || [];
     const receivedTransfers = receivedData.result?.transfers || [];
     const allTransfers = [...sentTransfers, ...receivedTransfers];
 
-    console.log(`[MegaNode] Total combined transfers: ${allTransfers.length} (sent: ${sentTransfers.length}, received: ${receivedTransfers.length})`);
-
     if (allTransfers.length > 0) {
-      // Sort by block number (descending - newest first)
       allTransfers.sort((a: any, b: any) => {
         const blockA = a.blockNum ? parseInt(a.blockNum, 16) : 0;
         const blockB = b.blockNum ? parseInt(b.blockNum, 16) : 0;
         return blockB - blockA;
       });
 
-      // Remove duplicates by hash
       const seenHashes = new Set<string>();
       const uniqueTransfers = allTransfers.filter((tx: any) => {
-        if (seenHashes.has(tx.hash)) {
-          return false;
-        }
+        if (seenHashes.has(tx.hash)) return false;
         seenHashes.add(tx.hash);
         return true;
       });
 
-      console.log(`[MegaNode] Unique transfers after dedup: ${uniqueTransfers.length}`);
-
-      // Transform MegaNode response to BSCScan-compatible format
       const transformedResult = uniqueTransfers.map((tx: any) => {
-        // Parse value - MegaNode returns decimal value directly, not hex
         let value = "0";
         if (tx.value !== undefined && tx.value !== null) {
           if (typeof tx.value === 'number') {
-            // Value is already a decimal number (in token units)
             const decimals = tx.decimal ? parseInt(tx.decimal, 16) : 18;
             value = String(Math.floor(tx.value * Math.pow(10, decimals)));
           } else if (typeof tx.value === 'string') {
             if (tx.value.startsWith('0x')) {
               value = String(parseInt(tx.value, 16));
             } else {
-              // Assume it's already in wei/smallest unit
               value = tx.value;
             }
           }
         }
 
-        // Parse timestamp - MegaNode uses blockTimeStamp (unix timestamp)
         let timeStamp = String(Math.floor(Date.now() / 1000));
-        if (tx.blockTimeStamp) {
-          // blockTimeStamp is already a unix timestamp
-          timeStamp = String(tx.blockTimeStamp);
-        }
+        if (tx.blockTimeStamp) timeStamp = String(tx.blockTimeStamp);
 
         return {
           hash: tx.hash || "",
@@ -157,8 +150,6 @@ serve(async (req) => {
         };
       });
 
-      console.log(`[MegaNode] Returning ${transformedResult.length} formatted transactions`);
-
       return new Response(JSON.stringify({
         status: "1",
         message: "OK",
@@ -168,8 +159,6 @@ serve(async (req) => {
       });
     }
 
-    // Return empty if no transfers
-    console.log(`[MegaNode] No transfers found, returning empty array`);
     return new Response(JSON.stringify({
       status: "1",
       message: "OK",
