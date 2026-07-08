@@ -36,7 +36,6 @@ export interface Theme {
   rainbowColors?: typeof RAINBOW_COLORS;
 }
 
-// LOCKED — theme mặc định, không đổi
 export const THEMES: Record<string, Theme> = {
   "rainbow-fresh-awakening": {
     id: "rainbow-fresh-awakening",
