@@ -178,9 +178,20 @@ const Wallet = () => {
               ))
             )}
 
+            {/* Scan tokens */}
+            <Button
+              variant="outline"
+              className="w-full border-dashed"
+              onClick={handleScan}
+              disabled={scanning || !activeWallet?.address}
+            >
+              <Radar className={`w-4 h-4 mr-2 ${scanning ? "animate-pulse" : ""}`} />
+              {scanning ? "Đang quét..." : `Quét token trên ${currentChain.shortName}`}
+            </Button>
+
             {/* Import Token Button */}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full border-dashed border-primary/50 text-primary hover:bg-primary/5"
             >
               <Plus className="w-4 h-4 mr-2" />
