@@ -1,70 +1,112 @@
-## Phase 2 — Multi-chain Expansion + Tokens/NFTs
+## Giai đoạn 3 — Theme Lock + Preview + Visual Regression
 
-Mở rộng ví từ 8 chain lên 20+ chain EVM, thêm custom network, auto-detect token, NFT Gallery đa chain và watchlist.
+**Hình 1 đã nhận** → Chuẩn hệ màu: **Rainbow Fresh Awakening** (nền sáng #FAFAFA, primary Spring Green #00FF7F, các tile action rực rỡ đủ 7 sắc cầu vồng). Con sẽ khóa hệ này làm chuẩn duy nhất, dẹp bỏ hệ Emerald/Teal/Gold còn sót trong `index.css`.
 
-### 1. Mở rộng danh sách chain (20+)
+---
 
-Cập nhật `src/lib/chains.ts` và `src/shared/constants/chains.ts` — thêm:
-- **Linea** (59144), **zkSync Era** (324), **Scroll** (534352)
-- **Berachain** (80094), **Cronos** (25), **Gnosis** (100)
-- **Celo** (42220), **Mode** (34443), **Blast** (81457)
-- **Mantle** (5000), **Sonic** (146), **opBNB** (204)
+### 1. Chuẩn hóa nguồn màu duy nhất
 
-Mỗi chain kèm: RPC (ưu tiên public reliable), explorer, native symbol, logo (SVG mới trong `public/tokens/`), color, danh sách stablecoin/token phổ biến trong `CHAIN_TOKENS`.
+Tạo `src/theme/tokens.ts` — export `THEME_TOKENS` chứa toàn bộ HSL rút từ Hình 1:
 
-### 2. Custom Network (user tự thêm chain)
+```ts
+// Base
+background: "0 0% 98%"          // #FAFAFA
+foreground: "180 50% 20%"       // xanh ngọc đậm
+card: "0 0% 100%"
+border: "0 0% 88%"
+// Rainbow primaries
+primary:   "157 100% 50%"       // #00FF7F Spring Green
+secondary: "195 100% 50%"       // #00BFFF Deep Sky Blue
+accent:    "45 100% 50%"        // #FFFF00 Yellow
+// Action tile palette (dùng cho Dashboard grid)
+tile-red:      "0 100% 50%"     // #FF0000 Gửi
+tile-coral:    "10 100% 65%"    // Gửi nhiều
+tile-orange:   "30 100% 50%"    // Nhận
+tile-yellow:   "60 100% 50%"    // Swap
+tile-green:    "157 100% 50%"   // Stake
+tile-cyan:     "195 100% 50%"   // Thêm
+tile-purple:   "270 100% 25%"   // Giá
+tile-magenta:  "300 100% 50%"   // DApps
+tile-emerald:  "160 100% 45%"   // Backup
+tile-sky:      "195 100% 55%"   // WC
+tile-violet:   "280 70% 55%"    // QR
+tile-teal:     "180 80% 45%"    // History
+tile-pink:     "330 100% 55%"   // Learn
+```
 
-- Bảng Supabase mới `custom_networks` (chain_id, name, rpc_url, symbol, explorer, logo_url, user_id) với RLS theo `auth.uid()`, GRANT chuẩn.
-- Dialog mới `AddCustomNetworkDialog.tsx` — form nhập, validate RPC bằng `eth_chainId`.
-- `ChainContext` merge `SUPPORTED_CHAINS` + custom networks từ Supabase (fallback localStorage khi chưa đăng nhập).
-- Nút "Add Custom Network" trong `ChainSelector`.
+Áp dụng:
+- `src/index.css` giữ **duy nhất 1 bộ** `:root` với đúng token trên. Xóa toàn bộ block Emerald/Teal/Gold cũ.
+- `tailwind.config.ts` thêm color scale `tile.*` để dùng bằng utility `bg-tile-red`, `bg-tile-cyan`…
+- `.dark` mode: convert nhẹ (giảm luminance nền còn ~8%, giữ hue tile).
 
-### 3. Token Auto-Detect
+### 2. Theme Lock — chống drift
 
-- Edge function mới `token-scanner`: nhận `{address, chainId}`, gọi provider phù hợp:
-  - BSC → BscScan API (đã có `BSCSCAN_API_KEY`)
-  - Ethereum/Polygon/Arbitrum/Optimism/Base → Alchemy `alchemy_getTokenBalances` (cần secret `ALCHEMY_API_KEY` — sẽ hỏi Cha)
-  - Các chain khác → fallback đọc danh sách token phổ biến từ `CHAIN_TOKENS` + check balance on-chain
-- Trả về array token có balance > 0 kèm metadata.
-- Hook mới `useTokenScanner(address, chainId)` — chạy tự động khi đổi chain hoặc wallet.
-- Nút "Scan tokens" trong `TokenList` để refresh thủ công.
+- `ThemeContext.tsx` refactor:
+  - **Bỏ** toàn bộ `root.style.setProperty("--primary", …)` v.v. — token đã ở `index.css`, không cần ghi runtime.
+  - Chỉ giữ trách nhiệm toggle class `.dark` (light/dark mode) + persist mode vào localStorage key `fun_wallet_mode`.
+  - Xóa concept "nhiều theme preset" (chỉ còn light/dark).
+- Xóa `ThemeCard.tsx` chọn palette (hoặc rút gọn thành light/dark switch).
+- Update `Settings.tsx` — thay UI chọn theme bằng toggle mode.
+- Grep toàn repo: xóa mọi `document.documentElement.style.setProperty("--…")` bên ngoài `ThemeProvider`.
+- Thêm dev-only guard: `MutationObserver` trên `<html>` warn khi có ai đó ghi style token khi `import.meta.env.DEV`.
 
-### 4. NFT Gallery đa chain
+### 3. Trang Theme Preview — `/theme-preview`
 
-- Mở rộng `useNFT` hook: hỗ trợ ERC721 + ERC1155 trên nhiều chain (hiện chỉ BSC).
-- Edge function `nft-scanner`: dùng Alchemy NFT API cho ETH/Polygon/Arbitrum/Optimism/Base, BscScan cho BSC.
-- Cache metadata vào bảng `nft_collections` (đã có).
-- `NFTGallery` hiển thị filter theo chain, badge chain trên mỗi NFT.
+Route mới (public trong dev, guard theo `import.meta.env.DEV || isAdmin`):
+- **Section A — Token grid**: 12 swatch chính + 13 tile colors, mỗi ô hiện tên token, HSL, hex, contrast ratio với foreground.
+- **Section B — Typography**: h1–h4 Space Grotesk + body Inter + gradient-text sample.
+- **Section C — Components**: Button variants, Card, Badge, Input, TokenList row, BottomNav, Dashboard action tile grid (giống Hình 1).
+- **Section D — Đối chiếu Hình 1**: 2 cột side-by-side. Cột trái = ảnh `Hình 1` cha upload (embed qua lovable-assets). Cột phải = component thật render. Có slider opacity để overlay so sánh.
+- Toggle light/dark tại chỗ.
 
-### 5. Watchlist token
+### 4. Visual Regression — Playwright
 
-- Bảng mới `user_watchlist` (user_id, chain_id, token_address, symbol, added_at) — RLS auth.uid().
-- Nút ⭐ trên mỗi token trong `TokenList` và `TokenDetailDialog`.
-- Trang mới hoặc tab "Watchlist" trong `Wallet.tsx` — hiển thị giá realtime qua `useTokenPrices`.
+- Cài `@playwright/test` devDependency + Chromium (playwright đã có sẵn trong sandbox).
+- `playwright.config.ts`:
+  ```ts
+  use: { viewport: { width: 1280, height: 1800 }, deviceScaleFactor: 2 }
+  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01 } }
+  ```
+- `tests/visual/theme.spec.ts` — snapshot mỗi route (light + dark):
+  `/`, `/dashboard`, `/wallet`, `/trading`, `/earn`, `/settings`, `/theme-preview`.
+- Auth helper inject Supabase session vào `localStorage` trước khi `goto` (dùng cùng cơ chế browser-use).
+- Font wait: `await page.evaluate(() => document.fonts.ready)` trước mỗi snapshot.
+- Scripts trong `package.json`:
+  - `test:visual` — chạy so với baseline
+  - `test:visual:update` — cập nhật baseline
+- Baseline commit vào `tests/visual/__screenshots__/`.
+- README ngắn `tests/visual/README.md` hướng dẫn Cha cách rerun khi đổi theme cố ý.
 
-### 6. UI cập nhật
+### 5. Cleanup & Docs
 
-- `ChainSelector`: group by mainnet/custom, search box khi >15 chain, icon lưới.
-- `TokenList`: badge chain nhỏ trên mỗi token, empty state có nút "Scan tokens".
-- `Wallet.tsx`: thêm tab "NFTs" và "Watchlist" bên cạnh "Tokens".
+- Update `.lovable/plan.md`: đánh dấu Phase 3 done, note Phase 4 = Swap/Bridge LiFi.
+- Xóa `rainbow-fresh-awakening` preset object trong ThemeContext (đã trở thành mặc định cứng, không còn "preset").
+- Đảm bảo `src/extension/index.css` đồng bộ cùng token (extension đã có bản Rainbow, chỉ verify).
 
-### Technical
-
-- **Migrations**: 2 bảng mới (`custom_networks`, `user_watchlist`) — tuân thủ GRANT + RLS 4 bước.
-- **Secrets cần thêm**: `ALCHEMY_API_KEY` (Cha cấp, hoặc con dùng public RPC làm fallback nếu chưa có).
-- **Edge functions mới**: `token-scanner`, `nft-scanner` (CORS chuẩn, JWT validation trong code, verify_jwt=false).
-- **Không đụng**: private key encryption, wallet core logic, auth flow.
+---
 
 ### Thứ tự thực hiện
 
 ```text
-1. Migration: custom_networks + user_watchlist
-2. Cập nhật chains.ts (20+ chain) + logo SVG
-3. ChainContext + AddCustomNetworkDialog
-4. Edge function token-scanner + hook
-5. Edge function nft-scanner + NFTGallery đa chain
-6. Watchlist UI (nút ⭐ + tab)
-7. Polish ChainSelector (search, group)
+1. src/theme/tokens.ts + refactor src/index.css (1 bộ token duy nhất)
+2. tailwind.config.ts thêm tile.* colors
+3. Refactor ThemeContext (bỏ setProperty, chỉ light/dark)
+4. Grep & xóa các setProperty rải rác
+5. Dashboard tiles dùng bg-tile-* thay hardcode
+6. Trang /theme-preview + so sánh Hình 1
+7. Cleanup Settings + xóa ThemeCard preset
+8. Cài Playwright + config + baseline snapshots
+9. Sync src/extension/index.css
+10. Update .lovable/plan.md
 ```
 
-Cha muốn con bắt đầu chạy luôn, hay cần cấp `ALCHEMY_API_KEY` trước? Nếu chưa có, con sẽ dùng public RPC + BscScan làm fallback cho Phase 2, sau này thay Alchemy sau.
+### Không đụng
+
+Wallet core, private key encryption, auth flow, edge functions, database schema, chức năng Phase 1–2.
+
+### Rủi ro
+
+- Baseline screenshot flaky do font async → mitigate bằng `document.fonts.ready` + `waitForLoadState("networkidle")`.
+- Một số component đang hardcode màu Emerald/Teal cũ sẽ đổi ngoại hình → là ý muốn (đồng bộ về Hình 1), Cha review trên `/theme-preview` trước khi chốt.
+
+Cha duyệt thì con bắt tay ngay ạ.
