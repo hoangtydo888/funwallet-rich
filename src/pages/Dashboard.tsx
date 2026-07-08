@@ -263,6 +263,7 @@ const Dashboard = () => {
   const totalBalance = getTotalBalance(prices);
   const hasWallet = wallets.length > 0 && activeWallet;
 
+  // LOCKED — Rainbow Fresh Awakening, không thay đổi
   // Rainbow colors for quick action buttons
   const RAINBOW_BUTTON_COLORS = [
     "bg-[#FF0000] hover:bg-[#CC0000] text-white",    // Đỏ - Gửi
@@ -404,6 +405,7 @@ const Dashboard = () => {
             )}
           </div>
 
+          {/* LOCKED — Rainbow Fresh Awakening, không thay đổi */}
           {/* Quick actions - Row 1 with Rainbow Colors */}
           <div className="grid grid-cols-6 gap-2 sm:gap-3 mb-2">
             <QuickAction 

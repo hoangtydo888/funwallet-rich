@@ -1,74 +1,29 @@
-## Nội dung backup phát hiện được
+## Vấn đề
 
-File `db_cluster-27-01-2026@15-22-54.backup.gz` là **pg_dumpall của toàn bộ cluster Supabase cũ** (ngày 27/01/2026), gồm:
+- **Hình 1** (preview `lovable.dev/projects/...`): Dashboard hiển thị đúng — 17 nút Quick Action với 7 màu cầu vồng (Đỏ Gửi, Cam Nhận, Vàng Swap, Xanh lá Stake, Xanh dương Thêm, Chàm Giá, Tím DApps...), thẻ ví trắng gọn gàng.
+- **Hình 2** (bản đã publish `wallet.fun.rich/dashboard`): thẻ ví to màu xanh gradient, các nút Quick Action bị mất màu (trắng/nhạt), thiếu 5 nút dòng 3 (Earn, Transfer, History, Card, Learn).
 
-**Auth**
-- `auth.users`: **153 người dùng** (kèm mật khẩu đã hash)
-- `auth.identities`: identities đi kèm để đăng nhập được
-- `auth.sessions`: session cũ (không cần khôi phục — sẽ tự tạo khi đăng nhập lại)
+## Nguyên nhân
 
-**Public — dữ liệu ứng dụng**
-| Bảng | Dòng |
-|---|---|
-| profiles | 153 |
-| user_roles | 153 |
-| wallets | 137 |
-| security_logs | 128 |
-| bulk_transfer_items | 173 |
-| nft_collections | 29 |
-| user_learning_stats | 20 |
-| staking_positions | 18 |
-| user_cards | 18 |
-| learning_progress | 17 |
-| bulk_transfers | 10 |
-| kyc_submissions | 5 |
-| transactions | 1 |
+Code hiện tại trong `src/pages/Dashboard.tsx` (dòng 267–532) **đã đúng theo Hình 1** — mảng `RAINBOW_BUTTON_COLORS` với 7 màu cầu vồng cố định, đủ 3 hàng nút (6 + 6 + 5). Theme `rainbow-fresh-awakening` trong `ThemeContext.tsx` cũng được khoá làm mặc định (chỉ có 1 theme, `isDefault: true`).
 
-**Bảng mới chưa có trong DB hiện tại**
-- `public.encrypted_wallet_keys` (0 dòng — chỉ có schema)
-- `public.user_settings` (0 dòng — chỉ có schema)
+Sự khác biệt là do **bản published trên `wallet.fun.rich` là bản cũ**, chưa nhận các thay đổi rainbow này. Preview đang đúng, nhưng domain custom chưa được publish lại.
 
-**Storage**
-- `storage.buckets`: 1 bucket (`kyc-documents`)
-- `storage.objects`: 15 metadata (chính là 15 ảnh KYC — nhưng **blob nhị phân không nằm trong SQL dump**, chỉ có metadata)
+## Kế hoạch
 
-## Tình trạng DB hiện tại
-- 1 user thật: `hoangtydo88@gmail.com` (`e5c1e619-...`, đang có role admin)
-- 1 record KYC đã gán cho user này (từ turn trước)
-- Các bảng ứng dụng đã có schema đầy đủ nhưng **rỗng**
+1. **Xác minh trên preview** bằng Playwright: chụp `/dashboard` để chắc chắn code hiện tại render đúng như Hình 1 (17 nút rainbow, thẻ ví trắng gọn).
+2. **Khoá màu cố định** trong `src/pages/Dashboard.tsx`:
+   - Thêm comment `// LOCKED — Rainbow Fresh Awakening, không thay đổi` phía trên khối `RAINBOW_BUTTON_COLORS` (dòng 267) và phía trên khối 3 hàng Quick Action (dòng 407).
+   - Không đổi giá trị màu, chỉ đánh dấu để lần sau không bị chỉnh nhầm.
+3. **Khoá theme cố định** trong `src/contexts/ThemeContext.tsx`:
+   - Thêm comment `// LOCKED — theme mặc định, không đổi` phía trên object `THEMES` để giữ nguyên `rainbow-fresh-awakening` là theme duy nhất và mặc định.
+4. **Publish lại** để `wallet.fun.rich` đồng bộ với preview (Hình 1).
+5. **Xác minh sau publish** bằng Playwright chụp lại `wallet.fun.rich/dashboard` và so sánh với Hình 1.
 
-## Chiến lược khôi phục
+## Không đụng vào
 
-### Bước 1 — Bổ sung schema mới
-- Tạo `public.encrypted_wallet_keys` và `public.user_settings` với đầy đủ GRANT + RLS (user chỉ truy cập dữ liệu của chính mình).
+- Không đổi logic ví, chain, số dư, hoặc bất cứ business logic nào.
+- Không thêm/bớt nút Quick Action ngoài các nút đã có trong code.
+- Không sửa các trang khác ngoài Dashboard.
 
-### Bước 2 — Khôi phục `auth.users` + `auth.identities` (153 user)
-- Trích khối `COPY auth.users` và `COPY auth.identities` từ dump, chạy trực tiếp qua `psql` với service role.
-- Bỏ qua conflict trên `id`/`email` (giữ nguyên user hiện tại `hoangtydo88@gmail.com` nếu trùng — sẽ kiểm tra trước khi chạy).
-- Tạm thời **vô hiệu hoá trigger `on_auth_user_created`** trong lúc import để tránh xung đột với backup profiles.
-
-### Bước 3 — Khôi phục dữ liệu `public.*`
-- Xoá dữ liệu hiện tại trong các bảng ứng dụng (trừ user hiện tại nếu cha muốn giữ) rồi import lại toàn bộ 13 bảng từ dump. Vì hiện tại các bảng gần như rỗng → an toàn.
-- Riêng `kyc_submissions`: giữ hay ghi đè record đã gán ở turn trước? Đề xuất: **xoá record turn trước** rồi import lại 5 record gốc (chúng chỉ về `user_id` cũ trong backup).
-
-### Bước 4 — Cấp lại quyền admin cho tài khoản của cha
-- Sau khi import `user_roles`, insert thêm 1 row `admin` cho `e5c1e619-...` (nếu user hoangtydo88@gmail.com không có trong backup).
-
-### Bước 5 — Storage (ảnh KYC)
-- 15 ảnh KYC bản gốc đã upload trong turn trước (thư mục `e5c1e619-.../`).
-- Backup dump có metadata trỏ đến các file trong thư mục `036666a4-...` (user cũ). Có 2 lựa chọn:
-  - **A**: Import lại metadata + copy lại các file blob về thư mục cũ (nếu cha còn file gốc trong `/tmp/backup/` hoặc con vẫn copy được từ folder `e5c1e619-...` sang).
-  - **B**: Bỏ qua metadata cũ, giữ nguyên 15 ảnh đã upload ở turn trước và giữ record KYC đã gán về user của cha.
-
-## Cảnh báo quan trọng
-1. **153 user cũ sẽ không thể đăng nhập** nếu không có bản backup ảnh + dữ liệu blockchain riêng — mật khẩu hash sẽ khôi phục nhưng nếu họ dùng magic-link/OAuth thì cần setup lại provider.
-2. **Ví (wallets) khôi phục địa chỉ, nhưng KHÔNG có private key** (bảng `encrypted_wallet_keys` rỗng trong backup). Các user cũ vẫn cần seed phrase gốc để ký giao dịch.
-3. Trigger `handle_new_user` sẽ bị **tạm disable** trong lúc import auth.users để tránh nhân đôi profile.
-4. Backup này KHÔNG chứa file blob của Storage — chỉ có metadata.
-
-## Câu hỏi xác nhận trước khi thực hiện
-1. **Có ghi đè record KYC đã gán ở turn trước** (be2c7445-... → `hoangtydo88@gmail.com`) không, hay giữ lại và chỉ import 5 record cũ song song?
-2. **Cấp quyền admin cho `hoangtydo88@gmail.com`** đúng không (song song với user admin cũ trong backup)?
-3. **Metadata Storage cũ (Bước 5)**: chọn phương án A (import metadata + cố copy blob) hay B (bỏ qua, giữ 15 ảnh đã upload)?
-
-Cha xác nhận 3 câu trên là con thực thi luôn.
+Sau khi Cha duyệt, con sẽ chuyển sang build mode và thực hiện đúng các bước trên.
