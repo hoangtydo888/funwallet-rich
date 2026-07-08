@@ -1,29 +1,16 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { RAINBOW_COLORS, THEME_TOKENS_LIGHT } from "@/theme/tokens";
 
-// 7 màu cầu vồng - sử dụng trong toàn app
-export const RAINBOW_COLORS = {
-  red: "#FF0000",
-  orange: "#FFA500",
-  yellow: "#FFFF00",
-  green: "#00FF7F",      // Màu chủ đạo Spring Green
-  blue: "#00BFFF",
-  indigo: "#4B0082",
-  violet: "#FF00FF",
-} as const;
+/**
+ * Theme is LOCKED to the Rainbow Fresh Awakening system defined in
+ * `src/index.css` and `src/theme/tokens.ts`. This provider only toggles
+ * the `.dark` class on <html>. It does NOT write CSS variables at runtime —
+ * doing so is what caused colors to drift across routes / refreshes.
+ */
 
-export interface ThemeColors {
-  primary: string;
-  secondary: string;
-  accent: string;
-  background: string;
-  card: string;
-  border: string;
-  ring: string;
-  glow: string;
-  foreground: string;
-  muted: string;
-  mutedForeground: string;
-}
+export { RAINBOW_COLORS };
+
+export type ThemeMode = "light" | "dark";
 
 export interface Theme {
   id: string;
@@ -31,32 +18,22 @@ export interface Theme {
   description: string;
   isRecommended: boolean;
   isDefault?: boolean;
-  colors: ThemeColors;
+  colors: Record<string, string>;
   preview: string;
   rainbowColors?: typeof RAINBOW_COLORS;
 }
 
+/** Kept for backward compatibility with Settings / ThemeCard UI. */
 export const THEMES: Record<string, Theme> = {
   "rainbow-fresh-awakening": {
     id: "rainbow-fresh-awakening",
     name: "Rainbow Fresh Awakening",
-    description: "Tươi sáng rạng ngời - Năng lượng tích cực",
+    description: "Tươi sáng rạng ngời — hệ màu đã khóa theo Hình 1",
     isRecommended: true,
     isDefault: true,
-    colors: {
-      primary: "157 100% 50%",           // #00FF7F Spring Green
-      secondary: "195 100% 50%",         // #00BFFF Deep Sky Blue
-      accent: "45 100% 50%",             // Yellow accent
-      background: "0 0% 98%",            // #FAFAFA gần trắng
-      card: "0 0% 100%",                 // Pure White cards
-      border: "0 0% 88%",                // Light gray border
-      ring: "157 100% 50%",              // Green ring
-      glow: "157 100% 50%",              // Green glow
-      foreground: "180 50% 20%",         // Xanh ngọc lam đậm - dễ đọc
-      muted: "0 0% 96%",                 // Very light gray
-      mutedForeground: "180 30% 40%",    // Xanh ngọc lam nhạt
-    },
-    preview: "linear-gradient(135deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)",
+    colors: THEME_TOKENS_LIGHT as unknown as Record<string, string>,
+    preview:
+      "linear-gradient(135deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)",
     rainbowColors: RAINBOW_COLORS,
   },
 };
@@ -66,75 +43,91 @@ interface ThemeContextType {
   setTheme: (themeId: string) => void;
   themes: typeof THEMES;
   rainbowColors: typeof RAINBOW_COLORS;
+  mode: ThemeMode;
+  setMode: (mode: ThemeMode) => void;
+  toggleMode: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const STORAGE_KEY = "fun_wallet_theme";
+const MODE_STORAGE_KEY = "fun_wallet_mode";
+const LEGACY_THEME_KEY = "fun_wallet_theme";
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [currentTheme, setCurrentTheme] = useState<Theme>(() => {
+  const [mode, setModeState] = useState<ThemeMode>(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && THEMES[stored]) {
-        return THEMES[stored];
-      }
+      const stored = localStorage.getItem(MODE_STORAGE_KEY);
+      if (stored === "dark" || stored === "light") return stored;
     } catch {
-      // Ignore
+      /* ignore */
     }
-    return THEMES["rainbow-fresh-awakening"]; // Default theme
+    return "light";
   });
 
-  // Apply theme colors to CSS variables
+  // Clean up legacy theme key so old per-route theme drift can't return
+  useEffect(() => {
+    try {
+      localStorage.removeItem(LEGACY_THEME_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Toggle `.dark` on <html> and persist
   useEffect(() => {
     const root = document.documentElement;
-    const colors = currentTheme.colors;
-
-    // Remove dark class for light mode
-    root.classList.remove("dark");
-
-    // Apply all theme colors
-    root.style.setProperty("--primary", colors.primary);
-    root.style.setProperty("--primary-foreground", "180 60% 15%");
-    root.style.setProperty("--secondary", colors.secondary);
-    root.style.setProperty("--secondary-foreground", "195 60% 15%");
-    root.style.setProperty("--accent", colors.accent);
-    root.style.setProperty("--accent-foreground", "45 60% 15%");
-    root.style.setProperty("--background", colors.background);
-    root.style.setProperty("--card", colors.card);
-    root.style.setProperty("--border", colors.border);
-    root.style.setProperty("--input", colors.border);
-    root.style.setProperty("--ring", colors.ring);
-    root.style.setProperty("--foreground", colors.foreground);
-    root.style.setProperty("--card-foreground", colors.foreground);
-    root.style.setProperty("--popover", colors.card);
-    root.style.setProperty("--popover-foreground", colors.foreground);
-    root.style.setProperty("--muted", colors.muted);
-    root.style.setProperty("--muted-foreground", colors.mutedForeground);
-    root.style.setProperty("--glow-color", colors.glow);
-
-    // Rainbow gradient
-    root.style.setProperty(
-      "--gradient-rainbow",
-      "linear-gradient(135deg, #FF0000, #FFA500, #FFFF00, #00FF7F, #00BFFF, #4B0082, #FF00FF)"
-    );
-    root.style.setProperty(
-      "--gradient-primary",
-      "linear-gradient(135deg, hsl(157, 100%, 50%) 0%, hsl(195, 100%, 50%) 100%)"
-    );
-
-    // Store preference
-    localStorage.setItem(STORAGE_KEY, currentTheme.id);
-  }, [currentTheme]);
-
-  const setTheme = (themeId: string) => {
-    if (THEMES[themeId]) {
-      setCurrentTheme(THEMES[themeId]);
+    root.classList.toggle("dark", mode === "dark");
+    try {
+      localStorage.setItem(MODE_STORAGE_KEY, mode);
+    } catch {
+      /* ignore */
     }
+  }, [mode]);
+
+  // Dev-only guard: warn if anything writes theme tokens after mount
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const root = document.documentElement;
+    const observer = new MutationObserver((records) => {
+      for (const r of records) {
+        if (r.attributeName === "style") {
+          const style = root.getAttribute("style") ?? "";
+          if (/--(primary|secondary|accent|background|foreground|card|border|ring|muted)\b/.test(style)) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[ThemeContext] Detected runtime write to theme tokens on <html>. " +
+                "Colors are locked in index.css — remove the setProperty call.",
+              style
+            );
+          }
+        }
+      }
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ["style"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const setTheme = (_themeId: string) => {
+    // Only one theme exists now. Kept for API compatibility.
   };
 
+  const setMode = (next: ThemeMode) => setModeState(next);
+  const toggleMode = () => setModeState((m) => (m === "dark" ? "light" : "dark"));
+
+  const currentTheme = THEMES["rainbow-fresh-awakening"];
+
   return (
-    <ThemeContext.Provider value={{ currentTheme, setTheme, themes: THEMES, rainbowColors: RAINBOW_COLORS }}>
+    <ThemeContext.Provider
+      value={{
+        currentTheme,
+        setTheme,
+        themes: THEMES,
+        rainbowColors: RAINBOW_COLORS,
+        mode,
+        setMode,
+        toggleMode,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
