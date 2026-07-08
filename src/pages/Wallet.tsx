@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RefreshCw, Plus, TrendingUp, TrendingDown, Clock, Gift, Lock } from "lucide-react";
+import { ArrowLeft, RefreshCw, Plus, TrendingUp, TrendingDown, Clock, Gift, Lock, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,12 +9,24 @@ import { formatBalance } from "@/lib/wallet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import BottomNav from "@/components/layout/BottomNav";
+import { ChainSelector } from "@/components/chain/ChainSelector";
+import { useChain } from "@/contexts/ChainContext";
+import { useTokenScanner } from "@/hooks/useTokenScanner";
+import { WatchlistPanel } from "@/components/wallet/WatchlistPanel";
 
 const Wallet = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { wallets, activeWallet, balanceLoading, refreshBalances, balances } = useWallet();
+  const { currentChain } = useChain();
+  const { scan, scanning } = useTokenScanner();
   const [activeTab, setActiveTab] = useState("spot");
+
+  const handleScan = () => {
+    if (activeWallet?.address) {
+      scan(activeWallet.address, currentChain.chainId, currentChain.rpcUrl);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -85,23 +97,32 @@ const Wallet = () => {
             </Button>
             <h1 className="text-xl font-heading font-bold">Ví của tôi</h1>
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={refreshBalances}
-            disabled={balanceLoading}
-          >
-            <RefreshCw className={`w-5 h-5 ${balanceLoading ? "animate-spin" : ""}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <ChainSelector compact />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={refreshBalances}
+              disabled={balanceLoading}
+            >
+              <RefreshCw className={`w-5 h-5 ${balanceLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mx-4 mt-4 max-w-[calc(100%-2rem)]">
-          <TabsTrigger value="spot" className="font-semibold">Spot Wallet</TabsTrigger>
-          <TabsTrigger value="earn" className="font-semibold">Earn Wallet</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 mx-4 mt-4 max-w-[calc(100%-2rem)]">
+          <TabsTrigger value="spot" className="font-semibold">Spot</TabsTrigger>
+          <TabsTrigger value="watchlist" className="font-semibold">Watchlist</TabsTrigger>
+          <TabsTrigger value="earn" className="font-semibold">Earn</TabsTrigger>
         </TabsList>
+
+        {/* Watchlist */}
+        <TabsContent value="watchlist" className="px-4 mt-4 space-y-4 animate-fade-in">
+          <WatchlistPanel />
+        </TabsContent>
 
         {/* Spot Wallet */}
         <TabsContent value="spot" className="px-4 mt-4 space-y-4 animate-fade-in">
@@ -157,9 +178,20 @@ const Wallet = () => {
               ))
             )}
 
+            {/* Scan tokens */}
+            <Button
+              variant="outline"
+              className="w-full border-dashed"
+              onClick={handleScan}
+              disabled={scanning || !activeWallet?.address}
+            >
+              <Radar className={`w-4 h-4 mr-2 ${scanning ? "animate-pulse" : ""}`} />
+              {scanning ? "Đang quét..." : `Quét token trên ${currentChain.shortName}`}
+            </Button>
+
             {/* Import Token Button */}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full border-dashed border-primary/50 text-primary hover:bg-primary/5"
             >
               <Plus className="w-4 h-4 mr-2" />
