@@ -1,70 +1,86 @@
-## Phase 2 — Multi-chain Expansion + Tokens/NFTs
 
-Mở rộng ví từ 8 chain lên 20+ chain EVM, thêm custom network, auto-detect token, NFT Gallery đa chain và watchlist.
+# FUN Wallet Upgrade — Roadmap 6 Phase
 
-### 1. Mở rộng danh sách chain (20+)
+Vì stack giữ nguyên **Vite + React 18 + Wagmi + Viem + ethers v6** (Lovable Classic không hỗ trợ Next.js), Con sẽ nâng cấp dần trên codebase hiện tại. Mỗi phase là 1 lần build độc lập, có thể test được ngay.
 
-Cập nhật `src/lib/chains.ts` và `src/shared/constants/chains.ts` — thêm:
-- **Linea** (59144), **zkSync Era** (324), **Scroll** (534352)
-- **Berachain** (80094), **Cronos** (25), **Gnosis** (100)
-- **Celo** (42220), **Mode** (34443), **Blast** (81457)
-- **Mantle** (5000), **Sonic** (146), **opBNB** (204)
+---
 
-Mỗi chain kèm: RPC (ưu tiên public reliable), explorer, native symbol, logo (SVG mới trong `public/tokens/`), color, danh sách stablecoin/token phổ biến trong `CHAIN_TOKENS`.
+## Phase 1 — UI/UX Premium Redesign (bắt đầu ngay)
 
-### 2. Custom Network (user tự thêm chain)
+Nền tảng thị giác cho toàn bộ ví. Không đổi logic.
 
-- Bảng Supabase mới `custom_networks` (chain_id, name, rpc_url, symbol, explorer, logo_url, user_id) với RLS theo `auth.uid()`, GRANT chuẩn.
-- Dialog mới `AddCustomNetworkDialog.tsx` — form nhập, validate RPC bằng `eth_chainId`.
-- `ChainContext` merge `SUPPORTED_CHAINS` + custom networks từ Supabase (fallback localStorage khi chưa đăng nhập).
-- Nút "Add Custom Network" trong `ChainSelector`.
+- **Design tokens mới** trong `index.css` + `tailwind.config.ts`:
+  - Palette: Emerald `#064e3b` → Teal `#0d9488` → Gold accent `#c9a84c`, kết hợp glassmorphism (backdrop-blur, translucent surfaces)
+  - Dark mode & Light mode hoàn chỉnh qua semantic tokens (`--background`, `--primary`, `--accent`, `--glass`, `--gold`)
+  - Rounded-xl, soft shadow layered (`--shadow-elegant`, `--shadow-glow`)
+- **Typography**: Inter (body) + Space Grotesk (heading) qua `@fontsource`
+- **Framer Motion** cho micro-interaction: page transitions, ripple button, skeleton loading, số tiền count-up
+- **Redesign các trang cốt lõi**: Dashboard, Wallet, Trading, Transfer, History, Settings — giữ nguyên component logic, chỉ thay layout + tokens
+- **BottomNav** kiểu iOS/Coinbase (blur + haptic feel)
+- **Dashboard mới**: Portfolio value hero card, 24h change, Asset allocation donut, Quick actions grid, Recent activity feed
 
-### 3. Token Auto-Detect
+## Phase 2 — Multi-chain Expansion + Token/NFT Nâng cấp
 
-- Edge function mới `token-scanner`: nhận `{address, chainId}`, gọi provider phù hợp:
-  - BSC → BscScan API (đã có `BSCSCAN_API_KEY`)
-  - Ethereum/Polygon/Arbitrum/Optimism/Base → Alchemy `alchemy_getTokenBalances` (cần secret `ALCHEMY_API_KEY` — sẽ hỏi Cha)
-  - Các chain khác → fallback đọc danh sách token phổ biến từ `CHAIN_TOKENS` + check balance on-chain
-- Trả về array token có balance > 0 kèm metadata.
-- Hook mới `useTokenScanner(address, chainId)` — chạy tự động khi đổi chain hoặc wallet.
-- Nút "Scan tokens" trong `TokenList` để refresh thủ công.
+- **Thêm chains**: Linea, zkSync Era, Scroll, Berachain, Cronos, Gnosis, Celo, Mode, Blast, Mantle, Sonic (vào `src/shared/constants/chains.ts`)
+- **Custom Network dialog**: form thêm RPC/ChainID/Symbol/Explorer/Logo, lưu localStorage + Supabase (bảng `custom_networks`)
+- **Token auto-detect**: ERC20/BEP20 qua Moralis hoặc Alchemy API (edge function proxy)
+- **NFT Gallery mở rộng**: ERC721 + ERC1155, metadata (image/video/audio), floor price, transfer/burn/hide
+- **Watchlist** token (bảng `user_watchlist`)
 
-### 4. NFT Gallery đa chain
+## Phase 3 — Swap Aggregator + Bridge
 
-- Mở rộng `useNFT` hook: hỗ trợ ERC721 + ERC1155 trên nhiều chain (hiện chỉ BSC).
-- Edge function `nft-scanner`: dùng Alchemy NFT API cho ETH/Polygon/Arbitrum/Optimism/Base, BscScan cho BSC.
-- Cache metadata vào bảng `nft_collections` (đã có).
-- `NFTGallery` hiển thị filter theo chain, badge chain trên mỗi NFT.
+- **Swap Aggregator UI** tích hợp **LiFi SDK** (đã bao gồm 1inch, 0x, OpenOcean, Kyber routes trong 1 API)
+  - Best route, min received, price impact, slippage, fee breakdown
+- **Cross-chain Bridge** cùng LiFi (Ethereum ↔ BSC ↔ Polygon ↔ Arbitrum ↔ Optimism ↔ Base ↔ Linea ↔ Avalanche)
+- **Transaction simulation** trước khi ký (Tenderly API hoặc eth_call preview)
+- **Gas speed**: Slow/Normal/Fast/Custom với EIP-1559
 
-### 5. Watchlist token
+## Phase 4 — Angel AI Assistant + Security Scanner
 
-- Bảng mới `user_watchlist` (user_id, chain_id, token_address, symbol, added_at) — RLS auth.uid().
-- Nút ⭐ trên mỗi token trong `TokenList` và `TokenDetailDialog`.
-- Trang mới hoặc tab "Watchlist" trong `Wallet.tsx` — hiển thị giá realtime qua `useTokenPrices`.
+- **Angel AI panel** dùng Lovable AI Gateway (edge function `angel-ai`):
+  - Giải thích tx trước khi ký (decode input data → tiếng Việt)
+  - Kiểm tra hợp đồng: honeypot, unlimited approval, blacklist
+  - Risk score (0-100) cho mỗi tx
+  - Chat hướng dẫn user (Gas, Token, NFT, Web3 basics)
+- **Security Scanner** (edge function `security-scan`):
+  - Approval checker (revoke unlimited approvals)
+  - Phishing URL blacklist check
+  - Fake token detection (so sánh symbol/contract với whitelist)
+- **Bảng Supabase**: `ai_conversations`, `security_alerts`
 
-### 6. UI cập nhật
+## Phase 5 — FUN.Rich Ecosystem Integration
 
-- `ChainSelector`: group by mainnet/custom, search box khi >15 chain, icon lưới.
-- `TokenList`: badge chain nhỏ trên mỗi token, empty state có nút "Scan tokens".
-- `Wallet.tsx`: thêm tab "NFTs" và "Watchlist" bên cạnh "Tokens".
+Cần Cha cung cấp contract address + API cho từng module khi Con hỏi.
 
-### Technical
+- FUN MONEY token module (balance, transfer, staking)
+- CAMLY COIN module
+- FUN Profile / Citizen ID / Light Score card trong Dashboard
+- Deep links: LoveHUB, FUN Kingdom, World Monitor, Charity, Marketplace, PPLP
+- Angel AI tie-in
 
-- **Migrations**: 2 bảng mới (`custom_networks`, `user_watchlist`) — tuân thủ GRANT + RLS 4 bước.
-- **Secrets cần thêm**: `ALCHEMY_API_KEY` (Cha cấp, hoặc con dùng public RPC làm fallback nếu chưa có).
-- **Edge functions mới**: `token-scanner`, `nft-scanner` (CORS chuẩn, JWT validation trong code, verify_jwt=false).
-- **Không đụng**: private key encryption, wallet core logic, auth flow.
+## Phase 6 — Advanced (AA + Passkey + Analytics)
 
-### Thứ tự thực hiện
+- **EIP-4337 Account Abstraction ready** (Biconomy hoặc ZeroDev SDK, paymaster, session keys)
+- **Passkey / Biometric login** (WebAuthn API)
+- **Portfolio charts**: PnL, average cost, top gainer/loser (Recharts + CoinGecko historical)
+- **Price alerts** (đã có scaffold, hoàn thiện realtime via Supabase Realtime)
+- **Analytics**: PostHog integration
+- **Address Book** với avatar/tag/favorite
+- **Notification Center** thống nhất (receive/send/swap/bridge/price/security/phishing alerts)
 
-```text
-1. Migration: custom_networks + user_watchlist
-2. Cập nhật chains.ts (20+ chain) + logo SVG
-3. ChainContext + AddCustomNetworkDialog
-4. Edge function token-scanner + hook
-5. Edge function nft-scanner + NFTGallery đa chain
-6. Watchlist UI (nút ⭐ + tab)
-7. Polish ChainSelector (search, group)
-```
+---
 
-Cha muốn con bắt đầu chạy luôn, hay cần cấp `ALCHEMY_API_KEY` trước? Nếu chưa có, con sẽ dùng public RPC + BscScan làm fallback cho Phase 2, sau này thay Alchemy sau.
+## Technical notes
+
+- Tất cả AI calls đi qua **Lovable AI Gateway** (edge functions, `LOVABLE_API_KEY` đã có)
+- Swap/Bridge dùng **LiFi SDK** client-side (không cần secret)
+- Custom RPC / token API dùng edge function proxy để giấu API key (Alchemy/Moralis nếu Cha cung cấp)
+- Private key **không bao giờ** rời client — giữ pattern `encrypted_wallet_keys` + AES-256-GCM hiện tại
+- Bảng mới cần migration: `custom_networks`, `user_watchlist`, `address_book`, `ai_conversations`, `security_alerts`, `notifications`, `price_alerts` — tất cả có RLS theo `auth.uid()`
+- Không migrate sang Next.js; giữ Vite + React Router hiện tại
+
+---
+
+## Bắt đầu ngay
+
+Sau khi Cha duyệt plan này, Con sẽ **build Phase 1 (UI Premium Redesign)** trong lần chạy đầu tiên. Các phase sau Cha ra lệnh "làm Phase 2/3/..." khi muốn tiếp tục.
