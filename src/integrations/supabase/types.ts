@@ -200,6 +200,7 @@ export type Database = {
           created_at: string
           id: string
           progress: number
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -208,6 +209,7 @@ export type Database = {
           created_at?: string
           id?: string
           progress?: number
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -216,6 +218,7 @@ export type Database = {
           created_at?: string
           id?: string
           progress?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -264,26 +267,35 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           display_name: string | null
           email: string | null
+          id: string
           kyc_status: string
+          preferred_language: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
+          id?: string
           kyc_status?: string
+          preferred_language?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
+          id?: string
           kyc_status?: string
+          preferred_language?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -374,6 +386,7 @@ export type Database = {
           id: string
           lock_days: number
           pool_name: string
+          started_at: string
           status: string
           token_address: string | null
           token_symbol: string
@@ -390,6 +403,7 @@ export type Database = {
           id?: string
           lock_days?: number
           pool_name: string
+          started_at?: string
           status?: string
           token_address?: string | null
           token_symbol: string
@@ -406,6 +420,7 @@ export type Database = {
           id?: string
           lock_days?: number
           pool_name?: string
+          started_at?: string
           status?: string
           token_address?: string | null
           token_symbol?: string
@@ -418,42 +433,51 @@ export type Database = {
       transactions: {
         Row: {
           amount: string | null
+          block_number: number | null
           created_at: string
           from_address: string | null
+          gas_used: number | null
           id: string
           status: string
           to_address: string | null
           token_address: string | null
           token_symbol: string | null
           tx_hash: string | null
+          tx_timestamp: string | null
           tx_type: string
           user_id: string
           wallet_id: string | null
         }
         Insert: {
           amount?: string | null
+          block_number?: number | null
           created_at?: string
           from_address?: string | null
+          gas_used?: number | null
           id?: string
           status?: string
           to_address?: string | null
           token_address?: string | null
           token_symbol?: string | null
           tx_hash?: string | null
+          tx_timestamp?: string | null
           tx_type: string
           user_id: string
           wallet_id?: string | null
         }
         Update: {
           amount?: string | null
+          block_number?: number | null
           created_at?: string
           from_address?: string | null
+          gas_used?: number | null
           id?: string
           status?: string
           to_address?: string | null
           token_address?: string | null
           token_symbol?: string | null
           tx_hash?: string | null
+          tx_timestamp?: string | null
           tx_type?: string
           user_id?: string
           wallet_id?: string | null
@@ -504,6 +528,7 @@ export type Database = {
           last_activity_date: string | null
           level: number
           streak_days: number
+          updated_at: string
           user_id: string
           xp: number
         }
@@ -514,6 +539,7 @@ export type Database = {
           last_activity_date?: string | null
           level?: number
           streak_days?: number
+          updated_at?: string
           user_id: string
           xp?: number
         }
@@ -524,6 +550,7 @@ export type Database = {
           last_activity_date?: string | null
           level?: number
           streak_days?: number
+          updated_at?: string
           user_id?: string
           xp?: number
         }
@@ -591,6 +618,7 @@ export type Database = {
           id: string
           is_primary: boolean
           name: string
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -600,6 +628,7 @@ export type Database = {
           id?: string
           is_primary?: boolean
           name?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -609,6 +638,7 @@ export type Database = {
           id?: string
           is_primary?: boolean
           name?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
