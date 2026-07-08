@@ -14,7 +14,10 @@ const BottomNav = () => {
   const navigate = useNavigate();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border safe-area-bottom">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] border-t border-border/40 backdrop-blur-2xl"
+      style={{ background: "hsl(var(--background) / 0.75)" }}
+    >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {navItems.map(({ path, icon: Icon, label }) => {
           const isActive = location.pathname === path;
@@ -22,19 +25,27 @@ const BottomNav = () => {
             <button
               key={path}
               onClick={() => navigate(path)}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-all ${
-                isActive 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-foreground"
+              className={`relative flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-all duration-300 ease-out-quart ${
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <div className={`relative ${isActive ? "animate-pulse-glow rounded-lg p-1.5" : "p-1.5"}`}>
-                <Icon className={`w-5 h-5 ${isActive ? "text-primary" : ""}`} />
-                {isActive && (
-                  <div className="absolute inset-0 bg-primary/20 rounded-lg blur-md -z-10" />
-                )}
+              {isActive && (
+                <span className="absolute -top-px left-1/2 -translate-x-1/2 h-1 w-8 rounded-full bg-gradient-to-r from-primary to-secondary shadow-glow" />
+              )}
+              <div
+                className={`relative flex items-center justify-center h-9 w-9 rounded-xl transition-all duration-300 ${
+                  isActive
+                    ? "bg-gradient-to-br from-primary/15 to-secondary/15 scale-110"
+                    : "hover:bg-muted/60"
+                }`}
+              >
+                <Icon className="w-5 h-5" strokeWidth={isActive ? 2.4 : 2} />
               </div>
-              <span className={`text-xs font-medium ${isActive ? "text-primary" : ""}`}>
+              <span
+                className={`text-[10px] font-medium tracking-tight transition-all ${
+                  isActive ? "opacity-100" : "opacity-70"
+                }`}
+              >
                 {label}
               </span>
             </button>

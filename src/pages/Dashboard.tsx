@@ -263,32 +263,32 @@ const Dashboard = () => {
   const totalBalance = getTotalBalance(prices);
   const hasWallet = wallets.length > 0 && activeWallet;
 
-  // Rainbow colors for quick action buttons
-  const RAINBOW_BUTTON_COLORS = [
-    "bg-[#FF0000] hover:bg-[#CC0000] text-white",    // Đỏ - Gửi
-    "bg-[#FFA500] hover:bg-[#CC8400] text-white",    // Cam - Nhận
-    "bg-[#FFFF00] hover:bg-[#CCCC00] text-foreground", // Vàng - Swap
-    "bg-[#00FF7F] hover:bg-[#00CC66] text-white",    // Xanh lá - Stake
-    "bg-[#00BFFF] hover:bg-[#0099CC] text-white",    // Xanh dương - Thêm
-    "bg-[#4B0082] hover:bg-[#3D006B] text-white",    // Chàm - Giá
-    "bg-[#FF00FF] hover:bg-[#CC00CC] text-white",    // Tím - DApps
-  ];
+  // Premium palette for quick action buttons - Emerald / Teal / Gold system
+  const PALETTE = {
+    primary: "bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-elegant",
+    teal:    "bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-elegant",
+    gold:    "bg-gradient-to-br from-gold to-accent text-accent-foreground shadow-gold",
+    emerald: "bg-primary hover:bg-primary/90 text-primary-foreground shadow-elegant",
+    neutral: "bg-card hover:bg-muted text-foreground border border-border/60 shadow-sm",
+    ghost:   "bg-muted/60 hover:bg-muted text-foreground",
+  } as const;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header with subtle rainbow gradient */}
-      <header 
-        className="sticky top-0 z-50 border-b border-border/50 px-4 py-3"
-        style={{
-          background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(0,255,127,0.05) 100%)"
-        }}
-      >
+    <div className="min-h-screen bg-background pb-20 relative">
+      {/* Ambient mesh background */}
+      <div
+        className="pointer-events-none fixed inset-0 -z-10 opacity-70"
+        style={{ background: "var(--gradient-mesh)" }}
+      />
+
+      {/* Header - Glass sticky */}
+      <header className="sticky top-0 z-50 border-b border-border/40 px-4 py-3 backdrop-blur-xl bg-background/70">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center">
             <img 
               src="/logo.gif?v=1" 
               alt="FUN Wallet" 
-              className="w-[120px] h-[120px] md:w-[150px] md:h-[150px] lg:w-[180px] lg:h-[180px] object-contain logo-glow" 
+              className="w-[80px] h-[80px] md:w-[100px] md:h-[100px] object-contain logo-glow" 
             />
           </Link>
           <div className="flex items-center gap-2">
@@ -316,44 +316,48 @@ const Dashboard = () => {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Welcome section */}
-        <div className="mb-8">
-          <h1 className="font-heading text-2xl font-bold mb-2">
-            Xin chào, {user.user_metadata?.display_name || user.email?.split("@")[0]} 👋
+        <div className="mb-6 animate-fade-in">
+          <h1 className="font-heading text-2xl md:text-3xl font-semibold tracking-tight mb-1">
+            Xin chào, <span className="gradient-text">{user.user_metadata?.display_name || user.email?.split("@")[0]}</span>
           </h1>
-          <p className="text-muted-foreground">Quản lý tài sản Web3 của bạn</p>
+          <p className="text-sm text-muted-foreground">Quản lý tài sản Web3 của bạn</p>
         </div>
 
-        {/* Wallet Card - Rainbow Fresh Awakening Style */}
-        <div className="bg-card rounded-3xl p-6 mb-8 border-2 border-primary/30 shadow-xl glow-rainbow">
-          <div className="flex items-start justify-between mb-6">
+        {/* Wallet Hero Card - Premium Glassmorphism */}
+        <div
+          className="relative rounded-3xl p-6 md:p-8 mb-8 overflow-hidden border border-border/50 shadow-elegant animate-fade-in-up"
+          style={{ background: "var(--gradient-hero)" }}
+        >
+          {/* Gold accent orb */}
+          <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-30 blur-3xl" style={{ background: "var(--gradient-gold)" }} />
+          <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full opacity-25 blur-3xl bg-secondary" />
+
+          <div className="relative flex items-start justify-between mb-6">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Tổng tài sản</p>
-              <div className="flex items-center gap-2">
+              <p className="text-xs uppercase tracking-widest text-white/60 mb-2">Tổng tài sản</p>
+              <div className="flex items-center gap-3">
                 {pricesLoading && balances.length > 0 ? (
-                  <Skeleton className="h-10 w-32" />
+                  <Skeleton className="h-11 w-40 bg-white/10" />
                 ) : (
-                  <h2 className="font-heading text-4xl font-bold rainbow-text">
+                  <h2 className="font-heading text-4xl md:text-5xl font-bold text-white tracking-tight">
                     {balanceHidden ? "••••••" : `$${formatBalance(totalBalance.toFixed(2), 2)}`}
                   </h2>
                 )}
-                <Button variant="ghost" size="icon" onClick={toggleBalanceVisibility} className="h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={toggleBalanceVisibility} className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10">
                   {balanceHidden ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </Button>
               </div>
-              <p className="text-sm text-[#00FF7F] mt-1 flex items-center gap-1 font-medium">
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15">
                 {currentChain.logo.startsWith("/") ? (
-                  <img src={currentChain.logo} alt={currentChain.shortName} className="w-5 h-5 rounded-full" />
+                  <img src={currentChain.logo} alt={currentChain.shortName} className="w-4 h-4 rounded-full" />
                 ) : (
-                  <span>{currentChain.logo}</span>
+                  <span className="text-sm">{currentChain.logo}</span>
                 )}
-                {currentChain.shortName}
-              </p>
+                <span className="text-xs font-medium text-white/90">{currentChain.shortName}</span>
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <div 
-                className="w-12 h-12 rounded-xl flex items-center justify-center animate-pulse-glow"
-                style={{ background: "linear-gradient(135deg, #00FF7F 0%, #00BFFF 100%)" }}
-              >
+            <div className="flex flex-col items-end gap-2">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white/10 backdrop-blur-md border border-white/20">
                 <Wallet className="h-6 w-6 text-white" />
               </div>
               {!pinEnabled && (
@@ -361,7 +365,7 @@ const Dashboard = () => {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setShowPinSetup(true)}
-                  className="text-xs"
+                  className="text-xs text-white/80 hover:text-white hover:bg-white/10"
                 >
                   <Shield className="h-3 w-3 mr-1" />
                   PIN
@@ -370,16 +374,16 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Wallet address - Clickable to open manager */}
+          {/* Wallet address chip */}
           <div 
-            className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 mb-6 cursor-pointer hover:bg-muted/70 transition-colors"
+            className="relative flex items-center gap-2 p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 cursor-pointer hover:bg-white/15 transition-colors"
             onClick={() => hasWallet && setWalletManagerOpen(true)}
           >
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-white/60">
                 {hasWallet ? activeWallet.name : `Địa chỉ ví ${currentChain.shortName}`}
               </p>
-              <p className="text-sm font-mono">
+              <p className="text-sm font-mono text-white truncate">
                 {hasWallet 
                   ? formatAddress(activeWallet.address, 8) 
                   : "Chưa có ví - Tạo ví để bắt đầu"}
@@ -387,11 +391,11 @@ const Dashboard = () => {
             </div>
             {hasWallet && (
               <>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); copyAddress(); }}>
+                <ChevronDown className="h-4 w-4 text-white/60" />
+                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); copyAddress(); }} className="text-white/80 hover:text-white hover:bg-white/10">
                   <Copy className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" asChild onClick={(e) => e.stopPropagation()} className="text-white/80 hover:text-white hover:bg-white/10">
                   <a
                     href={`${currentChain.explorer}/address/${activeWallet.address}`}
                     target="_blank"
@@ -403,134 +407,135 @@ const Dashboard = () => {
               </>
             )}
           </div>
+        </div>
 
-          {/* Quick actions - Row 1 with Rainbow Colors */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-3 mb-2">
+        {/* Quick actions grid - premium */}
+        <div className="mb-8 space-y-3">
+          <div className="grid grid-cols-6 gap-2 sm:gap-3">
             <QuickAction 
               icon={<ArrowUpRight />} 
               label="Gửi" 
               onClick={() => setSendOpen(true)}
               disabled={!hasWallet}
-              colorClass={RAINBOW_BUTTON_COLORS[0]}
+              colorClass={PALETTE.primary}
             />
             <QuickAction 
               icon={<Users />} 
               label="Gửi nhiều" 
               onClick={() => setBulkSendOpen(true)}
               disabled={!hasWallet}
-              colorClass="bg-[#FF6347] hover:bg-[#CC4F39] text-white"
+              colorClass={PALETTE.neutral}
             />
             <QuickAction 
               icon={<ArrowDownLeft />} 
               label="Nhận" 
               onClick={() => setReceiveOpen(true)}
               disabled={!hasWallet}
-              colorClass={RAINBOW_BUTTON_COLORS[1]}
+              colorClass={PALETTE.teal}
             />
             <QuickAction 
               icon={<ArrowDownUp />} 
               label="Swap" 
               onClick={() => setSwapOpen(true)}
               disabled={!hasWallet}
-              colorClass={RAINBOW_BUTTON_COLORS[2]}
+              colorClass={PALETTE.gold}
             />
             <QuickAction 
               icon={<Layers />} 
               label="Stake" 
               onClick={() => setStakingOpen(true)}
               disabled={!hasWallet}
-              colorClass={RAINBOW_BUTTON_COLORS[3]}
+              colorClass={PALETTE.emerald}
             />
             <QuickAction 
               icon={<Plus />} 
               label={hasWallet ? "Thêm" : "Tạo ví"}
               onClick={() => setCreateWalletOpen(true)}
-              colorClass={RAINBOW_BUTTON_COLORS[4]}
+              colorClass={PALETTE.neutral}
             />
           </div>
 
-          {/* Quick actions - Row 2 */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-3 mb-2">
+          <div className="grid grid-cols-6 gap-2 sm:gap-3">
             <QuickAction 
               icon={<Bell />} 
               label="Giá" 
               onClick={() => setPriceAlertsOpen(true)}
-              colorClass={RAINBOW_BUTTON_COLORS[5]}
+              colorClass={PALETTE.ghost}
             />
             <QuickAction 
               icon={<Globe />} 
               label="DApps" 
               onClick={() => setDappBrowserOpen(true)}
               disabled={!hasWallet}
-              colorClass={RAINBOW_BUTTON_COLORS[6]}
+              colorClass={PALETTE.ghost}
             />
             <QuickAction 
               icon={<Shield />} 
               label="Backup" 
               onClick={() => setBackupOpen(true)}
               disabled={!hasWallet}
-              colorClass="bg-[#00FF7F] hover:bg-[#00CC66] text-white"
+              colorClass={PALETTE.ghost}
             />
             <QuickAction 
               icon={<Link2 />} 
               label="WC" 
               onClick={() => setWalletConnectOpen(true)}
               disabled={!hasWallet}
-              colorClass="bg-[#00BFFF] hover:bg-[#0099CC] text-white"
+              colorClass={PALETTE.ghost}
             />
             <QuickAction 
               icon={<QrCode />} 
               label="QR" 
               onClick={() => navigate("/qr-payment")}
               disabled={!hasWallet}
-              colorClass="bg-[#9333EA] hover:bg-[#7E22CE] text-white"
+              colorClass={PALETTE.ghost}
             />
             <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
               disabled={!hasWallet || balanceLoading}
-              colorClass="bg-muted hover:bg-muted/80 text-foreground"
+              colorClass={PALETTE.ghost}
             />
           </div>
 
-          {/* Quick actions - Row 3: More Features */}
           <div className="grid grid-cols-5 gap-2 sm:gap-3">
             <QuickAction 
               icon={<Coins />} 
               label="Earn" 
               onClick={() => navigate("/earn")}
-              colorClass="bg-gradient-to-r from-[#FFD700] to-[#FFA500] hover:from-[#E6C200] hover:to-[#E69400] text-foreground"
+              colorClass={PALETTE.gold}
             />
             <QuickAction 
               icon={<SendHorizontal />} 
               label="Transfer" 
               onClick={() => navigate("/transfer")}
               disabled={!hasWallet}
-              colorClass="bg-[#FF6B35] hover:bg-[#E55A2B] text-white"
+              colorClass={PALETTE.neutral}
             />
             <QuickAction 
               icon={<ClipboardList />} 
               label="History" 
               onClick={() => navigate("/history")}
               disabled={!hasWallet}
-              colorClass="bg-[#06B6D4] hover:bg-[#0891B2] text-white"
+              colorClass={PALETTE.neutral}
             />
             <QuickAction 
               icon={<CreditCard />} 
               label="Card" 
               onClick={() => navigate("/card")}
               disabled={!hasWallet}
-              colorClass="bg-gradient-to-r from-[#00FF7F] to-[#00BFFF] hover:from-[#00E66F] hover:to-[#00A8E0] text-foreground"
+              colorClass={PALETTE.primary}
             />
             <QuickAction 
               icon={<GraduationCap />} 
               label="Learn" 
               onClick={() => navigate("/learn")}
-              colorClass="bg-gradient-to-r from-[#FF0080] to-[#7928CA] hover:from-[#E60073] hover:to-[#6B21B8] text-white"
+              colorClass={PALETTE.neutral}
             />
           </div>
         </div>
+
 
         {/* Tabs: Tokens / NFTs / History / Portfolio */}
         {hasWallet ? (
@@ -832,12 +837,12 @@ const QuickAction = ({
   <button 
     onClick={onClick}
     disabled={disabled}
-    className={`btn-hover-scale ripple-effect icon-bounce flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
+    className={`group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-2xl transition-all duration-300 ease-out-quart hover:-translate-y-0.5 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
   >
-    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 flex items-center justify-center">
+    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110 [&_svg]:h-5 [&_svg]:w-5">
       {icon}
     </div>
-    <span className="text-xs sm:text-sm font-medium">{label}</span>
+    <span className="text-[11px] sm:text-xs font-medium tracking-tight">{label}</span>
   </button>
 );
 
