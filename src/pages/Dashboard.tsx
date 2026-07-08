@@ -837,12 +837,12 @@ const QuickAction = ({
   <button 
     onClick={onClick}
     disabled={disabled}
-    className={`btn-hover-scale ripple-effect icon-bounce flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
+    className={`group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-2xl transition-all duration-300 ease-out-quart hover:-translate-y-0.5 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
   >
-    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 flex items-center justify-center">
+    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110 [&_svg]:h-5 [&_svg]:w-5">
       {icon}
     </div>
-    <span className="text-xs sm:text-sm font-medium">{label}</span>
+    <span className="text-[11px] sm:text-xs font-medium tracking-tight">{label}</span>
   </button>
 );
 
