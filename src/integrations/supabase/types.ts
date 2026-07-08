@@ -97,6 +97,54 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_networks: {
+        Row: {
+          chain_id: number
+          color: string | null
+          created_at: string
+          explorer: string | null
+          id: string
+          is_testnet: boolean
+          logo_url: string | null
+          name: string
+          rpc_url: string
+          short_name: string
+          symbol: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chain_id: number
+          color?: string | null
+          created_at?: string
+          explorer?: string | null
+          id?: string
+          is_testnet?: boolean
+          logo_url?: string | null
+          name: string
+          rpc_url: string
+          short_name: string
+          symbol: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chain_id?: number
+          color?: string | null
+          created_at?: string
+          explorer?: string | null
+          id?: string
+          is_testnet?: boolean
+          logo_url?: string | null
+          name?: string
+          rpc_url?: string
+          short_name?: string
+          symbol?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       encrypted_wallet_keys: {
         Row: {
           created_at: string
@@ -607,6 +655,42 @@ export type Database = {
           updated_at?: string
           user_id?: string
           walletconnect_sessions?: Json | null
+        }
+        Relationships: []
+      }
+      user_watchlist: {
+        Row: {
+          chain_id: number
+          created_at: string
+          decimals: number | null
+          id: string
+          logo_url: string | null
+          name: string | null
+          symbol: string
+          token_address: string
+          user_id: string
+        }
+        Insert: {
+          chain_id: number
+          created_at?: string
+          decimals?: number | null
+          id?: string
+          logo_url?: string | null
+          name?: string | null
+          symbol: string
+          token_address: string
+          user_id: string
+        }
+        Update: {
+          chain_id?: number
+          created_at?: string
+          decimals?: number | null
+          id?: string
+          logo_url?: string | null
+          name?: string | null
+          symbol?: string
+          token_address?: string
+          user_id?: string
         }
         Relationships: []
       }
