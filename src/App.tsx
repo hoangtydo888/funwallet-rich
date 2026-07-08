@@ -27,6 +27,7 @@ import History from "./pages/History";
 import Learn from "./pages/Learn";
 import KYC from "./pages/KYC";
 import PlatformDocs from "./pages/PlatformDocs";
+import ThemePreview from "./pages/ThemePreview";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,7 @@ const App = () => (
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/admin/bulk-transfer" element={<AdminBulkTransfer />} />
                     <Route path="/docs/platform" element={<PlatformDocs />} />
+                    <Route path="/theme-preview" element={<ThemePreview />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
