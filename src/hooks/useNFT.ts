@@ -45,6 +45,9 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
   const { user } = useAuth();
   const [nfts, setNfts] = useState<NFTItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [multiChainNfts, setMultiChainNfts] = useState<MultiChainNFT[]>([]);
+  const [mcScanning, setMcScanning] = useState(false);
+  const [mcUnsupported, setMcUnsupported] = useState<number[]>([]);
 
   // Fetch NFTs from database
   const fetchNFTs = useCallback(async () => {
