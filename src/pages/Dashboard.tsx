@@ -267,15 +267,9 @@ const Dashboard = () => {
   const totalBalance = getTotalBalance(prices);
   const hasWallet = wallets.length > 0 && activeWallet;
 
-  // Premium palette for quick action buttons - Emerald / Teal / Gold system
-  const PALETTE = {
-    primary: "bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-elegant",
-    teal:    "bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-elegant",
-    gold:    "bg-gradient-to-br from-gold to-accent text-accent-foreground shadow-gold",
-    emerald: "bg-primary hover:bg-primary/90 text-primary-foreground shadow-elegant",
-    neutral: "bg-card hover:bg-muted text-foreground border border-border/60 shadow-sm",
-    ghost:   "bg-muted/60 hover:bg-muted text-foreground",
-  } as const;
+  // Rainbow Fresh Awakening palette — khớp Hình 1
+  const tile = (name: string, dark = false) =>
+    `bg-tile-${name} ${dark ? "text-black" : "text-white"} shadow-elegant`;
 
   return (
     <div className="min-h-screen bg-background pb-20 relative">
@@ -421,41 +415,41 @@ const Dashboard = () => {
               label="Gửi" 
               onClick={() => setSendOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.primary}
+              colorClass={tile("red")}
             />
             <QuickAction 
               icon={<Users />} 
               label="Gửi nhiều" 
               onClick={() => setBulkSendOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.neutral}
+              colorClass={tile("coral")}
             />
             <QuickAction 
               icon={<ArrowDownLeft />} 
               label="Nhận" 
               onClick={() => setReceiveOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.teal}
+              colorClass={tile("orange")}
             />
             <QuickAction 
               icon={<ArrowDownUp />} 
               label="Swap" 
               onClick={() => setSwapOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.gold}
+              colorClass={tile("yellow", true)}
             />
             <QuickAction 
               icon={<Layers />} 
               label="Stake" 
               onClick={() => setStakingOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.emerald}
+              colorClass={tile("green", true)}
             />
             <QuickAction 
               icon={<Plus />} 
               label={hasWallet ? "Thêm" : "Tạo ví"}
               onClick={() => setCreateWalletOpen(true)}
-              colorClass={PALETTE.neutral}
+              colorClass={tile("cyan")}
             />
           </div>
 
@@ -464,42 +458,42 @@ const Dashboard = () => {
               icon={<Bell />} 
               label="Giá" 
               onClick={() => setPriceAlertsOpen(true)}
-              colorClass={PALETTE.ghost}
+              colorClass={tile("purple")}
             />
             <QuickAction 
               icon={<Globe />} 
               label="DApps" 
               onClick={() => setDappBrowserOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.ghost}
+              colorClass={tile("magenta")}
             />
             <QuickAction 
               icon={<Shield />} 
               label="Backup" 
               onClick={() => setBackupOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.ghost}
+              colorClass={tile("emerald")}
             />
             <QuickAction 
               icon={<Link2 />} 
               label="WC" 
               onClick={() => setWalletConnectOpen(true)}
               disabled={!hasWallet}
-              colorClass={PALETTE.ghost}
+              colorClass={tile("cyan")}
             />
             <QuickAction 
               icon={<QrCode />} 
               label="QR" 
               onClick={() => navigate("/qr-payment")}
               disabled={!hasWallet}
-              colorClass={PALETTE.ghost}
+              colorClass={tile("violet")}
             />
             <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
               disabled={!hasWallet || balanceLoading}
-              colorClass={PALETTE.ghost}
+              colorClass={tile("slate", true)}
             />
           </div>
 
@@ -508,37 +502,38 @@ const Dashboard = () => {
               icon={<Coins />} 
               label="Earn" 
               onClick={() => navigate("/earn")}
-              colorClass={PALETTE.gold}
+              colorClass={tile("yellow", true)}
             />
             <QuickAction 
               icon={<SendHorizontal />} 
               label="Transfer" 
               onClick={() => navigate("/transfer")}
               disabled={!hasWallet}
-              colorClass={PALETTE.neutral}
+              colorClass={tile("orange")}
             />
             <QuickAction 
               icon={<ClipboardList />} 
               label="History" 
               onClick={() => navigate("/history")}
               disabled={!hasWallet}
-              colorClass={PALETTE.neutral}
+              colorClass={tile("teal")}
             />
             <QuickAction 
               icon={<CreditCard />} 
               label="Card" 
               onClick={() => navigate("/card")}
               disabled={!hasWallet}
-              colorClass={PALETTE.primary}
+              colorClass={tile("green", true)}
             />
             <QuickAction 
               icon={<GraduationCap />} 
               label="Learn" 
               onClick={() => navigate("/learn")}
-              colorClass={PALETTE.neutral}
+              colorClass={tile("pink")}
             />
           </div>
         </div>
+
 
 
         {/* Tabs: Tokens / NFTs / History / Portfolio */}

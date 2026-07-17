@@ -1,90 +1,29 @@
-## Giai đoạn 4 — NFT Multi-chain + ⭐ Watchlist + LiFi Swap/Bridge ✅ DONE
+# Khôi phục màu Dashboard tiles theo Hình 1
 
-Cha xác nhận GĐ4 gồm 3 hạng mục:
-1. Edge function `nft-scanner` đa chain + mở rộng `useNFT` theo Watchlist
-2. Nút ⭐ trên `TokenList` để add token vào Watchlist nhanh
-3. Tích hợp **LiFi SDK** cho Swap Aggregator + Bridge
+## Vấn đề
+Dashboard hiện tại (Hình 2) dùng bảng màu `PALETTE` gồm `primary/teal/gold/emerald/neutral/ghost` — kết quả là các tile bị nhạt (trắng/emerald/gold lặp lại). Hình 1 (bản gốc) mỗi tile có một màu cầu vồng riêng: đỏ, coral, cam, vàng, xanh lá, cyan, tím đậm, magenta, emerald, cyan, violet, xám, vàng, cam, teal, xanh lá, hồng.
 
----
+Các token `bg-tile-*` (red, coral, orange, yellow, green, cyan, purple, magenta, emerald, violet, teal, pink, slate) đã tồn tại sẵn trong `src/theme/tokens.ts` + `index.css` + `tailwind.config.ts` — chỉ cần gán lại vào từng `QuickAction`.
 
-### 1. Edge function `nft-scanner` (ERC721 + ERC1155 đa chain)
+## Thay đổi (chỉ 1 file)
 
-- File mới `supabase/functions/nft-scanner/index.ts`.
-- Validate JWT trong code, CORS chuẩn, Zod validate input `{ address, chainId }`.
-- Router theo chain:
-  - **BSC (56)**: BscScan `tokennfttx` + `token1155tx` (dùng `BSCSCAN_API_KEY` đã có).
-  - **ETH (1) / Polygon (137) / Arbitrum (42161) / Optimism (10) / Base (8453)**: Alchemy NFT API v3 `getNFTsForOwner` (**cần `ALCHEMY_API_KEY`**).
-  - Chain khác: trả `{ nfts: [], unsupported: true }`.
-- Output chuẩn: `{ contractAddress, tokenId, standard, name, image, collection, chainId, balance }[]`.
-- Upsert cache vào bảng `nft_collections` (đã tồn tại) để giảm rate-limit.
+**`src/pages/Dashboard.tsx`**
 
-### 2. Mở rộng `useNFT`
+1. Trong component `QuickAction` (khoảng dòng 862+): đảm bảo `colorClass` được áp lên tile, và với các tile màu sáng (yellow/green/slate) chữ dùng `text-black`, còn lại `text-white`. Cách nhanh: bỏ text color cứng khỏi PALETTE, thay bằng `colorClass` chứa cả bg + text.
 
-- Chuyển từ fetch trực tiếp BscScan → `supabase.functions.invoke("nft-scanner", …)`.
-- Thêm option `watchlistOnly?: boolean` và `chainIds?: number[]` (fetch song song, merge).
-- `NFTGallery`:
-  - Badge chain trên mỗi card
-  - Toggle "Chỉ Watchlist ⭐"
-  - Empty state có CTA về TokenList
+2. Thay bảng `PALETTE` bằng map trực tiếp theo Hình 1:
 
-### 3. Nút ⭐ trên `TokenList`
+   Hàng 1 (6 tile): Gửi=red, Gửi nhiều=coral, Nhận=orange, Swap=yellow, Stake=green, Thêm=cyan
+   Hàng 2 (6 tile): Giá=purple, DApps=magenta, Backup=emerald, WC=cyan, QR=violet, Refresh=slate
+   Hàng 3 (5 tile): Earn=yellow, Transfer=orange, History=teal, Card=green, Learn=pink
 
-- Thêm icon `<Star>` (lucide) mỗi row: filled+vàng khi `isWatched`, outline khi chưa.
-- onClick → `useWatchlist().toggle({ chain_id, token_address, symbol, name, logo_url, decimals })`.
-- Native token dùng address sentinel `0x000…000`.
-- Áp dụng thêm ở `TokenDetailDialog` (⭐ trên header).
+3. Với mỗi tile: `colorClass="bg-tile-<name> <fg> shadow-elegant rounded-2xl"` — trong đó `<fg>` = `text-black` cho yellow/green/cyan/slate, `text-white` cho các màu còn lại (theo bảng `TILE_FG` đã có trong `ThemePreview.tsx`).
 
-### 4. LiFi SDK — Swap + Bridge
+4. Giữ nguyên toàn bộ logic khác (icon, onClick, disabled, grid, header, wallet card).
 
-- `bun add @lifi/sdk`.
-- `src/lib/lifi.ts`: `createConfig({ integrator: "fun-wallet" })`, helpers `getTokens`, `getQuote`, `getRoutes`, `executeRoute`, `getStatus`. Wrap ethers v6 signer từ `useWallet` (unlock PIN nếu cần).
-- Refactor `src/components/swap/SwapDialog.tsx`:
-  - Tabs **Swap** (same-chain) / **Bridge** (cross-chain)
-  - Chain selector nguồn+đích (từ `SUPPORTED_CHAINS`)
-  - Token autocomplete từ LiFi `getTokens()`
-  - Hiển thị: rate, gas, fee bridge, ETA, provider (Stargate/Across/…)
-  - Slippage tolerance (default 0.5%, 0.1–5%)
-  - Flow: Approve (nếu cần) → Confirm → progress steps → polling `getStatus`
-  - Persist swap/bridge vào bảng `transactions` (đã có), type `swap`/`bridge`
-  - Toast persistent để user rời dialog vẫn theo dõi bridge (5–20 phút)
+## Không đụng tới
+- `index.css`, `tailwind.config.ts`, `theme/tokens.ts` (các token đã đúng).
+- Các trang khác, edge functions, hooks.
 
-### 5. Cleanup
-
-- Update `.lovable/plan.md`: đánh dấu GĐ4 done.
-- Đồng bộ Watchlist tab trong `Wallet.tsx` khi ⭐ toggle từ TokenList.
-
----
-
-### Secret cần thêm
-
-| Secret | Dùng ở | Nguồn |
-|---|---|---|
-| `ALCHEMY_API_KEY` | edge fn `nft-scanner` | Cha lấy free tại alchemy.com |
-
-LiFi + Watchlist **không cần** secret.
-
-Nếu Cha chưa có `ALCHEMY_API_KEY`, con vẫn triển khai được — các chain non-BSC sẽ trả `unsupported: true` cho tới khi bổ sung key.
-
-### Thứ tự thực hiện
-
-```text
-1. add_secret ALCHEMY_API_KEY (chờ Cha)
-2. Edge fn nft-scanner + deploy
-3. Refactor useNFT (multi-chain + watchlistOnly)
-4. NFTGallery: badge chain + toggle Watchlist
-5. Nút ⭐ TokenList + TokenDetailDialog
-6. bun add @lifi/sdk + src/lib/lifi.ts
-7. Refactor SwapDialog (Swap + Bridge tabs, executeRoute + status polling)
-8. Persist tx vào transactions
-9. Update .lovable/plan.md
-```
-
-### Không đụng
-
-Theme tokens (đã khóa GĐ3), private key encryption, auth flow, database schema.
-
-### Rủi ro
-
-- LiFi cần signer thật → phải unlock ví trước swap (prompt PIN).
-- Bridge lâu → cần polling background + toast persistent.
-- Alchemy free tier có rate limit → cache 5 phút vào `nft_collections`.
+## Kỹ thuật
+Chỉ chỉnh presentation trong `Dashboard.tsx`, không đổi business logic. Sau khi apply, `/dashboard` sẽ trùng khớp Hình 1.
