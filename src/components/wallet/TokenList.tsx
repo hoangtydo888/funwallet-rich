@@ -28,6 +28,10 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
   const [pricesLoading, setPricesLoading] = useState(true);
   const [selectedToken, setSelectedToken] = useState<TokenBalance | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const { isWatched, toggle: toggleWatchlist } = useWatchlist();
+  const { currentChain } = useChain();
+
+  const NATIVE_SENTINEL = "0x0000000000000000000000000000000000000000";
 
   // Load favorites from localStorage
   useEffect(() => {
