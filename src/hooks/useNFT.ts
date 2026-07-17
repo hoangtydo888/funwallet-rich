@@ -274,6 +274,35 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     return null;
   };
 
+  // Multi-chain NFT scan via edge function
+  const scanMultiChain = useCallback(
+    async (chainIds: number[]): Promise<MultiChainNFT[]> => {
+      if (!walletAddress) return [];
+      setMcScanning(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("nft-scanner", {
+          body: { address: walletAddress, chainIds },
+        });
+        if (error) throw error;
+        const nfts: MultiChainNFT[] = data?.nfts ?? [];
+        setMultiChainNfts(nfts);
+        setMcUnsupported(data?.unsupportedChains ?? []);
+        return nfts;
+      } catch (e) {
+        console.error("scanMultiChain error:", e);
+        toast({
+          title: "Không thể quét NFT",
+          description: e instanceof Error ? e.message : "Lỗi không xác định",
+          variant: "destructive",
+        });
+        return [];
+      } finally {
+        setMcScanning(false);
+      }
+    },
+    [walletAddress],
+  );
+
   return {
     nfts,
     loading,
@@ -283,5 +312,9 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     mintFunBadge,
     transferNFT,
     importNFT,
+    multiChainNfts,
+    mcScanning,
+    mcUnsupported,
+    scanMultiChain,
   };
 };
