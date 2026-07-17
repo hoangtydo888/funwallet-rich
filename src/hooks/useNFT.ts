@@ -16,6 +16,17 @@ export interface NFTItem {
   chain: string;
 }
 
+export interface MultiChainNFT {
+  contractAddress: string;
+  tokenId: string;
+  standard: "ERC721" | "ERC1155";
+  name: string;
+  image: string;
+  collection: string;
+  chainId: number;
+  balance: string;
+}
+
 // ERC-721 ABI for NFT operations
 const ERC721_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
