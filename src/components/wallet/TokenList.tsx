@@ -4,9 +4,11 @@ import type { TokenBalance } from "@/hooks/useWallet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Star, StarOff, ChevronRight } from "lucide-react";
+import { Search, Star, StarOff, ChevronRight, BookmarkPlus } from "lucide-react";
 import { fetchTokenPrices, formatPrice, formatChange, saveFavorites, loadFavorites, type TokenPrice } from "@/lib/priceTracker";
 import { TokenDetailDialog } from "./TokenDetailDialog";
+import { useWatchlist } from "@/hooks/useWatchlist";
+import { useChain } from "@/contexts/ChainContext";
 
 interface TokenListProps {
   balances: TokenBalance[];
