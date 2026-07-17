@@ -14,10 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowDownUp, Loader2, ExternalLink, Settings2, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { SWAP_TOKENS, getSwapQuote, executeSwap, getPancakeSwapUrl, type QuoteResult } from "@/lib/swap";
 import { BSC_MAINNET } from "@/lib/wallet";
+import { LifiPanel } from "./LifiPanel";
 
 interface SwapDialogProps {
   open: boolean;
