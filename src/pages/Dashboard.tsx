@@ -114,6 +114,10 @@ const Dashboard = () => {
     loading: nftLoading,
     mintFunBadge,
     importNFT,
+    multiChainNfts,
+    mcScanning,
+    mcUnsupported,
+    scanMultiChain,
   } = useNFT(activeWallet?.address, activeWallet?.id);
 
   // Dialog states
