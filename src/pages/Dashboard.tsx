@@ -267,9 +267,22 @@ const Dashboard = () => {
   const totalBalance = getTotalBalance(prices);
   const hasWallet = wallets.length > 0 && activeWallet;
 
-  // Rainbow Fresh Awakening palette — khớp Hình 1
-  const tile = (name: string, dark = false) =>
-    `bg-tile-${name} ${dark ? "text-black" : "text-white"} shadow-elegant`;
+  // Rainbow Fresh Awakening palette — keep class names literal for Tailwind generation
+  const TILE_STYLES = {
+    red: "bg-tile-red text-white shadow-elegant",
+    coral: "bg-tile-coral text-white shadow-elegant",
+    orange: "bg-tile-orange text-white shadow-elegant",
+    yellow: "bg-tile-yellow text-black shadow-elegant",
+    green: "bg-tile-green text-black shadow-elegant",
+    cyan: "bg-tile-cyan text-white shadow-elegant",
+    purple: "bg-tile-purple text-white shadow-elegant",
+    magenta: "bg-tile-magenta text-white shadow-elegant",
+    emerald: "bg-tile-emerald text-white shadow-elegant",
+    violet: "bg-tile-violet text-white shadow-elegant",
+    teal: "bg-tile-teal text-white shadow-elegant",
+    pink: "bg-tile-pink text-white shadow-elegant",
+    slate: "bg-tile-slate text-foreground shadow-elegant",
+  } as const;
 
   return (
     <div className="min-h-screen bg-background pb-20 relative">
@@ -415,41 +428,41 @@ const Dashboard = () => {
               label="Gửi" 
               onClick={() => setSendOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("red")}
+              colorClass={TILE_STYLES.red}
             />
             <QuickAction 
               icon={<Users />} 
               label="Gửi nhiều" 
               onClick={() => setBulkSendOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("coral")}
+              colorClass={TILE_STYLES.coral}
             />
             <QuickAction 
               icon={<ArrowDownLeft />} 
               label="Nhận" 
               onClick={() => setReceiveOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("orange")}
+              colorClass={TILE_STYLES.orange}
             />
             <QuickAction 
               icon={<ArrowDownUp />} 
               label="Swap" 
               onClick={() => setSwapOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("yellow", true)}
+              colorClass={TILE_STYLES.yellow}
             />
             <QuickAction 
               icon={<Layers />} 
               label="Stake" 
               onClick={() => setStakingOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("green", true)}
+              colorClass={TILE_STYLES.green}
             />
             <QuickAction 
               icon={<Plus />} 
               label={hasWallet ? "Thêm" : "Tạo ví"}
               onClick={() => setCreateWalletOpen(true)}
-              colorClass={tile("cyan")}
+              colorClass={TILE_STYLES.cyan}
             />
           </div>
 
@@ -458,42 +471,42 @@ const Dashboard = () => {
               icon={<Bell />} 
               label="Giá" 
               onClick={() => setPriceAlertsOpen(true)}
-              colorClass={tile("purple")}
+              colorClass={TILE_STYLES.purple}
             />
             <QuickAction 
               icon={<Globe />} 
               label="DApps" 
               onClick={() => setDappBrowserOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("magenta")}
+              colorClass={TILE_STYLES.magenta}
             />
             <QuickAction 
               icon={<Shield />} 
               label="Backup" 
               onClick={() => setBackupOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("emerald")}
+              colorClass={TILE_STYLES.emerald}
             />
             <QuickAction 
               icon={<Link2 />} 
               label="WC" 
               onClick={() => setWalletConnectOpen(true)}
               disabled={!hasWallet}
-              colorClass={tile("cyan")}
+              colorClass={TILE_STYLES.cyan}
             />
             <QuickAction 
               icon={<QrCode />} 
               label="QR" 
               onClick={() => navigate("/qr-payment")}
               disabled={!hasWallet}
-              colorClass={tile("violet")}
+              colorClass={TILE_STYLES.violet}
             />
             <QuickAction 
               icon={<RefreshCw className={balanceLoading ? "animate-spin" : ""} />} 
               label="Refresh" 
               onClick={refreshBalances}
               disabled={!hasWallet || balanceLoading}
-              colorClass={tile("slate", true)}
+              colorClass={TILE_STYLES.slate}
             />
           </div>
 
@@ -502,34 +515,34 @@ const Dashboard = () => {
               icon={<Coins />} 
               label="Earn" 
               onClick={() => navigate("/earn")}
-              colorClass={tile("yellow", true)}
+              colorClass={TILE_STYLES.yellow}
             />
             <QuickAction 
               icon={<SendHorizontal />} 
               label="Transfer" 
               onClick={() => navigate("/transfer")}
               disabled={!hasWallet}
-              colorClass={tile("orange")}
+              colorClass={TILE_STYLES.orange}
             />
             <QuickAction 
               icon={<ClipboardList />} 
               label="History" 
               onClick={() => navigate("/history")}
               disabled={!hasWallet}
-              colorClass={tile("teal")}
+              colorClass={TILE_STYLES.teal}
             />
             <QuickAction 
               icon={<CreditCard />} 
               label="Card" 
               onClick={() => navigate("/card")}
               disabled={!hasWallet}
-              colorClass={tile("green", true)}
+              colorClass={TILE_STYLES.green}
             />
             <QuickAction 
               icon={<GraduationCap />} 
               label="Learn" 
               onClick={() => navigate("/learn")}
-              colorClass={tile("pink")}
+              colorClass={TILE_STYLES.pink}
             />
           </div>
         </div>
@@ -840,7 +853,7 @@ const QuickAction = ({
   <button 
     onClick={onClick}
     disabled={disabled}
-    className={`group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-2xl transition-all duration-300 ease-out-quart hover:-translate-y-0.5 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
+    className={`group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-2xl transition-all duration-300 ease-out-quart hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:active:scale-100 ${colorClass || "bg-muted/50 hover:bg-muted text-foreground"}`}
   >
     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110 [&_svg]:h-5 [&_svg]:w-5">
       {icon}
