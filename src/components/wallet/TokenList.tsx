@@ -4,9 +4,11 @@ import type { TokenBalance } from "@/hooks/useWallet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Star, StarOff, ChevronRight } from "lucide-react";
+import { Search, Star, StarOff, ChevronRight, BookmarkPlus } from "lucide-react";
 import { fetchTokenPrices, formatPrice, formatChange, saveFavorites, loadFavorites, type TokenPrice } from "@/lib/priceTracker";
 import { TokenDetailDialog } from "./TokenDetailDialog";
+import { useWatchlist } from "@/hooks/useWatchlist";
+import { useChain } from "@/contexts/ChainContext";
 
 interface TokenListProps {
   balances: TokenBalance[];
@@ -26,6 +28,10 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
   const [pricesLoading, setPricesLoading] = useState(true);
   const [selectedToken, setSelectedToken] = useState<TokenBalance | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const { isWatched, toggle: toggleWatchlist } = useWatchlist();
+  const { currentChain } = useChain();
+
+  const NATIVE_SENTINEL = "0x0000000000000000000000000000000000000000";
 
   // Load favorites from localStorage
   useEffect(() => {
@@ -247,6 +253,39 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
                     </p>
                   )}
                 </div>
+
+                {/* Watchlist ⭐ button */}
+                {(() => {
+                  const addr = (token.address || NATIVE_SENTINEL).toLowerCase();
+                  const watched = isWatched(currentChain.chainId, addr);
+                  return (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleWatchlist({
+                          chain_id: currentChain.chainId,
+                          token_address: addr,
+                          symbol: token.symbol,
+                          name: token.name,
+                          logo_url: token.logo,
+                          decimals: token.decimals,
+                        });
+                      }}
+                      title={watched ? "Bỏ khỏi Watchlist" : "Thêm vào Watchlist"}
+                      className={`transition-colors ${
+                        watched
+                          ? "text-yellow-500"
+                          : "text-muted-foreground hover:text-yellow-500"
+                      }`}
+                    >
+                      {watched ? (
+                        <Star className="h-4 w-4 fill-yellow-500" />
+                      ) : (
+                        <BookmarkPlus className="h-4 w-4" />
+                      )}
+                    </button>
+                  );
+                })()}
 
                 {/* Chevron */}
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />

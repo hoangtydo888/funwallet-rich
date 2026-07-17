@@ -16,6 +16,17 @@ export interface NFTItem {
   chain: string;
 }
 
+export interface MultiChainNFT {
+  contractAddress: string;
+  tokenId: string;
+  standard: "ERC721" | "ERC1155";
+  name: string;
+  image: string;
+  collection: string;
+  chainId: number;
+  balance: string;
+}
+
 // ERC-721 ABI for NFT operations
 const ERC721_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
@@ -34,6 +45,9 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
   const { user } = useAuth();
   const [nfts, setNfts] = useState<NFTItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [multiChainNfts, setMultiChainNfts] = useState<MultiChainNFT[]>([]);
+  const [mcScanning, setMcScanning] = useState(false);
+  const [mcUnsupported, setMcUnsupported] = useState<number[]>([]);
 
   // Fetch NFTs from database
   const fetchNFTs = useCallback(async () => {
@@ -260,6 +274,35 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     return null;
   };
 
+  // Multi-chain NFT scan via edge function
+  const scanMultiChain = useCallback(
+    async (chainIds: number[]): Promise<MultiChainNFT[]> => {
+      if (!walletAddress) return [];
+      setMcScanning(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("nft-scanner", {
+          body: { address: walletAddress, chainIds },
+        });
+        if (error) throw error;
+        const nfts: MultiChainNFT[] = data?.nfts ?? [];
+        setMultiChainNfts(nfts);
+        setMcUnsupported(data?.unsupportedChains ?? []);
+        return nfts;
+      } catch (e) {
+        console.error("scanMultiChain error:", e);
+        toast({
+          title: "Không thể quét NFT",
+          description: e instanceof Error ? e.message : "Lỗi không xác định",
+          variant: "destructive",
+        });
+        return [];
+      } finally {
+        setMcScanning(false);
+      }
+    },
+    [walletAddress],
+  );
+
   return {
     nfts,
     loading,
@@ -269,5 +312,9 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     mintFunBadge,
     transferNFT,
     importNFT,
+    multiChainNfts,
+    mcScanning,
+    mcUnsupported,
+    scanMultiChain,
   };
 };

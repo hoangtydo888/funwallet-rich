@@ -14,10 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowDownUp, Loader2, ExternalLink, Settings2, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { SWAP_TOKENS, getSwapQuote, executeSwap, getPancakeSwapUrl, type QuoteResult } from "@/lib/swap";
 import { BSC_MAINNET } from "@/lib/wallet";
+import { LifiPanel } from "./LifiPanel";
 
 interface SwapDialogProps {
   open: boolean;
@@ -221,6 +223,34 @@ export const SwapDialog = ({
           </div>
         )}
 
+        <Tabs defaultValue="lifi-swap" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="lifi-swap">Swap</TabsTrigger>
+            <TabsTrigger value="lifi-bridge">Bridge</TabsTrigger>
+            <TabsTrigger value="pancake">Pancake (BSC)</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="lifi-swap" className="mt-4">
+            <LifiPanel
+              walletAddress={walletAddress}
+              getPrivateKey={getPrivateKey}
+              mode="swap"
+              onSuccess={onSuccess}
+              onClose={() => onOpenChange(false)}
+            />
+          </TabsContent>
+
+          <TabsContent value="lifi-bridge" className="mt-4">
+            <LifiPanel
+              walletAddress={walletAddress}
+              getPrivateKey={getPrivateKey}
+              mode="bridge"
+              onSuccess={onSuccess}
+              onClose={() => onOpenChange(false)}
+            />
+          </TabsContent>
+
+          <TabsContent value="pancake" className="mt-4">
         <div className="space-y-4">
           {/* From */}
           <div className="p-4 rounded-xl bg-muted/50">
@@ -378,6 +408,8 @@ export const SwapDialog = ({
             </a>
           </div>
         </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
