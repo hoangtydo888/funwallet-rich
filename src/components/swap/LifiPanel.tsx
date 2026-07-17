@@ -112,8 +112,7 @@ export const LifiPanel = ({
           amount: amount,
           token_symbol: fromTokens.find((t) => (t.address ?? NATIVE) === fromToken)?.symbol ?? "?",
           status: "pending",
-          type: mode === "bridge" ? "bridge" : "swap",
-          chain: fromChain.shortName,
+          tx_type: mode === "bridge" ? "bridge" : "swap",
         });
       }
 
