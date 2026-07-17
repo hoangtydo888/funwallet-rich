@@ -1,4 +1,4 @@
-## Giai đoạn 4 — NFT Multi-chain + ⭐ Watchlist + LiFi Swap/Bridge
+## Giai đoạn 4 — NFT Multi-chain + ⭐ Watchlist + LiFi Swap/Bridge ✅ DONE
 
 Cha xác nhận GĐ4 gồm 3 hạng mục:
 1. Edge function `nft-scanner` đa chain + mở rộng `useNFT` theo Watchlist
