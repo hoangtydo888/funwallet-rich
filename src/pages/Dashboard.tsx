@@ -267,15 +267,9 @@ const Dashboard = () => {
   const totalBalance = getTotalBalance(prices);
   const hasWallet = wallets.length > 0 && activeWallet;
 
-  // Premium palette for quick action buttons - Emerald / Teal / Gold system
-  const PALETTE = {
-    primary: "bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-elegant",
-    teal:    "bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-elegant",
-    gold:    "bg-gradient-to-br from-gold to-accent text-accent-foreground shadow-gold",
-    emerald: "bg-primary hover:bg-primary/90 text-primary-foreground shadow-elegant",
-    neutral: "bg-card hover:bg-muted text-foreground border border-border/60 shadow-sm",
-    ghost:   "bg-muted/60 hover:bg-muted text-foreground",
-  } as const;
+  // Rainbow Fresh Awakening palette — khớp Hình 1
+  const tile = (name: string, dark = false) =>
+    `bg-tile-${name} ${dark ? "text-black" : "text-white"} shadow-elegant`;
 
   return (
     <div className="min-h-screen bg-background pb-20 relative">
