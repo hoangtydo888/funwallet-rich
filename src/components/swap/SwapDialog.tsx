@@ -408,6 +408,8 @@ export const SwapDialog = ({
             </a>
           </div>
         </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
