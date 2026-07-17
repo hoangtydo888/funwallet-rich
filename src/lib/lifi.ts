@@ -1,9 +1,6 @@
 /**
- * LiFi SDK v4 thin wrapper (read + minimal execute).
- * Full route execution with automatic multi-step + approval requires provider
- * plumbing; for MVP we expose quotes/routes/status/tokens and a minimal
- * single-step executor that submits the tx returned by getStepTransaction
- * using the user's ethers Signer.
+ * LiFi SDK v4 thin wrapper. v4 requires an SDKClient as the first arg of every action;
+ * we cache one shared client for read calls and expose typed helpers.
  */
 import {
   createClient,
@@ -17,63 +14,54 @@ import {
   type RoutesRequest,
   type Route,
   type LiFiStep,
+  type SDKClient,
 } from '@lifi/sdk';
 import { ethers } from 'ethers';
 
-let initialized = false;
+let client: SDKClient | null = null;
 
-export function initLifi() {
-  if (initialized) return;
-  createClient({ integrator: 'fun-wallet' });
-  initialized = true;
+function getClient(): SDKClient {
+  if (!client) {
+    client = createClient({ integrator: 'fun-wallet' });
+  }
+  return client;
 }
 
-export const getLifiQuote = (req: QuoteRequest) => {
-  initLifi();
-  return sdkGetQuote(req);
-};
+export const getLifiQuote = (req: QuoteRequest) =>
+  sdkGetQuote(getClient(), req as any);
 
-export const getLifiRoutes = (req: RoutesRequest) => {
-  initLifi();
-  return sdkGetRoutes(req);
-};
+export const getLifiRoutes = (req: RoutesRequest) =>
+  sdkGetRoutes(getClient(), req);
 
 export const getLifiStatus = (opts: {
   txHash: string;
   fromChain: number;
   toChain: number;
   bridge?: string;
-}) => {
-  initLifi();
-  return sdkGetStatus({
+}) =>
+  sdkGetStatus(getClient(), {
     txHash: opts.txHash,
     fromChain: opts.fromChain,
     toChain: opts.toChain,
     bridge: opts.bridge,
   });
-};
 
-export const getLifiTokens = (chainIds?: number[]) => {
-  initLifi();
-  return sdkGetTokens({ chains: chainIds });
-};
+export const getLifiTokens = (chainIds?: number[]) =>
+  sdkGetTokens(getClient(), { chains: chainIds as any });
 
-export const getLifiChains = () => {
-  initLifi();
-  return sdkGetChains({});
-};
+export const getLifiChains = () => sdkGetChains(getClient());
 
 /**
  * Execute a single LiFi step by submitting its transactionRequest via an ethers signer.
- * Returns the transaction hash on success. Multi-step routes (with approvals or bridges
- * that need multiple txs) must be iterated by the caller.
+ * Returns tx hash. Multi-step routes (approvals + swap) must be iterated by caller.
  */
 export async function executeLifiStep(
   step: LiFiStep,
   signer: ethers.Signer,
 ): Promise<string> {
-  initLifi();
-  const stepWithTx = step.transactionRequest ? step : await sdkGetStepTransaction(step);
+  const stepWithTx = step.transactionRequest
+    ? step
+    : await sdkGetStepTransaction(getClient(), step);
   const req = stepWithTx.transactionRequest;
   if (!req?.to || !req?.data) throw new Error('Step has no transactionRequest');
 
