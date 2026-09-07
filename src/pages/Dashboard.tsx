@@ -267,22 +267,8 @@ const Dashboard = () => {
   const totalBalance = getTotalBalance(prices);
   const hasWallet = wallets.length > 0 && activeWallet;
 
-  // Rainbow Fresh Awakening palette — keep class names literal for Tailwind generation
-  const TILE_STYLES = {
-    red: "bg-tile-red text-white shadow-elegant",
-    coral: "bg-tile-coral text-white shadow-elegant",
-    orange: "bg-tile-orange text-white shadow-elegant",
-    yellow: "bg-tile-yellow text-black shadow-elegant",
-    green: "bg-tile-green text-black shadow-elegant",
-    cyan: "bg-tile-cyan text-white shadow-elegant",
-    purple: "bg-tile-purple text-white shadow-elegant",
-    magenta: "bg-tile-magenta text-white shadow-elegant",
-    emerald: "bg-tile-emerald text-white shadow-elegant",
-    violet: "bg-tile-violet text-white shadow-elegant",
-    teal: "bg-tile-teal text-white shadow-elegant",
-    pink: "bg-tile-pink text-white shadow-elegant",
-    slate: "bg-tile-slate text-foreground shadow-elegant",
-  } as const;
+  // Rainbow Fresh Awakening palette — shared with /tile-diagnostics
+
 
   return (
     <div className="min-h-screen bg-background pb-20 relative">
