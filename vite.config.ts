@@ -26,7 +26,16 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    // Cache-busting: stamp a build version into index.html so a stale HTML
+    // (and therefore stale CSS/JS) is easy to spot and revalidate.
+    {
+      name: "fun-wallet-build-version",
+      transformIndexHtml(html: string) {
+        return html.replace(/%BUILD_VERSION%/g, new Date().toISOString());
+      },
+    },
     mode === "development" && componentTagger(),
+
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["logo.png", "favicon.ico", "tokens/*"],
