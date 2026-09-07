@@ -70,6 +70,8 @@ const App = () => (
                     <Route path="/admin/bulk-transfer" element={<AdminBulkTransfer />} />
                     <Route path="/docs/platform" element={<PlatformDocs />} />
                     <Route path="/theme-preview" element={<ThemePreview />} />
+                    <Route path="/tile-diagnostics" element={<TileDiagnostics />} />
+
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
