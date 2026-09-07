@@ -71,6 +71,8 @@ import { PinDialog } from "@/components/wallet/PinDialog";
 import { BulkSendDialog } from "@/components/wallet/BulkSendDialog";
 import { UnlockWalletDialog } from "@/components/wallet/UnlockWalletDialog";
 import BottomNav from "@/components/layout/BottomNav";
+import { TILE_STYLES } from "@/theme/tiles";
+
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
