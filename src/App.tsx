@@ -28,6 +28,8 @@ import Learn from "./pages/Learn";
 import KYC from "./pages/KYC";
 import PlatformDocs from "./pages/PlatformDocs";
 import ThemePreview from "./pages/ThemePreview";
+import TileDiagnostics from "./pages/TileDiagnostics";
+
 
 const queryClient = new QueryClient();
 
