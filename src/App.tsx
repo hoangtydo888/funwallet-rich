@@ -28,6 +28,8 @@ import Learn from "./pages/Learn";
 import KYC from "./pages/KYC";
 import PlatformDocs from "./pages/PlatformDocs";
 import ThemePreview from "./pages/ThemePreview";
+import TileDiagnostics from "./pages/TileDiagnostics";
+
 
 const queryClient = new QueryClient();
 
@@ -68,6 +70,8 @@ const App = () => (
                     <Route path="/admin/bulk-transfer" element={<AdminBulkTransfer />} />
                     <Route path="/docs/platform" element={<PlatformDocs />} />
                     <Route path="/theme-preview" element={<ThemePreview />} />
+                    <Route path="/tile-diagnostics" element={<TileDiagnostics />} />
+
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
