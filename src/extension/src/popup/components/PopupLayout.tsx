@@ -11,7 +11,7 @@ interface PopupLayoutProps {
  */
 function PopupLayout({ children }: PopupLayoutProps) {
   return (
-    <div className="w-[360px] h-[540px] bg-background text-foreground overflow-hidden flex flex-col popup-enter">
+    <div className="w-full h-full min-h-0 bg-background text-foreground overflow-hidden flex flex-col popup-enter">
       {children}
     </div>
   );

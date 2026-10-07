@@ -1,936 +1,358 @@
-/**
- * FUN Wallet - Background Service Worker
- * 
- * Handles:
- * - Message passing between popup and content scripts
- * - Wallet operations
- * - DApp connection management
- * - Transaction signing with callback system
- */
-
 import { ethers } from 'ethers';
-import { chromeStorageAdapter } from '../../storage/ChromeStorageAdapter';
+import { chromeStorageAdapter as storage } from '../../storage/ChromeStorageAdapter';
 import { STORAGE_KEYS } from '@shared/storage/types';
 import { decryptPrivateKey } from '@shared/lib/encryption';
-import { 
-  DAppConnection, 
-  PendingRequest,
-  TransactionRequest,
-  SecureWalletStorage
-} from '@shared/types';
-import { BSC_MAINNET } from '@shared/constants/tokens';
+import { DAppConnection, SecureWalletStorage } from '@shared/types';
+import { getChainById } from '@shared/constants/chains';
+import {
+  ApprovalRequest, TransactionReview, RpcTransaction, RpcError, PUBLIC_METHODS,
+  REQUEST_TTL, pageOrigin, trustedPopup, normalizeTransaction, toEthersTransaction, decodeTokenCall, quantity,
+} from '../lib/approval';
 
-// Message types
-type MessageType = 
-  | 'GET_ACCOUNTS'
-  | 'SIGN_TRANSACTION'
-  | 'PERSONAL_SIGN'
-  | 'CONNECT_DAPP'
-  | 'DISCONNECT_DAPP'
-  | 'DISCONNECT_ALL_DAPPS'
-  | 'GET_CONNECTED_DAPPS'
-  | 'SWITCH_CHAIN'
-  | 'GET_CURRENT_CHAIN'
-  | 'IS_UNLOCKED'
-  | 'UNLOCK_WALLET'
-  | 'LOCK_WALLET'
-  | 'GET_PENDING_REQUEST'
-  | 'APPROVE_CONNECTION'
-  | 'REJECT_CONNECTION'
-  | 'APPROVE_TRANSACTION'
-  | 'REJECT_TRANSACTION'
-  | 'APPROVE_SIGN'
-  | 'REJECT_SIGN'
-  | 'eth_requestAccounts'
-  | 'eth_accounts'
-  | 'eth_chainId'
-  | 'eth_sendTransaction'
-  | 'personal_sign'
-  | 'eth_signTypedData_v4'
-  | 'wallet_switchEthereumChain';
-
-interface Message {
-  type: MessageType;
-  payload?: unknown;
-  origin?: string;
-}
-
-interface MessageResponse {
-  success: boolean;
-  data?: unknown;
-  error?: string;
-}
-
-// Extended pending request with callbacks for response flow
-interface PendingRequestWithCallback extends PendingRequest {
-  tabId?: number;
-  resolve?: (result: unknown) => void;
-  reject?: (error: Error) => void;
-}
-
-// State
+type Message = { type: string; payload?: unknown; requestId?: string };
+type Response = { success: boolean; data?: unknown; error?: string; code?: number; pending?: boolean };
+type Quote = { review: TransactionReview; transaction: ethers.TransactionRequest };
 let isLocked = true;
-let currentChainId = 56; // Default to BSC
-const connectedDApps: Map<string, DAppConnection> = new Map();
-const pendingRequests: Map<string, PendingRequestWithCallback> = new Map();
+let currentChainId = 56;
+let busy = false;
+const connections = new Map<string, DAppConnection>();
+const pending = new Map<string, ApprovalRequest>();
+const quotes = new Map<string, Quote>();
 
-/**
- * Initialize service worker
- */
 async function initialize() {
-  console.log('[FUN Wallet] Service worker initializing...');
-  
-  // Load connected DApps from storage
-  const dappsJson = await chromeStorageAdapter.get(STORAGE_KEYS.DAPP_CONNECTIONS);
-  if (dappsJson) {
-    try {
-      const dapps: DAppConnection[] = JSON.parse(dappsJson);
-      dapps.forEach(dapp => connectedDApps.set(dapp.origin, dapp));
-    } catch (e) {
-      console.error('[FUN Wallet] Error loading DApps:', e);
+  // Content scripts must not read the vault or approval queue directly.
+  await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  await chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  const saved = await storage.get(STORAGE_KEYS.DAPP_CONNECTIONS);
+  if (saved) for (const connection of JSON.parse(saved)) connections.set(connection.origin, connection);
+  const chain = Number(await storage.get(STORAGE_KEYS.CURRENT_CHAIN));
+  if (getChainById(chain)) currentChainId = chain;
+  const session = await chrome.storage.session.get(STORAGE_KEYS.PENDING_REQUESTS);
+  for (const request of (session[STORAGE_KEYS.PENDING_REQUESTS] || []) as ApprovalRequest[]) {
+    // Never retry an in-flight broadcast after a worker restart.
+    if (!request.status && Date.now() - request.timestamp < REQUEST_TTL) pending.set(request.id, request);
+    else await reply(request, undefined, new RpcError(4001, `Yêu cầu đã hết hạn hoặc bị gián đoạn. ${request.submittedHash ? `Tra cứu ${request.submittedHash}. ` : ''}Kiểm tra lịch sử trước khi thử lại.`));
+  }
+  await persistPending();
+  await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  await chrome.alarms.create('approval-expiry', { periodInMinutes: 1 });
+}
+const ready = initialize();
+
+function fail(error: unknown): Response {
+  return { success: false, error: error instanceof Error ? error.message : 'Không thể xử lý yêu cầu', code: error instanceof RpcError ? error.code : -32603 };
+}
+function persistPending() {
+  return chrome.storage.session.set({ [STORAGE_KEYS.PENDING_REQUESTS]: [...pending.values()] });
+}
+function saveConnections() { return storage.set(STORAGE_KEYS.DAPP_CONNECTIONS, JSON.stringify([...connections.values()])); }
+async function activeAccount() {
+  const account = await storage.get(STORAGE_KEYS.ACTIVE_WALLET);
+  if (!account || !ethers.isAddress(account)) throw new RpcError(4100, 'Hãy tạo hoặc nhập ví trong FUN Wallet trước');
+  return ethers.getAddress(account);
+}
+async function reply(request: ApprovalRequest, result?: unknown, error?: RpcError) {
+  await chrome.tabs.sendMessage(request.tabId, {
+    type: 'FUN_WALLET_RESPONSE', requestId: request.clientId, result,
+    ...(error ? { error: error.message, code: error.code } : {}),
+  }, request.documentId ? { documentId: request.documentId } : { frameId: request.frameId }).catch(() => {});
+}
+async function finish(request: ApprovalRequest, result?: unknown, error?: RpcError) {
+  pending.delete(request.id);
+  quotes.delete(request.id);
+  await persistPending();
+  await reply(request, result, error);
+}
+function getRequest(id: string, methods?: string[]) {
+  const request = pending.get(id);
+  if (!request || Date.now() - request.timestamp >= REQUEST_TTL) throw new RpcError(4001, 'Yêu cầu đã hết hạn. Hãy thử lại từ ứng dụng.');
+  if (methods && !methods.includes(request.method)) throw new RpcError(4100, 'Sai loại yêu cầu');
+  if (request.status) throw new RpcError(-32002, 'Yêu cầu đang được xử lý');
+  return request;
+}
+async function validateContext(request: ApprovalRequest, requireConnection = true) {
+  if (request.invalidated) throw new RpcError(4100, 'Trang yêu cầu đã tải lại hoặc đóng');
+  if (isLocked) throw new RpcError(4100, 'Ví đã khóa. Mở lại FUN Wallet để tiếp tục.');
+  const tab = await chrome.tabs.get(request.tabId);
+  if (!tab.url || new URL(tab.url).origin !== request.origin) throw new RpcError(4100, 'Trang yêu cầu đã thay đổi');
+  if ((await activeAccount()).toLowerCase() !== request.account.toLowerCase()) throw new RpcError(4100, 'Tài khoản đã thay đổi');
+  if (currentChainId !== request.chainId) throw new RpcError(4901, 'Mạng đã thay đổi. Tạo yêu cầu mới.');
+  if (requireConnection && !connections.get(request.origin)?.accounts.some(a => a.toLowerCase() === request.account.toLowerCase())) throw new RpcError(4100, 'Ứng dụng chưa được cấp quyền cho tài khoản này');
+  if (request.invalidated) throw new RpcError(4100, 'Trang yêu cầu đã tải lại hoặc đóng');
+}
+async function signer(account: string, password: string) {
+  if (!password) throw new RpcError(4100, 'Nhập mật khẩu để xác nhận');
+  const raw = await storage.get(STORAGE_KEYS.ENCRYPTED_KEYS);
+  const vault: SecureWalletStorage = JSON.parse(raw || '{}');
+  const entry = Object.entries(vault.wallets || {}).find(([address]) => address.toLowerCase() === account.toLowerCase());
+  if (!entry) throw new RpcError(4100, 'Không tìm thấy khóa của tài khoản');
+  let key: string;
+  try { key = await decryptPrivateKey(entry[1], password); }
+  catch { throw new RpcError(4100, 'Mật khẩu không đúng'); }
+  const wallet = new ethers.Wallet(key);
+  if (wallet.address.toLowerCase() !== account.toLowerCase()) throw new RpcError(4100, 'Khóa không khớp tài khoản');
+  return wallet;
+}
+async function notifyOrigin(origin: string, type: string, data: Record<string, unknown>) {
+  for (const tab of await chrome.tabs.query({})) {
+    if (tab.id !== undefined && tab.url && new URL(tab.url).origin === origin) {
+      await chrome.tabs.sendMessage(tab.id, { type, ...data }, { frameId: 0 }).catch(() => {});
     }
   }
-  
-  // Load chain from storage
-  const chainId = await chromeStorageAdapter.get(STORAGE_KEYS.CURRENT_CHAIN);
-  if (chainId) {
-    currentChainId = parseInt(chainId);
-  }
-  
-  // NOTE: Removed Side Panel - now using floating popup window instead
-  console.log('[FUN Wallet] Service worker initialized');
 }
-
-/**
- * Handle incoming messages from popup and content scripts
- */
-chrome.runtime.onMessage.addListener(
-  (message: Message, sender, sendResponse: (response: MessageResponse) => void) => {
-    console.log('[FUN Wallet] Message received:', message.type);
-    
-    handleMessage(message, sender, sendResponse)
-      .then(response => {
-        if (response) sendResponse(response);
-      })
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    
-    // Return true to indicate async response
-    return true;
+async function openApproval(request: ApprovalRequest) {
+  // An async dApp request may no longer carry Chrome's required user gesture.
+  try { await chrome.sidePanel.open({ tabId: request.tabId }); return; }
+  catch { /* Use a real extension popup when Chrome refuses the side panel. */ }
+  const tab = await chrome.tabs.get(request.tabId);
+  const browserWindow = await chrome.windows.get(tab.windowId);
+  const width = 420;
+  const window = await chrome.windows.create({
+    url: chrome.runtime.getURL(`popup.html?surface=approval#/request?requestId=${request.id}`),
+    type: 'popup', width, height: Math.min(760, browserWindow.height || 760), focused: true,
+    top: Math.max(browserWindow.top || 0, 0),
+    left: Math.max((browserWindow.left || 0) + (browserWindow.width || 1200) - width, 0),
+  });
+  if (pending.has(request.id)) { request.windowId = window.id; await persistPending(); }
+}
+async function queue(message: Message, sender: chrome.runtime.MessageSender, origin: string, account: string, params: unknown[]) {
+  if ([...pending.values()].some(r => r.tabId === sender.tab!.id)) throw new RpcError(-32002, 'Ứng dụng đã có yêu cầu đang chờ. Hãy xử lý yêu cầu đó trước.');
+  if (pending.size >= 8) throw new RpcError(-32002, 'Có quá nhiều yêu cầu đang chờ');
+  const request: ApprovalRequest = {
+    id: crypto.randomUUID(), clientId: message.requestId!, method: message.type, params, origin,
+    account, chainId: currentChainId, tabId: sender.tab!.id!, frameId: sender.frameId!,
+    documentId: sender.documentId, timestamp: Date.now(),
+  };
+  pending.set(request.id, request);
+  await persistPending();
+  try { await openApproval(request); }
+  catch { await finish(request, undefined, new RpcError(4001, 'Không thể mở cửa sổ duyệt')); }
+  return { success: true, pending: true };
+}
+async function handlePage(message: Message, sender: chrome.runtime.MessageSender): Promise<Response> {
+  const origin = pageOrigin(sender, chrome.runtime.id);
+  if (!PUBLIC_METHODS.has(message.type)) throw new RpcError(4200, 'Phương thức không được hỗ trợ');
+  if (typeof message.requestId !== 'string' || message.requestId.length > 150) throw new RpcError(-32602, 'Request ID không hợp lệ');
+  if (message.type === 'eth_chainId') return { success: true, data: ethers.toQuantity(currentChainId) };
+  if (message.type === 'eth_accounts') {
+    const active = await storage.get(STORAGE_KEYS.ACTIVE_WALLET);
+    return { success: true, data: isLocked ? [] : (connections.get(origin)?.accounts || []).filter(a => a.toLowerCase() === active?.toLowerCase()) };
   }
-);
-
-/**
- * Route messages to handlers
- */
-async function handleMessage(
-  message: Message, 
-  sender: chrome.runtime.MessageSender,
-  sendResponse: (response: MessageResponse) => void
-): Promise<MessageResponse | null> {
-  const origin = message.origin || sender.tab?.url;
-  const tabId = sender.tab?.id;
-  
+  const account = await activeAccount();
+  const authorized = connections.get(origin)?.accounts.some(a => a.toLowerCase() === account.toLowerCase());
+  if (message.type === 'eth_requestAccounts') {
+    if (authorized && !isLocked) return { success: true, data: [account] };
+    return queue(message, sender, origin, account, []);
+  }
+  if (!authorized) throw new RpcError(4100, 'Kết nối tài khoản trước khi yêu cầu ký');
+  const params = message.payload;
+  if (!Array.isArray(params)) throw new RpcError(-32602, 'Params phải là mảng');
+  if (message.type === 'wallet_switchEthereumChain') {
+    const chainId = Number(BigInt(quantity(params[0]?.chainId, 'chainId')));
+    if (!getChainById(chainId)) throw new RpcError(4902, 'Mạng chưa được hỗ trợ');
+    if (chainId === currentChainId) return { success: true, data: null };
+    return queue(message, sender, origin, account, [{ chainId }]);
+  }
+  if (message.type === 'eth_sendTransaction') {
+    if (params.length !== 1) throw new RpcError(-32602, 'Chỉ hỗ trợ một giao dịch mỗi yêu cầu');
+    return queue(message, sender, origin, account, [normalizeTransaction(params[0], account, currentChainId)]);
+  }
+  const address = message.type === 'personal_sign' ? params[1] : params[0];
+  const content = message.type === 'personal_sign' ? params[0] : params[1];
+  if (params.length !== 2 || typeof address !== 'string' || address.toLowerCase() !== account.toLowerCase() || typeof content !== 'string' || content.length > 131072) throw new RpcError(-32602, 'Yêu cầu ký không hợp lệ');
+  if (message.type === 'personal_sign' && !ethers.isHexString(content, true)) throw new RpcError(-32602, 'Thông điệp personal_sign phải là dữ liệu hex');
+  if (message.type === 'eth_signTypedData_v4') {
+    const typed = JSON.parse(content);
+    if (!typed.domain || !typed.types || !typed.message) throw new RpcError(-32602, 'Typed data không hợp lệ');
+    if (typed.domain.chainId !== undefined && BigInt(typed.domain.chainId) !== BigInt(currentChainId)) throw new RpcError(4901, 'Typed data không khớp mạng');
+  }
+  return queue(message, sender, origin, account, [content]);
+}
+async function reviewTransaction(request: ApprovalRequest): Promise<TransactionReview> {
+  await validateContext(request);
+  const chain = getChainById(request.chainId)!;
+  const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+  try {
+    if ((await provider.getNetwork()).chainId !== BigInt(request.chainId)) throw new Error('RPC trả về sai mạng');
+    const tx = request.params[0] as RpcTransaction;
+    const transaction: ethers.TransactionRequest = { ...toEthersTransaction(tx), chainId: request.chainId };
+    const estimatedGas = await provider.estimateGas(transaction);
+    transaction.gasLimit ??= estimatedGas * 120n / 100n;
+    if (BigInt(transaction.gasLimit) < estimatedGas) throw new Error('Gas limit thấp hơn ước tính');
+    if (transaction.gasPrice == null && transaction.maxFeePerGas == null) {
+      const fees = await provider.getFeeData();
+      if (fees.maxFeePerGas && fees.maxPriorityFeePerGas !== null) {
+        transaction.maxFeePerGas = fees.maxFeePerGas;
+        transaction.maxPriorityFeePerGas = fees.maxPriorityFeePerGas;
+      } else if (fees.gasPrice) transaction.gasPrice = fees.gasPrice;
+      else throw new Error('Không lấy được phí mạng');
+    }
+    if (transaction.maxFeePerGas != null && transaction.maxPriorityFeePerGas === undefined) transaction.maxPriorityFeePerGas = 0n;
+    const fee = BigInt(transaction.gasLimit) * BigInt(transaction.maxFeePerGas ?? transaction.gasPrice!);
+    if ((await provider.getBalance(request.account)) < BigInt(tx.value) + fee) throw new Error('Không đủ số dư trả giá trị giao dịch và phí mạng');
+    const decoded = decodeTokenCall(tx.data);
+    const review: TransactionReview = {
+      id: crypto.randomUUID(), expiresAt: Math.min(Date.now() + 60_000, request.timestamp + REQUEST_TTL),
+      kind: tx.data === '0x' ? 'native' : 'contract', recipient: tx.to,
+      amount: ethers.formatEther(tx.value), nativeAmount: ethers.formatEther(tx.value), symbol: chain.symbol,
+      unlimited: false, fee: ethers.formatEther(fee),
+    };
+    if (decoded) {
+      const token = new ethers.Contract(tx.to, ['function decimals() view returns (uint8)', 'function symbol() view returns (string)'], provider);
+      const [decimals, symbol] = await Promise.all([token.decimals(), token.symbol()]);
+      if (typeof symbol !== 'string' || !/^[\p{L}\p{N} ._$-]{1,32}$/u.test(symbol)) throw new Error('Không đọc được ký hiệu token an toàn');
+      Object.assign(review, { kind: decoded.kind, recipient: decoded.recipient, contract: tx.to,
+        amount: ethers.formatUnits(decoded.rawAmount, Number(decimals)), symbol,
+        unlimited: decoded.kind === 'approve' && decoded.rawAmount === ethers.MaxUint256 });
+    }
+    getRequest(request.id, ['eth_sendTransaction']);
+    quotes.set(request.id, { review, transaction });
+    return review;
+  } finally { provider.destroy(); }
+}
+async function approve(request: ApprovalRequest, payload: { password?: string; reviewId?: string }) {
+  if (busy) throw new RpcError(-32002, 'Ví đang xử lý yêu cầu khác');
+  busy = true;
+  request.status = 'processing';
+  let broadcastStarted = false;
+  try {
+    await validateContext(request, request.method !== 'eth_requestAccounts');
+    await persistPending();
+    if (request.method === 'eth_requestAccounts') {
+      connections.set(request.origin, { origin: request.origin, name: new URL(request.origin).hostname,
+        accounts: [request.account], chainId: request.chainId, connectedAt: Date.now(), permissions: ['eth_accounts'] });
+      await saveConnections();
+      await finish(request, [request.account]);
+      await notifyOrigin(request.origin, 'accountsChanged', { accounts: [request.account] });
+      return [request.account];
+    }
+    if (request.method === 'wallet_switchEthereumChain') {
+      currentChainId = (request.params[0] as { chainId: number }).chainId;
+      await storage.set(STORAGE_KEYS.CURRENT_CHAIN, String(currentChainId));
+      await finish(request, null);
+      for (const origin of connections.keys()) await notifyOrigin(origin, 'chainChanged', { chainId: ethers.toQuantity(currentChainId) });
+      return null;
+    }
+    const wallet = await signer(request.account, payload.password || '');
+    await validateContext(request);
+    if (Date.now() - request.timestamp >= REQUEST_TTL) throw new RpcError(4001, 'Yêu cầu đã hết hạn');
+    if (request.method === 'eth_sendTransaction') {
+      const quote = quotes.get(request.id);
+      if (!quote || quote.review.id !== payload.reviewId || quote.review.expiresAt <= Date.now()) throw new Error('Ước tính đã hết hạn. Tải lại phí trước khi xác nhận.');
+      const provider = new ethers.JsonRpcProvider(getChainById(request.chainId)!.rpcUrl);
+      try {
+        if ((await provider.getNetwork()).chainId !== BigInt(request.chainId)) throw new Error('RPC trả về sai mạng');
+        await validateContext(request);
+        if (quote.review.expiresAt <= Date.now()) throw new Error('Ước tính đã hết hạn. Tải lại phí.');
+        const transaction = await wallet.connect(provider).populateTransaction(quote.transaction);
+        await validateContext(request);
+        if (Date.now() - request.timestamp >= REQUEST_TTL) throw new Error('Yêu cầu đã hết hạn');
+        const signed = await wallet.signTransaction(transaction);
+        await validateContext(request);
+        const hash = ethers.keccak256(signed);
+        request.submittedHash = hash;
+        await persistPending();
+        await validateContext(request);
+        broadcastStarted = true;
+        try { await provider.broadcastTransaction(signed); }
+        catch {
+          await finish(request, undefined, new RpcError(-32000, `Chưa xác định trạng thái phát giao dịch ${hash}. Kiểm tra explorer trước khi gửi lại.`));
+          throw new Error(`Chưa xác định trạng thái phát giao dịch. Tra cứu ${hash} trước khi gửi lại.`);
+        }
+        await finish(request, hash);
+        return hash;
+      } finally { provider.destroy(); }
+    }
+    let signature: string;
+    if (request.method === 'personal_sign') signature = await wallet.signMessage(ethers.getBytes(request.params[0] as string));
+    else {
+      const typed = JSON.parse(request.params[0] as string);
+      const types = { ...typed.types }; delete types.EIP712Domain;
+      signature = await wallet.signTypedData(typed.domain, types, typed.message);
+    }
+    await validateContext(request);
+    await finish(request, signature);
+    return signature;
+  } finally {
+    busy = false;
+    if (!broadcastStarted && pending.has(request.id)) { delete request.status; await persistPending(); }
+  }
+}
+async function handlePopup(message: Message): Promise<Response> {
+  const payload = (message.payload || {}) as { requestId?: string; password?: string; reviewId?: string; origin?: string };
   switch (message.type) {
-    // Wallet state
-    case 'IS_UNLOCKED':
-      return { success: true, data: { unlocked: !isLocked } };
-      
+    case 'IS_UNLOCKED': return { success: true, data: { unlocked: !isLocked } };
     case 'UNLOCK_WALLET':
-      return handleUnlockWallet(message.payload as { password: string });
-      
+      await signer(await activeAccount(), payload.password);
+      isLocked = false;
+      await storage.set(STORAGE_KEYS.LAST_ACTIVITY, String(Date.now()));
+      return { success: true };
     case 'LOCK_WALLET':
       isLocked = true;
+      for (const origin of connections.keys()) await notifyOrigin(origin, 'accountsChanged', { accounts: [] });
       return { success: true };
-      
-    // Accounts
-    case 'GET_ACCOUNTS':
-    case 'eth_accounts':
-      return handleGetAccounts(origin);
-      
-    case 'eth_requestAccounts':
-      return handleRequestAccounts(origin, tabId, sendResponse);
-      
-    // Chain
-    case 'GET_CURRENT_CHAIN':
-    case 'eth_chainId':
-      return { success: true, data: `0x${currentChainId.toString(16)}` };
-      
-    case 'SWITCH_CHAIN':
-    case 'wallet_switchEthereumChain':
-      return handleSwitchChain(message.payload as { chainId: string });
-      
-    // Transactions
-    case 'eth_sendTransaction':
-    case 'SIGN_TRANSACTION': {
-      // EIP-1193: params là array [txObject] hoặc object trực tiếp
-      const rawPayload = message.payload;
-      const txRequest = Array.isArray(rawPayload) 
-        ? rawPayload[0] as TransactionRequest
-        : rawPayload as TransactionRequest;
-      // CRITICAL: Lấy requestId gốc từ inject.ts để response về đúng DApp
-      const originalTxRequestId = (message as { requestId?: string }).requestId;
-      return handleSendTransaction(txRequest, origin, tabId, sendResponse, originalTxRequestId);
+    case 'GET_ACCOUNTS': return { success: true, data: isLocked ? [] : [await activeAccount()] };
+    case 'GET_CURRENT_CHAIN': return { success: true, data: ethers.toQuantity(currentChainId) };
+    case 'GET_NEXT_PENDING': return { success: true, data: [...pending.values()].find(r => !r.status && Date.now() - r.timestamp < REQUEST_TTL) || null };
+    case 'GET_PENDING_REQUEST': return { success: true, data: getRequest(payload.requestId) };
+    case 'REVIEW_TRANSACTION': return { success: true, data: await reviewTransaction(getRequest(payload.requestId, ['eth_sendTransaction'])) };
+    case 'APPROVE_CONNECTION': return { success: true, data: await approve(getRequest(payload.requestId, ['eth_requestAccounts', 'wallet_switchEthereumChain']), payload) };
+    case 'APPROVE_TRANSACTION': return { success: true, data: await approve(getRequest(payload.requestId, ['eth_sendTransaction']), payload) };
+    case 'APPROVE_SIGN': return { success: true, data: await approve(getRequest(payload.requestId, ['personal_sign', 'eth_signTypedData_v4']), payload) };
+    case 'REJECT_CONNECTION': case 'REJECT_TRANSACTION': case 'REJECT_SIGN': {
+      const request = getRequest(payload.requestId);
+      await finish(request, undefined, new RpcError(4001, 'Người dùng từ chối yêu cầu'));
+      return { success: true };
     }
-      
-    // Signing
-    case 'personal_sign':
-    case 'PERSONAL_SIGN': {
-      // EIP-1193: params là array [message, address] hoặc object
-      const rawSignPayload = message.payload;
-      let signPayload: { message: string; address?: string };
-      if (Array.isArray(rawSignPayload)) {
-        signPayload = { message: rawSignPayload[0] as string, address: rawSignPayload[1] as string };
-      } else {
-        signPayload = rawSignPayload as { message: string; address?: string };
+    case 'GET_CONNECTED_DAPPS': return { success: true, data: [...connections.values()] };
+    case 'DISCONNECT_DAPP': case 'DISCONNECT_ALL_DAPPS': {
+      const origins = message.type === 'DISCONNECT_ALL_DAPPS' ? [...connections.keys()] : [payload.origin];
+      for (const origin of origins) {
+        connections.delete(origin);
+        for (const request of [...pending.values()]) if (request.origin === origin && !request.status) await finish(request, undefined, new RpcError(4100, 'Kết nối đã thu hồi'));
+        await notifyOrigin(origin, 'accountsChanged', { accounts: [] });
       }
-      // CRITICAL: Lấy requestId gốc từ inject.ts
-      const originalSignRequestId = (message as { requestId?: string }).requestId;
-      return handlePersonalSign(signPayload, origin, tabId, sendResponse, originalSignRequestId);
+      await saveConnections();
+      return { success: true };
     }
-      
-    case 'eth_signTypedData_v4': {
-      // EIP-1193: params là array [address, data] hoặc object
-      const rawTypedPayload = message.payload;
-      let typedPayload: { address: string; data: string };
-      if (Array.isArray(rawTypedPayload)) {
-        typedPayload = { address: rawTypedPayload[0] as string, data: rawTypedPayload[1] as string };
-      } else {
-        typedPayload = rawTypedPayload as { address: string; data: string };
-      }
-      // CRITICAL: Lấy requestId gốc từ inject.ts
-      const originalTypedRequestId = (message as { requestId?: string }).requestId;
-      return handleSignTypedData(typedPayload, origin, tabId, sendResponse, originalTypedRequestId);
-    }
-      
-    // Pending request management
-    case 'GET_PENDING_REQUEST':
-      return handleGetPendingRequest(message.payload as { requestId: string });
-      
-    // Connection approval from popup
-    case 'APPROVE_CONNECTION':
-      return handleApproveConnection(message.payload as { requestId: string; origin: string });
-      
-    case 'REJECT_CONNECTION':
-      return handleRejectConnection(message.payload as { requestId: string });
-      
-    // Transaction approval from popup
-    case 'APPROVE_TRANSACTION':
-      return handleApproveTransaction(message.payload as { requestId: string; signedTx?: string; txHash?: string });
-      
-    case 'REJECT_TRANSACTION':
-      return handleRejectTransaction(message.payload as { requestId: string });
-      
-    // Sign approval from popup  
-    case 'APPROVE_SIGN':
-      return handleApproveSign(message.payload as { requestId: string; signature: string });
-      
-    case 'REJECT_SIGN':
-      return handleRejectSign(message.payload as { requestId: string });
-      
-    // DApp management
-    case 'CONNECT_DAPP':
-      return handleConnectDApp(origin!, message.payload as { requestId?: string });
-      
-    case 'DISCONNECT_DAPP':
-      return handleDisconnectDApp(message.payload as { origin: string });
-      
-    case 'DISCONNECT_ALL_DAPPS':
-      return handleDisconnectAllDApps();
-      
-    case 'GET_CONNECTED_DAPPS':
-      return { success: true, data: Array.from(connectedDApps.values()) };
-      
-    default:
-      return { success: false, error: `Unknown message type: ${message.type}` };
+    default: throw new RpcError(4200, 'Phương thức không được hỗ trợ');
   }
 }
-
-/**
- * Unlock wallet with password - REAL verification
- */
-async function handleUnlockWallet(payload: { password: string }): Promise<MessageResponse> {
-  if (!payload?.password) {
-    return { success: false, error: 'Password required' };
-  }
-
-  try {
-    // Get encrypted wallet data
-    const encryptedData = await chromeStorageAdapter.get(STORAGE_KEYS.ENCRYPTED_KEYS);
-    
-    if (!encryptedData) {
-      return { success: false, error: 'No wallet found' };
-    }
-
-    // Parse and verify password by attempting decryption
-    const parsed: SecureWalletStorage = JSON.parse(encryptedData);
-    const addresses = Object.keys(parsed.wallets);
-    
-    if (addresses.length === 0) {
-      return { success: false, error: 'No wallet found' };
-    }
-
-    // Try to decrypt first wallet to verify password
-    const testKeyData = parsed.wallets[addresses[0]];
-    await decryptPrivateKey(testKeyData, payload.password);
-    
-    // Password correct - unlock wallet
-    isLocked = false;
-    
-    // Update last activity
-    await chromeStorageAdapter.set(
-      STORAGE_KEYS.LAST_ACTIVITY, 
-      Date.now().toString()
-    );
-
-    console.log('[FUN Wallet] Wallet unlocked successfully');
-    return { success: true };
-  } catch (error) {
-    console.error('[FUN Wallet] Unlock failed:', error);
-    return { success: false, error: 'Mật khẩu không đúng' };
-  }
-}
-
-/**
- * Get connected accounts for origin
- */
-async function handleGetAccounts(origin?: string): Promise<MessageResponse> {
-  if (isLocked) {
-    return { success: true, data: [] };
-  }
-  
-  if (origin) {
-    try {
-      const url = new URL(origin);
-      if (!connectedDApps.has(url.origin)) {
-        return { success: true, data: [] };
-      }
-    } catch {
-      // Invalid origin
-    }
-  }
-  
-  // Get active wallet address
-  const activeWallet = await chromeStorageAdapter.get(STORAGE_KEYS.ACTIVE_WALLET);
-  
-  return { 
-    success: true, 
-    data: activeWallet ? [activeWallet] : [] 
-  };
-}
-
-/**
- * Handle eth_requestAccounts - prompt user to connect
- */
-async function handleRequestAccounts(
-  origin?: string, 
-  tabId?: number,
-  sendResponse?: (response: MessageResponse) => void
-): Promise<MessageResponse | null> {
-  if (!origin) {
-    return { success: false, error: 'Origin required' };
-  }
-  
-  // Parse origin URL
-  let parsedOrigin: string;
-  try {
-    parsedOrigin = new URL(origin).origin;
-  } catch {
-    parsedOrigin = origin;
-  }
-  
-  if (isLocked) {
-    // Open popup to unlock
-    await openPopup('unlock', { origin: parsedOrigin });
-    return { success: false, error: 'Wallet is locked' };
-  }
-  
-  // Check if already connected
-  if (connectedDApps.has(parsedOrigin)) {
-    return handleGetAccounts(parsedOrigin);
-  }
-  
-  // Create pending request with callback
-  const requestId = `connect_${Date.now()}`;
-  const request: PendingRequestWithCallback = {
-    id: requestId,
-    method: 'eth_requestAccounts',
-    params: [],
-    origin: parsedOrigin,
-    timestamp: Date.now(),
-    tabId,
-  };
-  
-  pendingRequests.set(requestId, request);
-  
-  // Open popup for user approval
-  await openPopup('connect', { requestId, origin: parsedOrigin });
-  
-  // Return null - response will be sent via callback after user approval
-  return null;
-}
-
-/**
- * Get pending request by ID
- */
-function handleGetPendingRequest(payload: { requestId: string }): MessageResponse {
-  const request = pendingRequests.get(payload.requestId);
-  if (!request) {
-    return { success: false, error: 'Request not found' };
-  }
-  return { success: true, data: request };
-}
-
-/**
- * Handle connection approval from popup
- */
-async function handleApproveConnection(payload: { requestId: string; origin: string }): Promise<MessageResponse> {
-  const request = pendingRequests.get(payload.requestId);
-  if (!request) {
-    return { success: false, error: 'Request not found or expired' };
-  }
-  
-  // Create connection
-  const connection: DAppConnection = {
-    origin: payload.origin,
-    name: new URL(payload.origin).hostname,
-    connectedAt: Date.now(),
-    permissions: ['eth_accounts'],
-    chainId: currentChainId,
-    accounts: [],
-  };
-  
-  // Get active wallet
-  const activeWallet = await chromeStorageAdapter.get(STORAGE_KEYS.ACTIVE_WALLET);
-  if (activeWallet) {
-    connection.accounts = [activeWallet];
-  }
-  
-  connectedDApps.set(payload.origin, connection);
-  await saveDAppConnections();
-  
-  // Send response to content script
-  if (request.tabId) {
-    chrome.tabs.sendMessage(request.tabId, {
-      type: 'FUN_WALLET_RESPONSE',
-      requestId: payload.requestId,
-      result: connection.accounts,
-    }).catch(console.error);
-  }
-  
-  // Clean up
-  pendingRequests.delete(payload.requestId);
-  
-  // Emit connect event
-  notifyTabs('connect', { chainId: `0x${currentChainId.toString(16)}` });
-  notifyTabs('accountsChanged', connection.accounts);
-  
-  return { success: true, data: connection.accounts };
-}
-
-/**
- * Handle connection rejection from popup
- */
-function handleRejectConnection(payload: { requestId: string }): MessageResponse {
-  const request = pendingRequests.get(payload.requestId);
-  if (!request) {
-    return { success: false, error: 'Request not found' };
-  }
-  
-  // Send error to content script
-  if (request.tabId) {
-    chrome.tabs.sendMessage(request.tabId, {
-      type: 'FUN_WALLET_RESPONSE',
-      requestId: payload.requestId,
-      error: 'User rejected connection',
-    }).catch(console.error);
-  }
-  
-  pendingRequests.delete(payload.requestId);
-  return { success: true };
-}
-
-/**
- * Handle chain switching
- */
-async function handleSwitchChain(payload: { chainId: string }): Promise<MessageResponse> {
-  const chainId = parseInt(payload.chainId, 16);
-  
-  // Validate chain is supported
-  const supportedChains = [56, 1, 137, 42161, 10, 43114, 250, 8453];
-  if (!supportedChains.includes(chainId)) {
-    return { 
-      success: false, 
-      error: `Chain ${chainId} not supported` 
-    };
-  }
-  
-  currentChainId = chainId;
-  await chromeStorageAdapter.set(STORAGE_KEYS.CURRENT_CHAIN, chainId.toString());
-  
-  // Notify all connected tabs
-  notifyTabs('chainChanged', `0x${chainId.toString(16)}`);
-  
-  return { success: true };
-}
-
-/**
- * Handle transaction sending
- * If wallet is locked, opens unlock popup with redirect to approve-tx
- */
-async function handleSendTransaction(
-  tx: TransactionRequest, 
-  origin?: string, 
-  tabId?: number,
-  sendResponse?: (response: MessageResponse) => void,
-  originalRequestId?: string  // THÊM: ID gốc từ DApp
-): Promise<MessageResponse | null> {
-  // Parse origin if needed
-  let parsedOrigin: string | undefined;
-  if (origin) {
-    try {
-      parsedOrigin = new URL(origin).origin;
-    } catch {
-      parsedOrigin = origin;
-    }
-  }
-  
-  // Check DApp connection FIRST (before unlock check)
-  if (parsedOrigin && !connectedDApps.has(parsedOrigin)) {
-    return { success: false, error: 'DApp not connected' };
-  }
-  
-  // Build params for approve-tx page
-  const txParams: Record<string, string> = {
-    to: tx.to || '',
-    value: tx.value || '0',
-    origin: parsedOrigin || 'unknown',
-  };
-  
-  if (tx.data) {
-    txParams.data = tx.data;
-  }
-  
-  // CRITICAL: Sử dụng ID gốc từ DApp nếu có, fallback tạo mới
-  const requestId = originalRequestId || `tx_${Date.now()}`;
-  console.log('[Service Worker] handleSendTransaction - Using requestId:', requestId, 'Original:', originalRequestId);
-  
-  pendingRequests.set(requestId, {
-    id: requestId,
-    method: 'eth_sendTransaction',
-    params: [tx],
-    origin: parsedOrigin || 'unknown',
-    timestamp: Date.now(),
-    tabId,
+chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
+  void (async () => {
+    await ready;
+    const lastActivity = Number(await storage.get(STORAGE_KEYS.LAST_ACTIVITY));
+    if (!lastActivity || Date.now() - lastActivity > 15 * 60_000) isLocked = true;
+    if (!message || typeof message.type !== 'string') throw new RpcError(-32602, 'Yêu cầu không hợp lệ');
+    return trustedPopup(sender, chrome.runtime.id, chrome.runtime.getURL('popup.html'))
+      ? handlePopup(message) : handlePage(message, sender);
+  })().then(sendResponse).catch(error => sendResponse(fail(error)));
+  return true;
+});
+chrome.alarms.onAlarm.addListener(() => {
+  void ready.then(async () => {
+    for (const request of [...pending.values()]) if (!request.status && Date.now() - request.timestamp >= REQUEST_TTL) await finish(request, undefined, new RpcError(4001, 'Yêu cầu đã hết hạn'));
   });
-  
-  txParams.requestId = requestId;
-  
-  // If wallet is locked, open unlock popup with redirect to approve-tx
-  if (isLocked) {
-    await openPopupWithUnlockRedirect('approve-tx', txParams);
-    return null;
-  }
-  
-  // Wallet is unlocked, open approve-tx directly
-  await openPopup('approve-tx', txParams);
-  
-  return null;
-}
-
-/**
- * Handle transaction approval from popup
- */
-async function handleApproveTransaction(payload: { requestId: string; signedTx?: string; txHash?: string }): Promise<MessageResponse> {
-  console.log('[Service Worker] handleApproveTransaction called with:', payload);
-  
-  const request = pendingRequests.get(payload.requestId);
-  if (!request) {
-    console.warn('[Service Worker] Request not found:', payload.requestId);
-    return { success: false, error: 'Request not found or expired' };
-  }
-  
-  console.log('[Service Worker] Found pending request:', request);
-  
-  // Send tx hash to content script
-  if (payload.txHash) {
-    if (request.tabId) {
-      try {
-        await chrome.tabs.sendMessage(request.tabId, {
-          type: 'FUN_WALLET_RESPONSE',
-          requestId: payload.requestId,
-          result: payload.txHash,
-        });
-        console.log('[Service Worker] Sent response to tab:', request.tabId);
-      } catch (err) {
-        console.error('[Service Worker] Failed to send to tab:', request.tabId, err);
-        // Tab có thể đã đóng hoặc không còn tồn tại
-      }
-    } else {
-      console.warn('[Service Worker] No tabId for request, cannot send response to DApp');
+});
+chrome.windows.onRemoved.addListener(windowId => {
+  void ready.then(async () => {
+    for (const request of [...pending.values()]) if (request.windowId === windowId && !request.status) await finish(request, undefined, new RpcError(4001, 'Người dùng đóng cửa sổ duyệt'));
+  });
+});
+chrome.tabs.onRemoved.addListener(tabId => {
+  void ready.then(async () => {
+    for (const request of [...pending.values()]) if (request.tabId === tabId) {
+      request.invalidated = true;
+      if (!request.status) await finish(request, undefined, new RpcError(4001, 'Tab yêu cầu đã đóng'));
     }
-  }
-  
-  pendingRequests.delete(payload.requestId);
-  return { success: true, data: { txHash: payload.txHash } };
-}
-
-/**
- * Handle transaction rejection from popup
- */
-function handleRejectTransaction(payload: { requestId: string }): MessageResponse {
-  const request = pendingRequests.get(payload.requestId);
-  if (!request) {
-    return { success: false, error: 'Request not found' };
-  }
-  
-  if (request.tabId) {
-    chrome.tabs.sendMessage(request.tabId, {
-      type: 'FUN_WALLET_RESPONSE',
-      requestId: payload.requestId,
-      error: 'User rejected transaction',
-    }).catch(console.error);
-  }
-  
-  pendingRequests.delete(payload.requestId);
-  return { success: true };
-}
-
-/**
- * Handle personal sign
- * If wallet is locked, opens unlock popup with redirect to approve-sign
- */
-async function handlePersonalSign(
-  payload: { message: string; address?: string },
-  origin?: string,
-  tabId?: number,
-  sendResponse?: (response: MessageResponse) => void,
-  originalRequestId?: string  // THÊM: ID gốc từ DApp
-): Promise<MessageResponse | null> {
-  let parsedOrigin: string | undefined;
-  if (origin) {
-    try {
-      parsedOrigin = new URL(origin).origin;
-    } catch {
-      parsedOrigin = origin;
+  });
+});
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.status !== 'loading') return;
+  void ready.then(async () => {
+    for (const request of [...pending.values()]) if (request.tabId === tabId) {
+      request.invalidated = true;
+      if (!request.status) await finish(request, undefined, new RpcError(4100, 'Trang yêu cầu đã tải lại'));
     }
-  }
-  
-  // Check DApp connection FIRST
-  if (parsedOrigin && !connectedDApps.has(parsedOrigin)) {
-    return { success: false, error: 'DApp not connected' };
-  }
-  
-  // CRITICAL: Sử dụng ID gốc từ DApp nếu có
-  const requestId = originalRequestId || `sign_${Date.now()}`;
-  console.log('[Service Worker] handlePersonalSign - Using requestId:', requestId, 'Original:', originalRequestId);
-  
-  pendingRequests.set(requestId, {
-    id: requestId,
-    method: 'personal_sign',
-    params: [payload.message, payload.address],
-    origin: parsedOrigin || 'unknown',
-    timestamp: Date.now(),
-    tabId,
   });
-  
-  const signParams = { 
-    requestId, 
-    message: payload.message,
-    origin: parsedOrigin || 'unknown',
-    method: 'personal_sign',
-  };
-  
-  // If wallet is locked, open unlock popup with redirect
-  if (isLocked) {
-    await openPopupWithUnlockRedirect('approve-sign', signParams);
-    return null;
-  }
-  
-  // Open popup for user approval
-  await openPopup('approve-sign', signParams);
-  
-  return null;
-}
-
-/**
- * Handle typed data signing (EIP-712)
- * If wallet is locked, opens unlock popup with redirect to approve-sign
- */
-async function handleSignTypedData(
-  payload: { address: string; data: string },
-  origin?: string,
-  tabId?: number,
-  sendResponse?: (response: MessageResponse) => void,
-  originalRequestId?: string  // THÊM: ID gốc từ DApp
-): Promise<MessageResponse | null> {
-  let parsedOrigin: string | undefined;
-  if (origin) {
-    try {
-      parsedOrigin = new URL(origin).origin;
-    } catch {
-      parsedOrigin = origin;
-    }
-  }
-  
-  // Check DApp connection FIRST
-  if (parsedOrigin && !connectedDApps.has(parsedOrigin)) {
-    return { success: false, error: 'DApp not connected' };
-  }
-  
-  // CRITICAL: Sử dụng ID gốc từ DApp nếu có
-  const requestId = originalRequestId || `signTyped_${Date.now()}`;
-  console.log('[Service Worker] handleSignTypedData - Using requestId:', requestId, 'Original:', originalRequestId);
-  
-  pendingRequests.set(requestId, {
-    id: requestId,
-    method: 'eth_signTypedData_v4',
-    params: [payload.address, payload.data],
-    origin: parsedOrigin || 'unknown',
-    timestamp: Date.now(),
-    tabId,
-  });
-  
-  const signParams = { 
-    requestId, 
-    message: payload.data,
-    origin: parsedOrigin || 'unknown',
-    method: 'eth_signTypedData_v4',
-  };
-  
-  // If wallet is locked, open unlock popup with redirect
-  if (isLocked) {
-    await openPopupWithUnlockRedirect('approve-sign', signParams);
-    return null;
-  }
-  
-  // Open popup for user approval
-  await openPopup('approve-sign', signParams);
-  
-  return null;
-}
-
-/**
- * Handle sign approval from popup
- */
-async function handleApproveSign(payload: { requestId: string; signature: string }): Promise<MessageResponse> {
-  const request = pendingRequests.get(payload.requestId);
-  if (!request) {
-    return { success: false, error: 'Request not found or expired' };
-  }
-  
-  // Send signature to content script
-  if (request.tabId) {
-    chrome.tabs.sendMessage(request.tabId, {
-      type: 'FUN_WALLET_RESPONSE',
-      requestId: payload.requestId,
-      result: payload.signature,
-    }).catch(console.error);
-  }
-  
-  pendingRequests.delete(payload.requestId);
-  return { success: true, data: { signature: payload.signature } };
-}
-
-/**
- * Handle sign rejection from popup
- */
-function handleRejectSign(payload: { requestId: string }): MessageResponse {
-  const request = pendingRequests.get(payload.requestId);
-  if (!request) {
-    return { success: false, error: 'Request not found' };
-  }
-  
-  if (request.tabId) {
-    chrome.tabs.sendMessage(request.tabId, {
-      type: 'FUN_WALLET_RESPONSE',
-      requestId: payload.requestId,
-      error: 'User rejected signing',
-    }).catch(console.error);
-  }
-  
-  pendingRequests.delete(payload.requestId);
-  return { success: true };
-}
-
-/**
- * Connect DApp
- */
-async function handleConnectDApp(origin: string, payload?: { requestId?: string }): Promise<MessageResponse> {
-  let parsedOrigin: string;
-  try {
-    parsedOrigin = new URL(origin).origin;
-  } catch {
-    parsedOrigin = origin;
-  }
-  
-  const connection: DAppConnection = {
-    origin: parsedOrigin,
-    name: new URL(parsedOrigin).hostname,
-    connectedAt: Date.now(),
-    permissions: ['eth_accounts'],
-    chainId: currentChainId,
-    accounts: [],
-  };
-  
-  // Get active wallet
-  const activeWallet = await chromeStorageAdapter.get(STORAGE_KEYS.ACTIVE_WALLET);
-  if (activeWallet) {
-    connection.accounts = [activeWallet];
-  }
-  
-  connectedDApps.set(parsedOrigin, connection);
-  
-  // Persist to storage
-  await saveDAppConnections();
-  
-  return { success: true, data: connection };
-}
-
-/**
- * Disconnect DApp
- */
-async function handleDisconnectDApp(payload: { origin: string }): Promise<MessageResponse> {
-  connectedDApps.delete(payload.origin);
-  await saveDAppConnections();
-  
-  // Notify tabs
-  notifyTabs('disconnect', { code: 4900, message: 'Disconnected' });
-  
-  return { success: true };
-}
-
-/**
- * Disconnect all DApps
- */
-async function handleDisconnectAllDApps(): Promise<MessageResponse> {
-  connectedDApps.clear();
-  await saveDAppConnections();
-  
-  notifyTabs('disconnect', { code: 4900, message: 'Disconnected' });
-  
-  return { success: true };
-}
-
-/**
- * Save DApp connections to storage
- */
-async function saveDAppConnections(): Promise<void> {
-  const dapps = Array.from(connectedDApps.values());
-  await chromeStorageAdapter.set(STORAGE_KEYS.DAPP_CONNECTIONS, JSON.stringify(dapps));
-}
-
-/**
- * Open floating popup window positioned on the right side of the screen
- * This creates an independent, movable popup instead of a fixed Side Panel
- */
-async function openPopup(page: string, params?: Record<string, unknown>): Promise<void> {
-  const queryString = params 
-    ? `?${new URLSearchParams(params as Record<string, string>).toString()}`
-    : '';
-  
-  // Get current browser window to calculate position
-  const currentWindow = await chrome.windows.getCurrent();
-  
-  // Popup dimensions
-  const popupWidth = 360;
-  const popupHeight = 600;
-  
-  // Calculate position: right side of browser window, vertically centered
-  const top = Math.round((currentWindow.top || 0) + ((currentWindow.height || 600) - popupHeight) / 2);
-  const left = Math.round((currentWindow.left || 0) + (currentWindow.width || 1200) - popupWidth - 20);
-  
-  await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html#/${page}${queryString}`),
-    type: 'popup',
-    width: popupWidth,
-    height: popupHeight,
-    top: Math.max(top, 0),
-    left: Math.max(left, 0),
-    focused: true,
-  });
-  
-  console.log('[FUN Wallet] Floating popup opened for page:', page);
-}
-
-/**
- * Open floating popup with unlock redirect
- * If wallet is locked, opens unlock page first
- * After unlock, automatically redirects to target page with params
- */
-async function openPopupWithUnlockRedirect(
-  targetPage: string, 
-  params: Record<string, unknown>
-): Promise<void> {
-  const queryString = new URLSearchParams(params as Record<string, string>).toString();
-  const redirectPath = `${targetPage}?${queryString}`;
-  
-  // Encode redirect path to pass through URL
-  const encodedRedirect = encodeURIComponent(redirectPath);
-  
-  // Get current browser window to calculate position
-  const currentWindow = await chrome.windows.getCurrent();
-  
-  // Popup dimensions
-  const popupWidth = 360;
-  const popupHeight = 600;
-  
-  // Calculate position: right side of browser window, vertically centered
-  const top = Math.round((currentWindow.top || 0) + ((currentWindow.height || 600) - popupHeight) / 2);
-  const left = Math.round((currentWindow.left || 0) + (currentWindow.width || 1200) - popupWidth - 20);
-  
-  await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html#/unlock?redirect=${encodedRedirect}`),
-    type: 'popup',
-    width: popupWidth,
-    height: popupHeight,
-    top: Math.max(top, 0),
-    left: Math.max(left, 0),
-    focused: true,
-  });
-  
-  console.log('[FUN Wallet] Floating popup opened with unlock redirect');
-}
-
-/**
- * Notify all tabs of events
- */
-function notifyTabs(eventType: string, data: unknown): void {
-  chrome.tabs.query({}, (tabs) => {
-    tabs.forEach((tab) => {
-      if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, {
-          type: eventType,
-          ...(eventType === 'chainChanged' ? { chainId: data } : {}),
-          ...(eventType === 'accountsChanged' ? { accounts: data } : {}),
-          ...(eventType === 'disconnect' || eventType === 'connect' ? data as object : {}),
-        }).catch(() => {
-          // Tab might not have content script
-        });
-      }
-    });
-  });
-}
-
-// Initialize
-initialize();
-
-// Auto-lock after inactivity (15 minutes)
-setInterval(async () => {
-  if (!isLocked) {
-    const lastActivity = await chromeStorageAdapter.get(STORAGE_KEYS.LAST_ACTIVITY);
-    if (lastActivity) {
-      const elapsed = Date.now() - parseInt(lastActivity);
-      const autoLockMs = 15 * 60 * 1000; // 15 minutes
-      
-      if (elapsed > autoLockMs) {
-        console.log('[FUN Wallet] Auto-locking due to inactivity');
-        isLocked = true;
-      }
-    }
-  }
-}, 60000); // Check every minute
-
-// Handle extension install/update
-chrome.runtime.onInstalled.addListener((details) => {
-  console.log('[FUN Wallet] Extension installed:', details.reason);
 });

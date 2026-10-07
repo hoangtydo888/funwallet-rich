@@ -39,15 +39,15 @@ function BackupSeedSettingsPage() {
       ]);
 
       const wallet = result[STORAGE_KEYS.ACTIVE_WALLET];
-      setActiveWallet(wallet);
+      setActiveWallet(typeof wallet === 'string' ? wallet : null);
 
-      if (!wallet) {
+      if (typeof wallet !== 'string' || !wallet) {
         setStep('no-mnemonic');
         return;
       }
 
       const storageData = result[STORAGE_KEYS.ENCRYPTED_KEYS];
-      if (!storageData) {
+      if (typeof storageData !== 'string' || !storageData) {
         setStep('no-mnemonic');
         return;
       }

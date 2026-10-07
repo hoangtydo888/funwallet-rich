@@ -16,8 +16,9 @@ function ReceivePage() {
 
   const loadAddress = async () => {
     const walletData = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_WALLET);
-    if (walletData[STORAGE_KEYS.ACTIVE_WALLET]) {
-      setAddress(walletData[STORAGE_KEYS.ACTIVE_WALLET]);
+    const activeAddress = walletData[STORAGE_KEYS.ACTIVE_WALLET];
+    if (typeof activeAddress === 'string') {
+      setAddress(activeAddress);
     }
   };
 

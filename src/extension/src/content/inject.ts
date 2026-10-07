@@ -7,8 +7,7 @@
  * Uses external script injection to bypass CSP restrictions
  */
 
-// Pending requests storage for response matching
-const pendingPageRequests: Map<string, { resolve: (result: unknown) => void; reject: (error: Error) => void }> = new Map();
+const publicMethods = new Set(['eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'eth_sendTransaction', 'personal_sign', 'eth_signTypedData_v4', 'wallet_switchEthereumChain']);
 
 /**
  * Inject the provider script into the page
@@ -40,18 +39,22 @@ function injectProvider() {
  */
 window.addEventListener('message', async (event) => {
   // Only handle messages from our page script
-  if (event.data.type !== 'FUN_WALLET_REQUEST') return;
+  if (event.source !== window || event.origin !== window.location.origin || !event.data || event.data.type !== 'FUN_WALLET_REQUEST') return;
   
   const { id, method, params } = event.data;
+  if (typeof id !== 'string' || id.length > 150) return;
+  if (!publicMethods.has(method)) {
+    window.postMessage({ type: 'FUN_WALLET_RESPONSE', id, error: 'Phương thức không được hỗ trợ', code: 4200 }, window.location.origin);
+    return;
+  }
   
   try {
     // Forward request to background script
-    const response = await new Promise<{ success?: boolean; data?: unknown; error?: string }>((resolve) => {
+    const response = await new Promise<{ success?: boolean; data?: unknown; error?: string; code?: number; pending?: boolean }>((resolve) => {
       chrome.runtime.sendMessage(
         { 
           type: method, 
           payload: params, 
-          origin: window.location.origin, 
           requestId: id 
         },
         (response) => {
@@ -65,18 +68,20 @@ window.addEventListener('message', async (event) => {
     });
     
     // Handle immediate responses
+    if (response.pending) return;
     if (response.success) {
       window.postMessage({
         type: 'FUN_WALLET_RESPONSE',
         id,
         result: response.data,
-      }, '*');
+      }, window.location.origin);
     } else if (response.error && !response.error.includes('Pending user approval')) {
       window.postMessage({
         type: 'FUN_WALLET_RESPONSE',
         id,
         error: response.error,
-      }, '*');
+        code: response.code,
+      }, window.location.origin);
     }
     // If pending approval, wait for FUN_WALLET_RESPONSE from background
     
@@ -85,7 +90,8 @@ window.addEventListener('message', async (event) => {
       type: 'FUN_WALLET_RESPONSE',
       id,
       error: (error as Error).message,
-    }, '*');
+      code: -32603,
+    }, window.location.origin);
   }
 });
 
@@ -101,7 +107,8 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
       id: message.requestId,
       result: message.result,
       error: message.error,
-    }, '*');
+      code: message.code,
+    }, window.location.origin);
     return;
   }
 

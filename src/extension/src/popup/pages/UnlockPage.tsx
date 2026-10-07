@@ -40,8 +40,7 @@ function UnlockPage({ onUnlock }: UnlockPageProps) {
         
         // If there's a redirect path (from transaction/sign request), navigate there
         if (redirectPath) {
-          const decodedPath = decodeURIComponent(redirectPath);
-          navigate(`/${decodedPath}`);
+          if (/^(request|connect|approve-tx|approve-sign)\?/.test(redirectPath)) navigate(`/${redirectPath}`, { replace: true });
         }
       } else {
         setError(response?.error || 'Mật khẩu không đúng');

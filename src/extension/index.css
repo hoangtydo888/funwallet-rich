@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -59,8 +57,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-body);
-    width: 360px;
-    height: 540px;
+    width: 100%;
+    height: 100dvh;
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -70,6 +68,23 @@
     font-family: var(--font-heading);
   }
 }
+
+html, #root { width: 100%; height: 100%; min-width: 280px; }
+
+.approval-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; background: #fff; color: #162b27; }
+.approval-header { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid #e9eeeb; flex-shrink: 0; }
+.approval-content { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 20px; }
+.approval-card { padding: 18px; border-radius: 16px; background: #f5f7f6; margin-top: 18px; overflow-wrap: anywhere; }
+.approval-label { color: #65746e; font-size: 13px; }
+.approval-address { display: block; font-family: ui-monospace, monospace; font-size: 12px; overflow-wrap: anywhere; margin-top: 6px; }
+.approval-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 12px 0; font-size: 13px; }
+.approval-row > :last-child { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.approval-warning { margin-top: 18px; padding: 12px 14px; border-radius: 12px; color: #77520e; background: #fff8e7; font-size: 12px; line-height: 1.6; }
+.approval-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 20px; border-top: 1px solid #e9eeeb; flex-shrink: 0; background: white; }
+.approval-button { min-height: 48px; padding: 12px; border-radius: 14px; font-weight: 600; font-size: 14px; background: #eef2f0; color: #20372f; }
+.approval-button.primary { background: #116149; color: white; }
+.approval-button:disabled { opacity: .45; cursor: not-allowed; }
+.approval-button:focus-visible { outline: 3px solid #69cbb0; outline-offset: 2px; }
 
 /* Popup animation */
 @keyframes popup-fade-in {

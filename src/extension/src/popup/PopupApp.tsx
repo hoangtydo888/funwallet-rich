@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
 import PopupLayout from './components/PopupLayout';
@@ -12,6 +12,27 @@ import ApproveTxPage from './pages/ApproveTxPage';
 import ApproveSignPage from './pages/ApproveSignPage';
 import ConnectedDAppsPage from './pages/ConnectedDAppsPage';
 import BackupSeedSettingsPage from './pages/BackupSeedSettingsPage';
+import RequestPage from './pages/RequestPage';
+
+// An already-open side panel picks up new requests without reopening or losing
+// the currently displayed approval. Passwords never enter the URL or storage.
+function PendingRequestNavigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    let live = true;
+    const refresh = async () => {
+      if (!['/', '/unlock'].includes(location.pathname)) return;
+      const response = await chrome.runtime.sendMessage({ type: 'GET_NEXT_PENDING' });
+      if (live && response?.success && response.data) navigate(`/request?requestId=${response.data.id}`);
+    };
+    void refresh();
+    const changed = (_changes: unknown, area: string) => { if (area === 'session') void refresh(); };
+    chrome.storage.onChanged.addListener(changed);
+    return () => { live = false; chrome.storage.onChanged.removeListener(changed); };
+  }, [location.pathname, navigate]);
+  return null;
+}
 
 // Onboarding flow pages
 import OnboardingPage from './pages/OnboardingPage';
@@ -201,6 +222,7 @@ function PopupApp() {
 
   return (
     <PopupLayout>
+      <PendingRequestNavigation />
       <Routes>
         {/* Public routes */}
         <Route 
@@ -247,6 +269,7 @@ function PopupApp() {
         />
         
         {/* DApp connection routes */}
+        <Route path="/request" element={<RequestPage onUnlock={handleUnlock} />} />
         <Route path="/connect" element={<ConnectPage />} />
         <Route path="/approve-tx" element={<ApproveTxPage />} />
         <Route path="/approve-sign" element={<ApproveSignPage />} />

@@ -70,7 +70,7 @@ function HomePage() {
     try {
       const walletData = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_WALLET);
       const activeAddress = walletData[STORAGE_KEYS.ACTIVE_WALLET];
-      if (activeAddress) {
+      if (typeof activeAddress === 'string' && activeAddress) {
         setAddress(activeAddress);
       }
     } catch (error) {

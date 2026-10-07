@@ -19,6 +19,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@shared/*": [
+        "../shared/*"
       ]
     },
     "skipLibCheck": true,
@@ -29,7 +32,8 @@
     "baseUrl": "."
   },
   "include": [
-    "src/extension/**/*",
-    "src/shared/**/*"
+    "src/**/*",
+    "storage/**/*",
+    "../shared/**/*"
   ]
 }

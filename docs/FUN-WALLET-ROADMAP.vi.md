@@ -1,5 +1,7 @@
 # FUN Wallet — Đánh giá và lộ trình nâng cấp
 
+> Cập nhật 07/10/2026: người dùng chọn hướng ví tự quản như MetaMask. Đã bắt đầu bản thử extension; xem [kế hoạch từng bước, thay đổi và giới hạn kiểm thử](./FUN-WALLET-EXTENSION.vi.md). Nội dung bên dưới là ảnh chụp đánh giá ban đầu ngày 04/10, không phải trạng thái tất cả hạng mục sau sửa đổi.
+
 Ngày: 04/10/2026. Phạm vi: đọc mã nguồn trong workspace và ảnh người dùng cung cấp. Website https://wallet.fun.rich không truy cập được qua công cụ web của phiên này; không có công cụ điều khiển trình duyệt tương ứng để kiểm tra tương tác. Chưa xác nhận mã đang triển khai trùng với repository, chưa chạy build, testnet hoặc audit độc lập. Không thực hiện giao dịch, thay đổi dữ liệu production hay kiểm tra xâm nhập.
 
 ## Định hướng đề xuất

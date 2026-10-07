@@ -10,7 +10,7 @@ export class ChromeStorageAdapter implements StorageAdapter {
   async get(key: string): Promise<string | null> {
     try {
       const result = await chrome.storage.local.get(key);
-      return result[key] || null;
+      return typeof result[key] === 'string' ? result[key] : null;
     } catch (error) {
       console.error('[ChromeStorageAdapter] Error getting key:', key, error);
       return null;

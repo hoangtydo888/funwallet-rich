@@ -46,13 +46,19 @@ const provider = {
       
       // Listen for response
       const handler = (event: MessageEvent) => {
+        if (event.source !== window || event.origin !== window.location.origin || !event.data) return;
         if (event.data.type === 'FUN_WALLET_RESPONSE' && event.data.id === id) {
           window.removeEventListener('message', handler);
           this._pendingRequests.delete(id);
           
           if (event.data.error) {
-            reject(new Error(event.data.error));
+            reject(Object.assign(new Error(event.data.error), { code: event.data.code ?? -32603 }));
           } else {
+            if (args.method === 'eth_accounts' || args.method === 'eth_requestAccounts') this.selectedAddress = event.data.result?.[0] || null;
+            if (args.method === 'eth_chainId') {
+              this.chainId = event.data.result;
+              this.networkVersion = parseInt(this.chainId, 16).toString();
+            }
             resolve(event.data.result as T);
           }
         }
@@ -66,14 +72,14 @@ const provider = {
         id,
         method: args.method,
         params: args.params,
-      }, '*');
+      }, window.location.origin);
       
       // Timeout after 5 minutes
       setTimeout(() => {
         if (this._pendingRequests.has(id)) {
           window.removeEventListener('message', handler);
           this._pendingRequests.delete(id);
-          reject(new Error('Request timeout'));
+          reject(Object.assign(new Error('Request timeout'), { code: -32000 }));
         }
       }, 300000);
     });
@@ -156,8 +162,8 @@ const provider = {
 
 // Listen for events from content script
 window.addEventListener('message', (event) => {
+  if (event.source !== window || event.origin !== window.location.origin || !event.data) return;
   if (event.data.type === 'FUN_WALLET_EVENT') {
-    provider.emit(event.data.event, event.data.data);
     
     // Update provider state
     if (event.data.event === 'chainChanged') {
@@ -168,6 +174,7 @@ window.addEventListener('message', (event) => {
     } else if (event.data.event === 'disconnect') {
       provider.selectedAddress = null;
     }
+    provider.emit(event.data.event, event.data.data);
   }
 });
 
@@ -184,7 +191,7 @@ const iconDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAA
 
 // Provider info theo chuẩn EIP-6963 với UUID cố định
 const providerInfo = {
-  uuid: '550e8400-e29b-41d4-a716-446655440000',  // Fixed UUID
+  uuid: crypto.randomUUID(),
   name: 'FUN Wallet',
   icon: iconDataUrl,
   rdns: 'io.funwallet.wallet',  // Chuẩn reverse domain notation

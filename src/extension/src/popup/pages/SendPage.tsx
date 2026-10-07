@@ -44,7 +44,7 @@ function SendPage() {
       const walletData = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_WALLET);
       const address = walletData[STORAGE_KEYS.ACTIVE_WALLET];
       
-      if (!address) return;
+      if (typeof address !== 'string' || !address) return;
 
       // Load all tokens with balances (not limited to 5)
       const topTokens = COMMON_TOKENS;
@@ -125,7 +125,8 @@ function SendPage() {
       const walletData = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_WALLET);
       const activeAddress = walletData[STORAGE_KEYS.ACTIVE_WALLET];
 
-      if (!encryptedData[STORAGE_KEYS.ENCRYPTED_KEYS] || !activeAddress) {
+      const encryptedWallets = encryptedData[STORAGE_KEYS.ENCRYPTED_KEYS];
+      if (typeof encryptedWallets !== 'string' || typeof activeAddress !== 'string' || !activeAddress) {
         setError('Không tìm thấy ví');
         return;
       }
@@ -138,7 +139,7 @@ function SendPage() {
         return;
       }
 
-      const parsed = JSON.parse(encryptedData[STORAGE_KEYS.ENCRYPTED_KEYS]);
+      const parsed = JSON.parse(encryptedWallets);
       const keyData = parsed.wallets[activeAddress];
       
       if (!keyData) {
