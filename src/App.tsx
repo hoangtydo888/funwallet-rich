@@ -11,6 +11,7 @@ import { useRealtimeNotifications } from "@/hooks/useRealtimeNotifications";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import ConnectWallet from "./pages/ConnectWallet";
 import Settings from "./pages/Settings";
 import Install from "./pages/Install";
 import Admin from "./pages/Admin";
@@ -54,6 +55,7 @@ const App = () => (
                     <Route path="/" element={<Index />} />
                     <Route path="/onboarding" element={<Onboarding />} />
                     <Route path="/auth" element={<Auth />} />
+                    <Route path="/connect" element={<ConnectWallet />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/wallet" element={<Wallet />} />
                     <Route path="/trading" element={<Trading />} />

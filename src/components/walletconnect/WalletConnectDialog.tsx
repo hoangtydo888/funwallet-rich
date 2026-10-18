@@ -1,284 +1,154 @@
-import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Loader2, 
-  QrCode, 
-  Link2, 
-  X, 
-  ExternalLink,
-  Clock,
-  Unlink
-} from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import {
-  WalletConnectSession,
-  getSessions,
-  simulateConnect,
-  disconnectSession,
-  formatExpiry,
-  parseWalletConnectUri,
-} from "@/lib/walletconnect";
-import { useChain } from "@/contexts/ChainContext";
+import { useEffect, useRef, useState } from 'react';
+import { JsonRpcProvider, Wallet, formatEther, toUtf8String, type TransactionRequest } from 'ethers';
+import { buildApprovedNamespaces } from '@walletconnect/utils';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useWalletSecurity } from '@/contexts/WalletSecurityContext';
+import { decryptPrivateKey, getEncryptedKey } from '@/lib/keyEncryption';
+import { getWalletKit, validPairingUri, isProfilePeer, rejected, WC_METHODS, type Proposal, type Request } from '@/lib/walletconnect';
+import { loginMessage, unsignedTransfer } from '@/lib/walletconnectPolicy';
+import { getChainById } from '@/lib/chains';
 
-interface WalletConnectDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  walletAddress: string;
-}
-
-export const WalletConnectDialog = ({
-  open,
-  onOpenChange,
-  walletAddress,
-}: WalletConnectDialogProps) => {
-  const { currentChain } = useChain();
-  const [tab, setTab] = useState<"connect" | "sessions">("connect");
-  const [uri, setUri] = useState("");
-  const [connecting, setConnecting] = useState(false);
-  const [sessions, setSessions] = useState<WalletConnectSession[]>([]);
-  const [disconnecting, setDisconnecting] = useState<string | null>(null);
-
+type Kit = Awaited<ReturnType<typeof getWalletKit>>;
+type Review = { request: Request; text: string; tx?: TransactionRequest; account:string };
+const reason = (message:string) => ({code:4001,message});
+export const WalletConnectDialog = ({open,onOpenChange,walletAddress}:{open:boolean;onOpenChange:(value:boolean)=>void;walletAddress:string}) => {
+  const security = useWalletSecurity();
+  const current = useRef({security,walletAddress,onOpenChange});
+  current.current = {security,walletAddress,onOpenChange};
+  const [kit,setKit] = useState<Kit>();
+  const [uri,setUri] = useState('');
+  const [proposal,setProposal] = useState<Proposal>();
+  const [review,setReview] = useState<Review>();
+  const [sessions,setSessions] = useState<ReturnType<Kit['getActiveSessions']>>({});
+  const [error,setError] = useState('');
+  const [busy,setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const provider = useRef(new JsonRpcProvider(getChainById(56)!.rpcUrl,56));
+  const refresh = (client:Kit) => setSessions({...client.getActiveSessions()});
   useEffect(() => {
-    if (open) {
-      setSessions(getSessions());
-    }
-  }, [open]);
-
-  const handleConnect = async () => {
-    if (!uri.trim()) {
-      toast({
-        title: "Lỗi",
-        description: "Vui lòng nhập WalletConnect URI",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const parsed = parseWalletConnectUri(uri);
-    if (!parsed) {
-      toast({
-        title: "URI không hợp lệ",
-        description: "Vui lòng kiểm tra lại WalletConnect URI",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setConnecting(true);
-    try {
-      const session = await simulateConnect(uri, walletAddress, currentChain.chainId);
-      if (session) {
-        toast({
-          title: "Kết nối thành công!",
-          description: `Đã kết nối với ${session.peerName}`,
-        });
-        setSessions(getSessions());
-        setUri("");
-        setTab("sessions");
-      } else {
-        throw new Error("Connection failed");
-      }
-    } catch (error) {
-      toast({
-        title: "Kết nối thất bại",
-        description: "Không thể kết nối với DApp",
-        variant: "destructive",
-      });
-    } finally {
-      setConnecting(false);
-    }
+    let alive = true;
+    let cleanup = () => {};
+    getWalletKit().then(client => {
+      if (!alive) return;
+      setKit(client); refresh(client);
+      const show = () => {
+        if (!alive) return;
+        const proposals = Object.values(client.getPendingSessionProposals());
+        const requests = client.getPendingSessionRequests();
+        setProposal(old => proposals[0] ? (old?.id === proposals[0].id ? old : {id:proposals[0].id,params:proposals[0]}) : undefined);
+        if (proposals.length || requests.length) current.current.onOpenChange(true);
+        refresh(client);
+      };
+      const incomingProposal = (event: Proposal) => {setProposal(event);show();};
+      client.on('session_proposal',incomingProposal); client.on('session_request',show);
+      client.on('session_delete',show); client.on('proposal_expire',show);
+      client.on('session_request_expire',show);
+      const interval = window.setInterval(show,2000);
+      cleanup = () => { clearInterval(interval); client.off('session_proposal',incomingProposal);client.off('session_request',show);client.off('session_delete',show);client.off('proposal_expire',show);client.off('session_request_expire',show); };
+      show();
+      const pending = sessionStorage.getItem('fun_wallet_pending_wc');
+      if (pending && validPairingUri(pending)) { setUri(pending); current.current.onOpenChange(true); }
+    }).catch(() => { if (alive) setError('Chưa kết nối được máy chủ WalletConnect. Vui lòng thử lại.'); });
+    return () => { alive = false; cleanup(); };
+  },[]);
+  const run = async (action:()=>Promise<void>) => {
+    if (inFlight.current) return;
+    inFlight.current=true;setBusy(true);setError('');
+    try { await action(); } catch(e) {setError(e instanceof Error ? e.message : 'Không thể xử lý yêu cầu');}
+    finally {inFlight.current=false;setBusy(false);}
   };
-
-  const handleDisconnect = async (topic: string) => {
-    setDisconnecting(topic);
-    try {
-      await disconnectSession(topic);
-      setSessions(getSessions());
-      toast({
-        title: "Đã ngắt kết nối",
-        description: "Session đã được đóng",
-      });
-    } catch {
-      toast({
-        title: "Lỗi",
-        description: "Không thể ngắt kết nối",
-        variant: "destructive",
-      });
-    } finally {
-      setDisconnecting(null);
-    }
+  const checkUnlocked = () => {
+    if (!current.current.security.checkSession() || !current.current.security.isUnlocked) throw Error('Hãy mở khóa ví bằng nút ổ khóa trên trang ví trước.');
+    if (!getEncryptedKey(current.current.walletAddress)) throw Error('Ví này chưa có khóa được mã hóa. Hãy hoàn tất bảo vệ ví trước.');
   };
-
-  const handlePaste = async () => {
+  const approveSession = () => run(async()=>{
+    if (!kit || !proposal) return;
+    checkUnlocked();
+    if (!isProfilePeer(proposal.params.proposer.metadata.url) || proposal.verifyContext?.verified?.validation === 'INVALID') throw Error('Chỉ nhận kết nối từ FUN Profile chính thức.');
+    const address=current.current.walletAddress.toLowerCase();
+    const namespaces=buildApprovedNamespaces({proposal:proposal.params,supportedNamespaces:{eip155:{chains:['eip155:56'],methods:WC_METHODS,events:['accountsChanged','chainChanged'],accounts:[`eip155:56:${address}`]}}});
+    await kit.approveSession({id:proposal.id,namespaces});setProposal(undefined);refresh(kit);
+  });
+  const rejectProposal = () => run(async()=>{if(kit&&proposal){await kit.rejectSession({id:proposal.id,reason:rejected});setProposal(undefined);}});
+  const prepare = () => run(async()=>{
+    if (!kit) return;
+    const request=kit.getPendingSessionRequests()[0];
+    if (!request) throw Error('Không còn yêu cầu chờ duyệt.');
+    const session=kit.getActiveSessions()[request.topic];
+    const account=current.current.walletAddress.toLowerCase();
     try {
-      const text = await navigator.clipboard.readText();
-      if (text.startsWith("wc:")) {
-        setUri(text);
-      }
-    } catch {
-      // Ignore clipboard errors
+      checkUnlocked();
+      if (!session || session.expiry*1000<=Date.now() || !isProfilePeer(session.peer.metadata.url)) throw Error('Phiên không hợp lệ');
+      if (request.params.chainId!=='eip155:56' || !session.namespaces.eip155?.accounts.includes(`eip155:56:${account}`) || !session.namespaces.eip155?.methods.includes(request.params.request.method)) throw Error('Sai tài khoản hoặc mạng');
+      const {method,params}=request.params.request;
+      if (method==='personal_sign') {
+        const bytes=loginMessage(params,account);
+        setReview({request,account,text:`Đăng nhập FUN Profile — không gửi tiền\n\n${toUtf8String(bytes)}`});
+      } else if(method==='eth_sendTransaction') {
+        if(params.length!==1) throw Error('Giao dịch không hợp lệ');
+        const decoded=unsignedTransfer(params[0],account);
+        const code=await provider.current.getCode(decoded.to);
+        if(decoded.data==='0x' && code!=='0x') throw Error('Chưa hỗ trợ chuyển BNB kèm thực thi hợp đồng');
+        if(decoded.data!=='0x' && code==='0x') throw Error('Không tìm thấy hợp đồng token');
+        const gasEstimate=await provider.current.estimateGas({from:account,to:decoded.to,data:decoded.data,value:decoded.value});
+        const gasLimit=gasEstimate*120n/100n;
+        const fees=await provider.current.getFeeData();
+        if(!fees.gasPrice) throw Error('Chưa lấy được phí mạng');
+        const tx={to:decoded.to,data:decoded.data,value:decoded.value,gasLimit,gasPrice:fees.gasPrice,chainId:56};
+        setReview({request,account,tx,text:`Gửi ${decoded.amount} ${decoded.symbol}\nNgười nhận: ${decoded.recipient}\nHợp đồng/đích: ${decoded.to}\nMạng: BNB Smart Chain (56)\nPhí mạng tối đa: ${formatEther(gasLimit*fees.gasPrice)} BNB`});
+      } else if(method==='wallet_switchEthereumChain' && params?.[0]?.chainId==='0x38') {
+        setReview({request,account,text:'Cho phép FUN Profile sử dụng BNB Smart Chain (56). Không gửi tiền.'});
+      } else throw Error('Phương thức chưa được hỗ trợ');
+    } catch(e) {
+      await kit.respondSessionRequest({topic:request.topic,response:{id:request.id,jsonrpc:'2.0',error:reason(e instanceof Error?e.message:'Yêu cầu không hợp lệ')}});throw e;
     }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Link2 className="h-5 w-5" />
-            WalletConnect
-          </DialogTitle>
-          <DialogDescription>
-            Kết nối ví với các DApp bên ngoài một cách an toàn
-          </DialogDescription>
-        </DialogHeader>
-
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "connect" | "sessions")}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="connect">Kết nối mới</TabsTrigger>
-            <TabsTrigger value="sessions">
-              Sessions ({sessions.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="connect" className="space-y-4">
-            <div className="text-center py-6">
-              <div className="w-20 h-20 mx-auto rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
-                <QrCode className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Quét mã QR hoặc dán WalletConnect URI từ DApp
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">WalletConnect URI</label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="wc:..."
-                  value={uri}
-                  onChange={(e) => setUri(e.target.value)}
-                  className="font-mono text-sm"
-                />
-                <Button variant="outline" onClick={handlePaste}>
-                  Dán
-                </Button>
-              </div>
-            </div>
-
-            <Button
-              className="w-full"
-              onClick={handleConnect}
-              disabled={connecting || !uri.trim()}
-            >
-              {connecting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Đang kết nối...
-                </>
-              ) : (
-                <>
-                  <Link2 className="h-4 w-4 mr-2" />
-                  Kết nối
-                </>
-              )}
-            </Button>
-
-            <div className="p-3 rounded-lg bg-muted/50 text-sm">
-              <p className="font-medium mb-1">Hướng dẫn:</p>
-              <ol className="list-decimal list-inside text-muted-foreground space-y-1">
-                <li>Mở DApp và chọn WalletConnect</li>
-                <li>Sao chép URI hoặc quét mã QR</li>
-                <li>Dán URI vào ô trên và kết nối</li>
-              </ol>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="sessions" className="space-y-4">
-            {sessions.length === 0 ? (
-              <div className="text-center py-8">
-                <Unlink className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">
-                  Chưa có session nào được kết nối
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sessions.map((session) => (
-                  <div
-                    key={session.topic}
-                    className="p-4 rounded-lg bg-muted/50 border border-border/50"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        {session.peerIcon ? (
-                          <img
-                            src={session.peerIcon}
-                            alt={session.peerName}
-                            className="w-6 h-6 rounded"
-                          />
-                        ) : (
-                          <Link2 className="h-5 w-5 text-primary" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{session.peerName}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {session.peerUrl}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>Còn {formatExpiry(session.expiry)}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          asChild
-                        >
-                          <a
-                            href={session.peerUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDisconnect(session.topic)}
-                          disabled={disconnecting === session.topic}
-                        >
-                          {disconnecting === session.topic ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <X className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        <div className="text-xs text-muted-foreground text-center">
-          ⚠️ Chỉ kết nối với các DApp đáng tin cậy
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+  });
+  const respond = (approve:boolean) => run(async()=>{
+    if(!kit||!review) return;
+    const {request,account}=review;
+    if(!approve) {await kit.respondSessionRequest({topic:request.topic,response:{id:request.id,jsonrpc:'2.0',error:reason('Người dùng từ chối')}});setReview(undefined);return;}
+    if(!navigator.locks) throw Error('Trình duyệt chưa hỗ trợ khóa chống gửi trùng.');
+    await navigator.locks.request(`fun-wallet-sign-${account}`,{ifAvailable:true},async lock=>{
+      if(!lock) throw Error('Một cửa sổ khác đang xử lý ví.');
+      checkUnlocked();
+      if(current.current.walletAddress.toLowerCase()!==account) throw Error('Ví đang chọn đã thay đổi');
+      const pending=kit.getPendingSessionRequests().some(item=>item.id===request.id&&item.topic===request.topic);
+      const session=kit.getActiveSessions()[request.topic];
+      if(!pending||!session||session.expiry*1000<=Date.now()) {setReview(undefined);throw Error('Yêu cầu đã hết hạn');}
+      const password=current.current.security.getCachedPassword();
+      const encrypted=getEncryptedKey(account);
+      if(!password||!encrypted) throw Error('Hãy mở khóa ví trước');
+      const signer=new Wallet(await decryptPrivateKey(encrypted,password),provider.current);
+      if(signer.address.toLowerCase()!==account) throw Error('Khóa không khớp với ví');
+      checkUnlocked();
+      const requestKey = `fun_wallet_wc_handled:${request.topic}:${request.id}`;
+      const handled = localStorage.getItem(requestKey);
+      if (handled) throw Error('Yêu cầu này đã xử lý hoặc đang chờ kết quả mạng. Không gửi lại; hãy kiểm tra lịch sử ví.');
+      let result: string|null = null;
+      if(review.tx) {
+        const fingerprint=JSON.stringify({account,to:review.tx.to,data:review.tx.data,value:String(review.tx.value)});
+        const previous=localStorage.getItem('fun_wallet_last_dapp_send');
+        if(previous){const parsed=JSON.parse(previous);if(parsed.key===fingerprint&&Date.now()-parsed.at<30000)throw Error('Vui lòng chờ 30 giây trước khi gửi lại cùng giao dịch.');}
+        // Record before broadcasting; a network timeout must never trigger an automatic retry.
+        localStorage.setItem('fun_wallet_last_dapp_send',JSON.stringify({key:fingerprint,at:Date.now()}));
+        localStorage.setItem(requestKey,'broadcast-started');
+        const tx=await signer.sendTransaction(review.tx);result=tx.hash;
+        localStorage.setItem(requestKey,result);
+        setError(`Đã phát giao dịch: ${result}. Không gửi lại nếu phản hồi mạng bị gián đoạn.`);
+      } else if(request.params.request.method==='personal_sign') result=await signer.signMessage(loginMessage(request.params.request.params,account));
+      localStorage.setItem(requestKey,result??'confirmed');
+      setReview(undefined);
+      await kit.respondSessionRequest({topic:request.topic,response:{id:request.id,jsonrpc:'2.0',result}});
+    });
+  });
+  const pendingCount=kit?.getPendingSessionRequests().length??0;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+    <DialogHeader><DialogTitle>Kết nối FUN Profile</DialogTitle><DialogDescription>Giữ trang FUN Wallet mở để nhận yêu cầu. Mỗi lần ký và gửi tiền đều cần Cha duyệt.</DialogDescription></DialogHeader>
+    <p className="break-all text-sm">Ví: {walletAddress.toLowerCase()} · BSC</p>
+    {error&&<p role="alert" className="text-destructive break-words">{error}</p>}
+    {proposal ? <div className="space-y-3"><p>Ứng dụng xin kết nối: {proposal.params.proposer.metadata.name}</p><p className="break-all">{proposal.params.proposer.metadata.url}</p><p>Trạng thái xác minh nguồn: {proposal.verifyContext?.verified?.validation??'UNKNOWN'}</p><p>Chia sẻ địa chỉ ví trên BSC. Ký đăng nhập và chuyển tiền chỉ thực hiện sau khi duyệt từng yêu cầu.</p><Button disabled={busy} onClick={approveSession}>Cho phép kết nối</Button><Button variant="outline" disabled={busy} onClick={rejectProposal}>Từ chối</Button></div> : review ? <div className="space-y-3"><pre className="whitespace-pre-wrap break-all text-sm">{review.text}</pre><Button disabled={busy} onClick={()=>respond(true)}>{review.tx?'Xác nhận gửi tiền':'Đồng ý ký / xác nhận'}</Button><Button variant="outline" disabled={busy} onClick={()=>respond(false)}>Từ chối</Button></div> : <div className="space-y-3"><Input aria-label="WalletConnect URI" placeholder="Dán wc:… từ FUN Profile" value={uri} onChange={e=>setUri(e.target.value)} /><Button disabled={busy||!kit} onClick={()=>run(async()=>{if(!validPairingUri(uri.trim()))throw Error('WalletConnect URI không hợp lệ');await kit!.pair({uri:uri.trim()});sessionStorage.removeItem('fun_wallet_pending_wc');setUri('');})}>Kết nối WalletConnect thật</Button>{pendingCount>0&&<Button disabled={busy} onClick={prepare}>Kiểm tra yêu cầu chờ duyệt ({pendingCount})</Button>}</div>}
+    <div className="space-y-2"><p className="font-medium">Kết nối hiện có</p>{Object.values(sessions).map(session=><div key={session.topic} className="rounded border p-3 text-sm"><p>{session.peer.metadata.name}</p><p className="break-all">{session.peer.metadata.url}</p><Button variant="outline" disabled={busy} onClick={()=>run(async()=>{await kit!.disconnectSession({topic:session.topic,reason:rejected});refresh(kit!);setReview(undefined);})}>Ngắt kết nối</Button></div>)}</div>
+  </DialogContent></Dialog>;
 };
