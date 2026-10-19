@@ -107,6 +107,7 @@ export const WalletSecurityProvider: React.FC<{ children: React.ReactNode }> = (
         setState(prev => ({
           ...prev,
           isUnlocked: true,
+          isPasswordSet: true,
           failedAttempts: 0,
           lastActivity: Date.now(),
           isLocked: false,
