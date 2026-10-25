@@ -43,3 +43,8 @@ test('provider promise stays pending until the matching approval reply; errors c
   window.dispatchEvent({type:'message',source:{},origin:'https://fun.rich',data:{type:'FUN_WALLET_REQUEST',id:'frame',method:'eth_requestAccounts'}});
   assert.equal(background.length,before);
 });
+
+test('content script has no imports: Chrome blocks shared chunks loaded from crxjs dynamic URLs',async()=>{
+  const output=(await build({entryPoints:['src/extension/src/content/inject.ts'],bundle:false,format:'esm',write:false})).outputFiles[0].text;
+  assert.doesNotMatch(output,/^\s*import\s/m);
+});

@@ -127,7 +127,7 @@ function HomePage() {
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <img 
-            src={getAssetUrl('/logo.png')} 
+            src={getAssetUrl('/icons/icon-128.png')} 
             alt="FUN Wallet" 
             className="w-8 h-8"
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

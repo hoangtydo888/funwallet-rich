@@ -6,7 +6,10 @@
  * 
  */
 
-import { PUBLIC_METHODS as publicMethods } from '../lib/methods';
+// No imports here: crxjs serves content scripts from a dynamic URL and Chrome
+// blocks shared chunks, which silently broke the bridge. The background checks
+// the exact method list; this only keeps internal UPPER_CASE messages out.
+const isPageMethod = (method: unknown) => typeof method === 'string' && /^(eth|wallet|net|web3|personal)_[A-Za-z0-9_]{1,60}$/.test(method);
 
 // inpage.js is registered by the service worker in the page's MAIN world at
 // document_start, so dApps see window.funWallet before their own scripts run.
@@ -20,7 +23,7 @@ window.addEventListener('message', async (event) => {
   
   const { id, method, params } = event.data;
   if (typeof id !== 'string' || id.length > 150) return;
-  if (!publicMethods.has(method)) {
+  if (!isPageMethod(method)) {
     window.postMessage({ type: 'FUN_WALLET_RESPONSE', id, error: 'Phương thức không được hỗ trợ', code: 4200 }, window.location.origin);
     return;
   }

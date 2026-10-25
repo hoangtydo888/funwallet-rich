@@ -142,16 +142,18 @@ async function readRpc(method: string, params: unknown) {
 async function openApproval(request: ApprovalRequest) {
   // An async dApp request may no longer carry Chrome's required user gesture.
   try { await chrome.sidePanel.open({ tabId: request.tabId }); return; }
-  catch { /* Use a real extension popup when Chrome refuses the side panel. */ }
+  catch (error) { console.warn('[FUN Wallet] Side panel unavailable, using popup', error); }
   const tab = await chrome.tabs.get(request.tabId);
   const browserWindow = await chrome.windows.get(tab.windowId);
   const width = 420;
+  const base = { url: chrome.runtime.getURL(`popup.html?surface=approval#/request?requestId=${request.id}`), type: 'popup' as const, width, height: 640, focused: true };
+  // Align with the browser's right edge like MetaMask. Chrome rejects bounds that are
+  // mostly off-screen (fullscreen windows, multiple monitors), so then let it place the popup.
   const window = await chrome.windows.create({
-    url: chrome.runtime.getURL(`popup.html?surface=approval#/request?requestId=${request.id}`),
-    type: 'popup', width, height: Math.min(760, browserWindow.height || 760), focused: true,
+    ...base, height: Math.min(760, browserWindow.height || 760),
     top: Math.max(browserWindow.top || 0, 0),
     left: Math.max((browserWindow.left || 0) + (browserWindow.width || 1200) - width, 0),
-  });
+  }).catch(() => chrome.windows.create(base));
   if (pending.has(request.id)) { request.windowId = window.id; await persistPending(); }
 }
 async function queue(message: Message, sender: chrome.runtime.MessageSender, origin: string, account: string, params: unknown[]) {
@@ -166,7 +168,10 @@ async function queue(message: Message, sender: chrome.runtime.MessageSender, ori
   pending.set(request.id, request);
   await persistPending();
   try { await openApproval(request); }
-  catch { await finish(request, undefined, new RpcError(4001, 'Không thể mở cửa sổ duyệt')); }
+  catch (error) {
+    console.error('[FUN Wallet] Cannot open approval', error);
+    await finish(request, undefined, new RpcError(4001, 'Không thể mở cửa sổ duyệt'));
+  }
   return { success: true, pending: true };
 }
 async function handlePage(message: Message, sender: chrome.runtime.MessageSender): Promise<Response> {
