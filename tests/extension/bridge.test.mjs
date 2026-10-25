@@ -27,13 +27,14 @@ test('provider promise stays pending until the matching approval reply; errors c
   const result=window.funWallet.request({method:'eth_requestAccounts'}).then(value=>{settled=true;return value;});
   await new Promise(resolve=>setTimeout(resolve,5));
   assert.equal(settled,false);
-  const id=background[0].requestId;
+  assert.equal(background[0].type,'eth_chainId');
+  const id=background.find(m=>m.type==='eth_requestAccounts').requestId;
   responseHandler({type:'FUN_WALLET_RESPONSE',requestId:id,result:['0x1111111111111111111111111111111111111111']});
   assert.equal((await result)[0],'0x1111111111111111111111111111111111111111');
   assert.equal(window.funWallet.selectedAddress,'0x1111111111111111111111111111111111111111');
   const rejected=window.funWallet.request({method:'eth_sendTransaction',params:[]});
   await new Promise(resolve=>setTimeout(resolve,5));
-  responseHandler({type:'FUN_WALLET_RESPONSE',requestId:background[1].requestId,error:'User rejected',code:4001});
+  responseHandler({type:'FUN_WALLET_RESPONSE',requestId:background.find(m=>m.type==='eth_sendTransaction').requestId,error:'User rejected',code:4001});
   await assert.rejects(rejected,error=>error.code===4001);
   const before=background.length;
   await assert.rejects(window.funWallet.request({method:'APPROVE_TRANSACTION'}),error=>error.code===4200);

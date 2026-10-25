@@ -3,10 +3,11 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 
 interface UnlockPageProps {
-  onUnlock: () => void;
+  onUnlock: (result?: { autoApproved?: string[] }) => void;
+  site?: string;
 }
 
-function UnlockPage({ onUnlock }: UnlockPageProps) {
+function UnlockPage({ onUnlock, site }: UnlockPageProps) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
@@ -36,7 +37,7 @@ function UnlockPage({ onUnlock }: UnlockPageProps) {
       });
       
       if (response?.success) {
-        onUnlock();
+        onUnlock(response.data);
         
         // If there's a redirect path (from transaction/sign request), navigate there
         if (redirectPath) {
@@ -62,9 +63,9 @@ function UnlockPage({ onUnlock }: UnlockPageProps) {
           className="w-24 h-24 mb-4"
         />
         <h1 className="text-xl font-bold">Chào mừng trở lại!</h1>
-        {redirectPath && (
-          <p className="text-sm text-muted-foreground mt-2 text-center">
-            Mở khóa ví để tiếp tục giao dịch
+        {(redirectPath || site) && (
+          <p className="text-sm text-muted-foreground mt-2 text-center break-all">
+            {site ? `${site} đang yêu cầu FUN Wallet. Mở khóa để tiếp tục.` : 'Mở khóa ví để tiếp tục giao dịch'}
           </p>
         )}
       </div>
@@ -78,6 +79,8 @@ function UnlockPage({ onUnlock }: UnlockPageProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Nhập mật khẩu"
+              autoFocus
+              autoComplete="current-password"
               className="w-full px-4 py-3 pr-12 bg-muted rounded-lg border border-border focus:border-primary focus:outline-none"
               disabled={loading}
             />

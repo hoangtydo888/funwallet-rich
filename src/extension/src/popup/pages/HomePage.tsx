@@ -15,6 +15,7 @@ import { useTokenPrices } from '@shared/hooks/useTokenPrices';
 import { useBalance } from '@shared/hooks/useBalance';
 import { formatPrice } from '@shared/lib/priceTracker';
 import { TokenList } from '../../components/TokenList';
+import { ConnectedSiteBar } from '../components/ConnectedSiteBar';
 
 function HomePage() {
   const navigate = useNavigate();
@@ -201,6 +202,8 @@ function HomePage() {
         </div>
       </div>
       
+      <ConnectedSiteBar />
+
       {/* Token List */}
       <div className="flex-1 overflow-y-auto p-4 pt-0">
         <h3 className="text-sm font-medium text-muted-foreground mb-2">Tokens</h3>

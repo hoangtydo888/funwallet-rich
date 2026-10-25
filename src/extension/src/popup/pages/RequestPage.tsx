@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, CheckCircle2, Globe2, ShieldCheck, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, Check, CheckCircle2, Globe2, ShieldCheck, RefreshCw, X } from 'lucide-react';
 import { ethers } from 'ethers';
 import { getChainById } from '@shared/constants/chains';
 import { COMMON_TOKENS } from '@shared/constants/tokens';
@@ -69,7 +69,8 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
   };
   const isTransaction = request?.method === 'eth_sendTransaction';
   const isSign = request?.method === 'personal_sign' || request?.method === 'eth_signTypedData_v4';
-  const isSwitch = request?.method === 'wallet_switchEthereumChain';
+  const isSwitch = request?.method === 'wallet_switchEthereumChain' || request?.method === 'wallet_addEthereumChain';
+  const isConnect = !!request && !isTransaction && !isSign && !isSwitch;
   const expired = !!request && now >= request.timestamp + REQUEST_TTL;
   const quoteExpired = !!review && now >= review.expiresAt;
   const chain = request ? getChainById(request.chainId) : undefined;
@@ -89,7 +90,19 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
     finally { setWorking(false); actionInFlight.current = false; }
   };
 
-  if (!loading && request && !unlocked && !done) return <UnlockPage onUnlock={() => { setUnlocked(true); onUnlock?.(); }} />;
+  // Connection results need no follow-up, so return to the wallet like MetaMask.
+  useEffect(() => {
+    if (!done || hash) return;
+    const timer = setTimeout(close, 1200);
+    return () => clearTimeout(timer);
+  // close only reads the URL and router; re-arming every clock tick would never fire.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, hash]);
+
+  if (!loading && request && !unlocked && !done) return <UnlockPage site={new URL(request.origin).host} onUnlock={result => {
+    setUnlocked(true); onUnlock?.();
+    if (result?.autoApproved?.includes(request.id)) setDone('approved');
+  }} />;
 
   return <div className="approval-shell">
     <header className="approval-header">
@@ -100,9 +113,29 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
     <main className="approval-content" aria-busy={loading || reviewing || working}>
       {loading ? <p role="status">Đang đọc yêu cầu…</p> : done ? <>
         <CheckCircle2 size={40} className="text-emerald-700 mb-4" />
-        <h1 className="text-2xl font-semibold">{done === 'rejected' ? 'Đã hủy yêu cầu' : hash ? 'Đã gửi lên mạng' : 'Đã phê duyệt'}</h1>
+        <h1 className="text-2xl font-semibold">{done === 'rejected' ? 'Đã hủy yêu cầu' : hash ? 'Đã gửi lên mạng' : isConnect ? 'Đã kết nối' : 'Đã phê duyệt'}</h1>
         <p className="approval-label mt-3">{hash ? 'Giao dịch đang chờ xác nhận on-chain.' : 'Ứng dụng đã được thông báo kết quả.'}</p>
         {hash && <a className="approval-address underline mt-5" target="_blank" rel="noreferrer" href={`${chain?.explorer}/tx/${hash}`}>{hash} ↗</a>}
+      </> : request && isConnect ? <>
+        <div className="flex flex-col items-center text-center">
+          {request.siteIcon ? <img src={request.siteIcon} alt="" width="56" height="56" className="rounded-full border border-slate-200 bg-white" referrerPolicy="no-referrer" />
+            : <span className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center"><Globe2 size={26} className="text-slate-500" /></span>}
+          <h1 className="text-2xl font-semibold mt-3 break-all">{new URL(request.origin).host}</h1>
+          <p className="approval-label mt-1">Kết nối trang web này với FUN Wallet</p>
+        </div>
+        <span className="approval-label block mt-6">Tài khoản</span>
+        <section className="approval-card !mt-2 flex items-center gap-3">
+          <span aria-hidden className="w-10 h-10 rounded-full shrink-0" style={{ background: `conic-gradient(from ${parseInt(request.account.slice(2, 6), 16) % 360}deg, #116149, #f4b23e, #e4572e, #116149)` }} />
+          <span className="min-w-0"><strong className="block text-sm">FUN Wallet</strong><span className="approval-address !mt-0">{request.account.slice(0, 8)}…{request.account.slice(-6)}</span></span>
+        </section>
+        <span className="approval-label block mt-6">Quyền</span>
+        <ul className="mt-2 space-y-3 text-sm">
+          <li className="flex gap-3"><Check size={18} className="text-emerald-700 shrink-0" />Xem địa chỉ, số dư và hoạt động</li>
+          <li className="flex gap-3"><Check size={18} className="text-emerald-700 shrink-0" />Gửi yêu cầu giao dịch và chữ ký</li>
+          <li className="flex gap-3"><X size={18} className="text-red-600 shrink-0" />Không thể chuyển tiền nếu không có sự cho phép của bạn</li>
+        </ul>
+        {request.method === 'wallet_requestPermissions' && <p className="approval-label mt-4">Ứng dụng yêu cầu chọn lại tài khoản kết nối.</p>}
+        {expired && <p className="approval-warning" role="status">Yêu cầu đã hết hạn. Hãy tạo lại từ ứng dụng.</p>}
       </> : request ? <>
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-5"><Globe2 size={16} /><span className="break-all">{request.origin}</span></div>
         <p className="approval-label">{isTransaction ? (review?.kind === 'approve' ? 'Cấp quyền chi tiêu' : review?.kind === 'contract' ? 'Tương tác hợp đồng' : 'Yêu cầu gửi') : isSign ? 'Yêu cầu chữ ký' : isSwitch ? 'Chuyển mạng' : 'Kết nối ứng dụng'}</p>
@@ -112,7 +145,6 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
           </h1>
           {isTransaction && <img src={token?.logo || chain?.logo || '/tokens/default.svg'} alt="" className="w-11 h-11 rounded-full" />}
         </div>
-        {!isTransaction && !isSign && !isSwitch && <p className="approval-label mt-3 leading-relaxed">Cho phép ứng dụng xem địa chỉ tài khoản. Mỗi yêu cầu ký hoặc gửi tiền vẫn cần bạn xác nhận riêng.</p>}
         <section className="approval-card">
           <span className="approval-label">{isTransaction ? 'Từ tài khoản' : 'Tài khoản kết nối'}</span>
           <span className="approval-address">{request.account}</span>
