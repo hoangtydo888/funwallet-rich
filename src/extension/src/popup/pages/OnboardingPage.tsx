@@ -52,7 +52,7 @@ function OnboardingPage({ version, onImportWallet, onCreateWallet }: OnboardingP
       
       {/* PWA Link */}
       <a
-        href="https://wallet-fun-rich.lovable.app"
+        href="https://wallet.fun.rich"
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary mt-6 transition-colors"
