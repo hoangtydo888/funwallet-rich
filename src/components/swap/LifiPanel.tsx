@@ -46,6 +46,7 @@ export const LifiPanel = ({
   const [quote, setQuote] = useState<LiFiStep | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [progressMsg, setProgressMsg] = useState<string>("");
 
   const fromChain = getChainById(fromChainId);
