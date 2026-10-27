@@ -29,6 +29,7 @@ const ITEMS_PER_PAGE = 10;
 
 const statusConfig = {
   pending: { label: 'Chờ gửi', icon: Clock, color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' },
+  claim_requested: { label: 'Yêu cầu nhận', icon: Clock, color: 'bg-orange-500/10 text-orange-500 border-orange-500/20' },
   sent: { label: 'Đã gửi', icon: Send, color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
   claimed: { label: 'Đã nhận', icon: CheckCircle, color: 'bg-green-500/10 text-green-500 border-green-500/20' },
 };

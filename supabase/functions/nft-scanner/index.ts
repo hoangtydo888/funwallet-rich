@@ -25,6 +25,8 @@ interface NFTResult {
   collection: string;
   chainId: number;
   balance: string;
+  floorPrice?: number | null;
+  explorerUrl?: string;
 }
 
 async function scanBSC(address: string): Promise<NFTResult[]> {
@@ -55,6 +57,8 @@ async function scanBSC(address: string): Promise<NFTResult[]> {
             collection: tx.tokenName || 'Unknown',
             chainId: 56,
             balance: '1',
+            floorPrice: null,
+            explorerUrl: `https://bscscan.com/nft/${tx.contractAddress}/${tx.tokenID}`,
           });
         } else if (tx.from?.toLowerCase() === address.toLowerCase()) {
           owned.delete(key);
@@ -66,6 +70,34 @@ async function scanBSC(address: string): Promise<NFTResult[]> {
     }
   }
   return results;
+}
+
+const EXPLORERS: Record<number, string> = {
+  1: 'https://etherscan.io',
+  56: 'https://bscscan.com',
+  137: 'https://polygonscan.com',
+  42161: 'https://arbiscan.io',
+  10: 'https://optimistic.etherscan.io',
+  8453: 'https://basescan.org',
+};
+
+function explorerUrl(chainId: number, contract: string, tokenId: string) {
+  const base = EXPLORERS[chainId];
+  return base ? `${base}/nft/${contract}/${tokenId}` : '';
+}
+
+function ipfsToHttp(u: string) {
+  return u?.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${u.slice(7)}` : u;
+}
+
+async function floorPrice(network: string, key: string, contract: string): Promise<number | null> {
+  try {
+    const r = await fetch(`https://${network}.g.alchemy.com/nft/v3/${key}/getFloorPrice?contractAddress=${contract}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const vals = [j?.openSea?.floorPrice, j?.looksRare?.floorPrice].filter((v) => typeof v === 'number');
+    return vals.length ? Math.min(...vals) : null;
+  } catch { return null; }
 }
 
 async function scanAlchemy(address: string, chainId: number): Promise<NFTResult[]> {
@@ -80,16 +112,30 @@ async function scanAlchemy(address: string, chainId: number): Promise<NFTResult[
       return [];
     }
     const j = await r.json();
-    return (j.ownedNfts || []).map((n: any): NFTResult => ({
-      contractAddress: n.contract?.address ?? '',
-      tokenId: n.tokenId ?? '',
-      standard: (n.tokenType === 'ERC1155' ? 'ERC1155' : 'ERC721'),
-      name: n.name || n.contract?.name || `#${n.tokenId}`,
-      image: n.image?.cachedUrl || n.image?.originalUrl || n.image?.thumbnailUrl || '',
-      collection: n.contract?.name || 'Unknown',
-      chainId,
-      balance: n.balance ?? '1',
-    }));
+    const owned = (j.ownedNfts || []).filter((n: any) => !n.contract?.isSpam);
+    // Floor price per collection (Alchemy only reliably supports Ethereum)
+    const floors = new Map<string, number | null>();
+    const contracts = [...new Set(owned.map((n: any) => n.contract?.address).filter(Boolean))] as string[];
+    if (chainId === 1) {
+      await Promise.all(contracts.slice(0, 20).map(async (c) => floors.set(c, await floorPrice(network, key, c))));
+    }
+    return owned.map((n: any): NFTResult => {
+      const contract = n.contract?.address ?? '';
+      const tokenId = n.tokenId ?? '';
+      const osFloor = n.contract?.openSeaMetadata?.floorPrice;
+      return {
+        contractAddress: contract,
+        tokenId,
+        standard: (n.tokenType === 'ERC1155' ? 'ERC1155' : 'ERC721'),
+        name: n.name || n.contract?.name || `#${tokenId}`,
+        image: ipfsToHttp(n.image?.cachedUrl || n.image?.thumbnailUrl || n.image?.originalUrl || n.raw?.metadata?.image || ''),
+        collection: n.contract?.name || n.contract?.openSeaMetadata?.collectionName || 'Unknown',
+        chainId,
+        balance: n.balance ?? '1',
+        floorPrice: floors.get(contract) ?? (typeof osFloor === 'number' ? osFloor : null),
+        explorerUrl: explorerUrl(chainId, contract, tokenId),
+      };
+    });
   } catch (e) {
     console.error(`Alchemy ${network} error:`, e);
     return [];
