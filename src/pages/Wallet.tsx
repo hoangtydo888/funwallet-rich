@@ -13,6 +13,7 @@ import { ChainSelector } from "@/components/chain/ChainSelector";
 import { useChain } from "@/contexts/ChainContext";
 import { useTokenScanner } from "@/hooks/useTokenScanner";
 import { WatchlistPanel } from "@/components/wallet/WatchlistPanel";
+import { FunEcosystemCard } from "@/components/wallet/FunEcosystemCard";
 
 const Wallet = () => {
   const navigate = useNavigate();
@@ -126,6 +127,7 @@ const Wallet = () => {
 
         {/* Spot Wallet */}
         <TabsContent value="spot" className="px-4 mt-4 space-y-4 animate-fade-in">
+          <FunEcosystemCard balances={balances} />
           {/* Total Value Card */}
           <Card className="gradient-border overflow-hidden">
             <CardContent className="p-6">
