@@ -27,6 +27,8 @@ export interface MultiChainNFT {
   collection: string;
   chainId: number;
   balance: string;
+  floorPrice?: number | null;
+  explorerUrl?: string;
 }
 
 // ERC-721 ABI for NFT operations

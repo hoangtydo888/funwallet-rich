@@ -33,7 +33,8 @@
     "tabs",
     "activeTab",
     "notifications",
-    "sidePanel"
+    "sidePanel",
+    "scripting"
   ],
   
   "side_panel": {
@@ -41,6 +42,8 @@
   },
   
   "host_permissions": [
+    "http://*/*",
+    "https://*/*",
     "https://bsc-dataseed.binance.org/*",
     "https://eth.llamarpc.com/*",
     "https://polygon-rpc.com/*",
@@ -64,7 +67,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "tokens/*", "inpage.js"],
+      "resources": ["icons/*", "tokens/*"],
       "matches": ["<all_urls>"]
     }
   ]

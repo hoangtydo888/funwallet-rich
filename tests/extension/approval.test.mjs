@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
 import { ethers } from 'ethers';
 
 const directory = new URL('../../node_modules/.cache/fun-wallet-tests/', import.meta.url);
@@ -10,7 +9,7 @@ await mkdir(directory, { recursive: true });
 const file = new URL('approval.mjs', directory);
 const compiled = await build({ entryPoints: ['src/extension/src/lib/approval.ts'], bundle: true, packages: 'external', platform: 'node', format: 'esm', write: false });
 await writeFile(file, compiled.outputFiles[0].text);
-const { normalizeTransaction, decodeTokenCall, displayAmount, toEthersTransaction, trustedPopup, pageOrigin, PUBLIC_METHODS } = await import(pathToFileURL(file.pathname));
+const { normalizeTransaction, decodeTokenCall, displayAmount, toEthersTransaction, trustedPopup, pageOrigin, PUBLIC_METHODS } = await import(file.href);
 const from = '0x1111111111111111111111111111111111111111';
 const to = '0x2222222222222222222222222222222222222222';
 const abi = new ethers.Interface(['function transfer(address,uint256)', 'function approve(address,uint256)']);
@@ -47,4 +46,11 @@ test('page cannot call internal approval or vault methods and cannot spoof popup
   assert.equal(trustedPopup({id:'other',url:popup}, 'wallet', popup), false);
   assert.throws(() => pageOrigin({id:'wallet',url:'https://fun.rich',tab:{id:1},frameId:1}, 'wallet'));
   assert.equal(pageOrigin({id:'wallet',url:'https://fun.rich/profile',tab:{id:1},frameId:0}, 'wallet'), 'https://fun.rich');
+});
+
+test('viem-shaped transactions with undefined fields and EIP-1559 type are accepted',()=>{
+  const tx=normalizeTransaction({from,to,value:'0x1',data:undefined,gas:undefined,type:'0x2',maxFeePerGas:'0x2',maxPriorityFeePerGas:'0x1',accessList:[],nonce:null},from,56);
+  assert.equal(tx.data,'0x');assert.equal(tx.maxFeePerGas,'0x2');
+  assert.throws(()=>normalizeTransaction({from,to,type:'0x4'},from,56),e=>e.code===-32602);
+  assert.throws(()=>normalizeTransaction({from,to,accessList:[{address:to,storageKeys:[]}]},from,56),e=>e.code===-32602);
 });

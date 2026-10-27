@@ -4,39 +4,15 @@
  * This script runs in the CONTENT SCRIPT CONTEXT
  * It bridges between the page context (inpage.js) and the background service worker
  * 
- * Uses external script injection to bypass CSP restrictions
  */
 
-const publicMethods = new Set(['eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'eth_sendTransaction', 'personal_sign', 'eth_signTypedData_v4', 'wallet_switchEthereumChain', 'eth_getTransactionReceipt', 'eth_blockNumber']);
+// No imports here: crxjs serves content scripts from a dynamic URL and Chrome
+// blocks shared chunks, which silently broke the bridge. The background checks
+// the exact method list; this only keeps internal UPPER_CASE messages out.
+const isPageMethod = (method: unknown) => typeof method === 'string' && /^(eth|wallet|net|web3|personal)_[A-Za-z0-9_]{1,60}$/.test(method);
 
-/**
- * Inject the provider script into the page
- * Uses external script file to bypass CSP
- */
-let injected=false;
-function injectProvider() {
-  if(injected)return;
-  if(!document.head&&!document.documentElement)return;
-  injected=true;
-  try {
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('inpage.js');
-    script.type = 'text/javascript';
-    script.onload = () => {
-      script.remove();
-      console.log('[FUN Wallet] Inpage script loaded');
-    };
-    script.onerror = (error) => {
-      console.error('[FUN Wallet] Failed to load inpage script:', error);
-    };
-    
-    // Insert at document start for earliest possible injection
-    const container = document.head || document.documentElement;
-    container.insertBefore(script, container.firstChild);
-  } catch (error) {
-    console.error('[FUN Wallet] Failed to inject provider:', error);
-  }
-}
+// inpage.js is registered by the service worker in the page's MAIN world at
+// document_start, so dApps see window.funWallet before their own scripts run.
 
 /**
  * Handle messages from the injected page script
@@ -47,14 +23,14 @@ window.addEventListener('message', async (event) => {
   
   const { id, method, params } = event.data;
   if (typeof id !== 'string' || id.length > 150) return;
-  if (!publicMethods.has(method)) {
+  if (!isPageMethod(method)) {
     window.postMessage({ type: 'FUN_WALLET_RESPONSE', id, error: 'Phương thức không được hỗ trợ', code: 4200 }, window.location.origin);
     return;
   }
   
   try {
     // Forward request to background script
-    const response = await new Promise<{ success?: boolean; data?: unknown; error?: string; code?: number; pending?: boolean }>((resolve) => {
+    const response = await new Promise<{ success?: boolean; data?: unknown; error?: string; code?: number; errorData?: unknown; pending?: boolean }>((resolve) => {
       chrome.runtime.sendMessage(
         { 
           type: method, 
@@ -85,6 +61,7 @@ window.addEventListener('message', async (event) => {
         id,
         error: response.error,
         code: response.code,
+        data: response.errorData,
       }, window.location.origin);
     }
     // If pending approval, wait for FUN_WALLET_RESPONSE from background
@@ -123,7 +100,7 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
         type: 'FUN_WALLET_EVENT',
         event: 'chainChanged',
         data: message.chainId,
-      }, '*');
+      }, window.location.origin);
       break;
       
     case 'accountsChanged':
@@ -131,7 +108,7 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
         type: 'FUN_WALLET_EVENT',
         event: 'accountsChanged',
         data: message.accounts,
-      }, '*');
+      }, window.location.origin);
       break;
       
     case 'disconnect':
@@ -139,7 +116,7 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
         type: 'FUN_WALLET_EVENT',
         event: 'disconnect',
         data: { code: 4900, message: 'Disconnected' },
-      }, '*');
+      }, window.location.origin);
       break;
       
     case 'connect':
@@ -147,16 +124,9 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
         type: 'FUN_WALLET_EVENT',
         event: 'connect',
         data: { chainId: message.chainId },
-      }, '*');
+      }, window.location.origin);
       break;
   }
 });
 
-// Inject at document_start; waiting for DOMContentLoaded made wagmi choose
-// the web fallback before the installed FUN Wallet provider was discoverable.
-if(document.head||document.documentElement)injectProvider();
-else {
- const observer=new MutationObserver(()=>{if(document.head||document.documentElement){injectProvider();observer.disconnect();}});
- observer.observe(document,{childList:true,subtree:true});
- document.addEventListener('DOMContentLoaded',()=>{injectProvider();observer.disconnect();},{once:true});
-}
+console.log('[FUN Wallet] Content script loaded');

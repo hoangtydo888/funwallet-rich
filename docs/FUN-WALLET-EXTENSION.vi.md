@@ -50,7 +50,14 @@ Không cam kết ngày phát hành trước khi nghiệm thu trên trình duyệ
 - Ký personal_sign theo bytes, không ép dữ liệu nhị phân thành UTF-8. Typed data hiện toàn bộ nội dung có cuộn, kiểm tra chainId khi có.
 - Sau broadcast trở về tài sản và hiển thị hoạt động đang chờ xác nhận kèm link explorer. Nếu RPC timeout lúc phát, trả thông báo kèm hash để tra cứu, không cung cấp cơ chế thử lại mù trong cùng yêu cầu.
 
-Các phương thức RPC hiện có: eth_accounts, eth_requestAccounts, eth_chainId, eth_sendTransaction, personal_sign, eth_signTypedData_v4, wallet_switchEthereumChain. Các phương thức khác trả lỗi 4200; chưa tuyên bố tương thích toàn bộ dApp/MetaMask. Chưa hỗ trợ tạo hợp đồng, access list, blob transaction hoặc authorization list trong màn duyệt này.
+Các phương thức RPC hiện có: eth_accounts, eth_requestAccounts, eth_chainId, net_version, web3_clientVersion, eth_sendTransaction, personal_sign (hex hoặc UTF-8), eth_signTypedData_v4, wallet_switchEthereumChain, wallet_addEthereumChain (chỉ mạng đã cấu hình), wallet_getPermissions/requestPermissions/revokePermissions. Lệnh đọc chuỗi mà wagmi/viem dùng (eth_estimateGas, eth_call, eth_getBalance, eth_blockNumber, eth_getTransactionReceipt…, danh sách trong `src/extension/src/lib/methods.ts`) được chuyển tới RPC của mạng đang chọn, không cần duyệt, giữ `data` của lỗi revert. Các phương thức khác trả lỗi 4200; chưa tuyên bố tương thích toàn bộ dApp/MetaMask.
+
+## Đợt 2 (25/10/2026): kết nối FUN Profile giống MetaMask
+
+- `inpage.js` được service worker đăng ký bằng `chrome.scripting` ở MAIN world, `document_start`. Trước đây provider được chèn lúc DOMContentLoaded qua thẻ script bất đồng bộ, nên FUN Profile đọc `window.funWallet` khi khởi động thì chưa thấy và chuyển sang ví web/WalletConnect. Cần thêm quyền `scripting` và host `http(s)://*/*` (cảnh báo cài đặt không đổi vì content script vốn chạy trên mọi trang).
+- Luồng như ảnh MetaMask: chọn FUN Wallet → panel/popup mở → nếu ví khóa thì hiện màn mở khóa ghi rõ site đang yêu cầu → màn "Kết nối trang web này" có icon site, tài khoản, quyền ✓/✗ → Kết nối → tự quay về trang chủ ví; trang chủ hiện site của tab hiện tại và nút ngắt kết nối.
+- Mở khóa sẽ tự trả tài khoản cho site đã được cấp quyền đang chờ kết nối lại và phát `accountsChanged`.
+- Giao dịch kiểu viem (trường `undefined`, `type: 0x2`, `accessList: []`, `input`) không còn bị từ chối nhầm. Chưa hỗ trợ tạo hợp đồng, access list, blob transaction hoặc authorization list trong màn duyệt này.
 
 ## Cài bản thử
 

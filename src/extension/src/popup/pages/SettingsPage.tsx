@@ -29,7 +29,7 @@ function SettingsPage() {
 
   const openPWA = () => {
     chrome.tabs.create({ 
-      url: 'https://wallet-fun-rich.lovable.app' 
+      url: 'https://wallet.fun.rich' 
     });
   };
 

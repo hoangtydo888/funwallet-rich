@@ -109,7 +109,7 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
   if(!loading&&request&&!unlocked&&!done&&!expired&&!selectBeforeUnlock)return <div className="approval-shell">
     <header className="approval-header"><img src="/icons/icon-48.png" alt="" width="30" height="30"/><strong>FUN Wallet</strong></header>
     {isConnection&&<ConnectionSteps stage="unlock"/>}
-    <UnlockPage origin={request.origin} onUnlock={()=>{setUnlocked(true);onUnlock?.();}} onCancel={()=>void act(false)}/>
+    <UnlockPage origin={request.origin} onUnlock={result=>{setUnlocked(true);onUnlock?.();if(result?.autoApproved?.includes(request.id))setDone('approved');}} onCancel={()=>void act(false)}/>
     {error&&<p role="alert" className="approval-warning">{error}</p>}
   </div>;
 

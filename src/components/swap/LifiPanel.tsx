@@ -51,6 +51,7 @@ export const LifiPanel = ({
   const quoteGeneration=useRef(0);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [progressMsg, setProgressMsg] = useState<string>("");
 
   const fromChain = getChainById(fromChainId);
@@ -79,6 +80,7 @@ export const LifiPanel = ({
       const intent:LifiIntent={account:walletAddress,fromChainId,toChainId,fromToken,toToken,amount:rawAmount,slippage,quotedAt:Date.now()};
       validateLifiIntent(q,intent);
       if(generation===quoteGeneration.current){quotedIntent.current=intent;setQuote(q);}
+      setConfirmed(false);
     } catch (e) {
       console.error("LiFi quote error", e);
       toast({
@@ -92,7 +94,7 @@ export const LifiPanel = ({
   }, [amount, fromChain, fromChainId, toChainId, fromToken, toToken, walletAddress, slippage, fromTokens]);
 
   const handleExecute = async () => {
-    if (!quote || !fromChain) return;
+    if (!quote || !fromChain || !confirmed) return;
     const pk = getPrivateKey(walletAddress);
     if (!pk) {
       toast({
@@ -347,6 +349,31 @@ export const LifiPanel = ({
               <span>~{Math.round(quote.estimate.executionDuration / 60)} phút</span>
             </div>
           )}
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Nhận tối thiểu</span>
+            <span>
+              {(Number(quote.estimate?.toAmountMin ?? 0) / 10 ** quote.action.toToken.decimals).toFixed(6)}{" "}
+              {quote.action.toToken.symbol}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Ví nhận</span>
+            <span className="font-mono text-xs">
+              {(quote.action.toAddress || walletAddress).slice(0, 8)}…{(quote.action.toAddress || walletAddress).slice(-6)}
+            </span>
+          </div>
+          <label className="flex items-start gap-2 pt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+              className="mt-1"
+              aria-label="Xác nhận giao dịch"
+            />
+            <span className="text-xs">
+              Tôi đã kiểm tra token, số lượng, mạng, phí và ví nhận. Giao dịch không thể hoàn tác.
+            </span>
+          </label>
         </div>
       )}
 
@@ -369,7 +396,7 @@ export const LifiPanel = ({
         <Button
           className="flex-1 bg-gradient-to-r from-primary to-secondary"
           onClick={handleExecute}
-          disabled={!quote || executing}
+          disabled={!quote || executing || !confirmed}
         >
           {executing ? (
             <>

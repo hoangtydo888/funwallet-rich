@@ -1,0 +1,26 @@
+# Supabase Free pauses a project after 7 days without activity.
+# A small daily read keeps FUN Wallet's backend awake at no cost.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # daily, 10:17 Vietnam time
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query the database
+        env:
+          # Same public URL and anon key the web app ships in src/integrations/supabase/client.ts.
+          SUPABASE_URL: https://puqvatperkrpcqmtcpji.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1cXZhdHBlcmtycGNxbXRjcGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwOTY2NzMsImV4cCI6MjA5ODY3MjY3M30.hs2KOnCNQ266fl-i-NQvdfmdWtH9YjHr5zMkX1xNALI
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --max-time 30 \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/nft_collections?select=id&limit=1")
+          echo "Supabase responded $status"
+          # A failure here usually means the project is already paused: resume it in the dashboard.
+          test "$status" = "200"

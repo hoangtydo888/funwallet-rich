@@ -4,7 +4,7 @@ import { popupRpc } from '../popupRpc';
 import { Eye, EyeOff } from 'lucide-react';
 
 interface UnlockPageProps {
-  onUnlock: () => void;
+  onUnlock: (result?:{autoApproved?:string[]}) => void;
   origin?:string;
   onCancel?:()=>void;
 }
@@ -33,8 +33,8 @@ function UnlockPage({ onUnlock,origin,onCancel }: UnlockPageProps) {
     setError('');
 
     try {
-      await popupRpc('UNLOCK_WALLET',{password});
-      setPassword('');onUnlock();
+      const result=await popupRpc<{autoApproved?:string[]}>('UNLOCK_WALLET',{password});
+      setPassword('');onUnlock(result);
       if(redirectPath&&/^(request|connect|approve-tx|approve-sign)\?/.test(redirectPath))navigate(`/${redirectPath}`,{replace:true});
     } catch (err) {
       setError(err instanceof Error?err.message:'Có lỗi xảy ra, vui lòng thử lại');

@@ -30,6 +30,7 @@ import KYC from "./pages/KYC";
 import PlatformDocs from "./pages/PlatformDocs";
 import ThemePreview from "./pages/ThemePreview";
 import TileDiagnostics from "./pages/TileDiagnostics";
+import ExtensionDownload from "./pages/ExtensionDownload";
 
 
 const queryClient = new QueryClient();
@@ -73,6 +74,7 @@ const App = () => (
                     <Route path="/docs/platform" element={<PlatformDocs />} />
                     <Route path="/theme-preview" element={<ThemePreview />} />
                     <Route path="/tile-diagnostics" element={<TileDiagnostics />} />
+                    <Route path="/extension" element={<ExtensionDownload />} />
 
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />

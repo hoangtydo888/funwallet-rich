@@ -1,12 +1,7 @@
 import { ethers } from 'ethers';
 
+export { PUBLIC_METHODS, READ_METHODS } from './methods';
 export const REQUEST_TTL = 5 * 60_000;
-export const PUBLIC_METHODS = new Set([
-  'eth_accounts', 'eth_requestAccounts', 'eth_chainId',
-  'eth_sendTransaction', 'personal_sign', 'eth_signTypedData_v4',
-  'wallet_switchEthereumChain',
-  'eth_getTransactionReceipt', 'eth_blockNumber',
-]);
 
 export class RpcError extends Error {
   constructor(public code: number, message: string) { super(message); }
@@ -33,6 +28,7 @@ export interface ApprovalRequest {
   tabId: number;
   frameId: number;
   documentId?: string;
+  siteIcon?: string;
   account: string;
   chainId: number;
   timestamp: number;
@@ -65,9 +61,16 @@ export function quantity(value: unknown, field: string): string {
 
 export function normalizeTransaction(input: unknown, account: string, chainId: number): RpcTransaction {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new RpcError(-32602, 'Giao dịch không hợp lệ');
-  const tx = input as Record<string, unknown>;
-  const allowed = new Set(['from', 'to', 'value', 'data', 'gas', 'gasPrice', 'maxFeePerGas', 'maxPriorityFeePerGas', 'nonce', 'chainId']);
+  // viem/wagmi send absent fields as undefined/null, which survive postMessage.
+  const tx = Object.fromEntries(Object.entries(input).filter(([, value]) => value != null)) as Record<string, unknown>;
+  const allowed = new Set(['from', 'to', 'value', 'data', 'input', 'gas', 'gasPrice', 'maxFeePerGas', 'maxPriorityFeePerGas', 'nonce', 'chainId', 'type', 'accessList']);
   if (Object.keys(tx).some(key => !allowed.has(key))) throw new RpcError(-32602, 'Giao dịch có trường chưa được hỗ trợ');
+  if (tx.type !== undefined && !['0x0', '0x2'].includes(String(tx.type).toLowerCase())) throw new RpcError(-32602, 'Loại giao dịch chưa được hỗ trợ');
+  if (tx.accessList !== undefined && !(Array.isArray(tx.accessList) && tx.accessList.length === 0)) throw new RpcError(-32602, 'Access list chưa được hỗ trợ');
+  if (tx.input !== undefined) {
+    if (tx.data !== undefined && tx.data !== tx.input) throw new RpcError(-32602, 'data và input không khớp');
+    tx.data = tx.input;
+  }
   if (typeof tx.from !== 'string' || !ethers.isAddress(tx.from) || tx.from.toLowerCase() !== account.toLowerCase()) {
     throw new RpcError(4100, 'Tài khoản gửi chưa được cấp quyền');
   }

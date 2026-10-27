@@ -24,14 +24,15 @@ let serial=0;
 async function setup({panelFails=false, sessionData={}, broadcastFails=false, rpcState={}}={}) {
   const local={fun_wallet_active:active.address,fun_wallet_encrypted_v2:vault,fun_wallet_chain:'56',fun_wallet_last_activity:String(Date.now())};
   const session={...sessionData};
-  const events={}; const sent=[]; const windows=[]; const broadcasts=[];const panelOptions=[];
+  const events={}; const sent=[]; const windows=[]; const broadcasts=[];const panelOptions=[];const registered=[];const rpcCalls=[];
   const tabs=new Map([[1,{id:1,windowId:1,url:'https://fun.rich/profile'}],[2,{id:2,windowId:1,url:'https://other.example/'}]]);
   const event=name=>({addListener(fn){events[name]=fn;}});
   const area=data=>({async setAccessLevel(){},async get(key){return key===null?{...data}:{[key]:data[key]};},async set(values){Object.assign(data,structuredClone(values));},async remove(key){delete data[key];}});
   globalThis.chrome={
-    runtime:{id:'wallet',getURL:path=>`chrome-extension://wallet/${path}`,onMessage:event('message')},
+    runtime:{id:'wallet',getURL:path=>`chrome-extension://wallet/${path}`,getManifest:()=>({version:'1.1.0'}),onMessage:event('message')},
     storage:{local:area(local),session:area(session),onChanged:event('storageChanged')},
     sidePanel:{async setPanelBehavior(){},async setOptions(options){panelOptions.push(options);},async open(){if(panelFails)throw new Error('user gesture required');}},
+    scripting:{async getRegisteredContentScripts(){return [...registered];},async registerContentScripts(scripts){registered.push(...scripts);},async updateContentScripts(){}},
     alarms:{async create(){},onAlarm:event('alarm')},
     tabs:{async get(id){return tabs.get(id);},async query(){return [...tabs.values()];},async sendMessage(id,message,options){sent.push({id,message,options});},onRemoved:event('tabRemoved'),onUpdated:event('tabUpdated')},
     windows:{async get(){return {top:0,left:0,width:1280,height:900};},async create(options){windows.push(options);return {id:100};},onRemoved:event('windowRemoved')},
@@ -53,6 +54,8 @@ async function setup({panelFails=false, sessionData={}, broadcastFails=false, rp
   }
   class Contract {async decimals(){return 3n;}async symbol(){return 'CAMLY';}}
   globalThis.__walletTestEthers={...ethers,JsonRpcProvider:Provider,Wallet,Contract};
+  globalThis.fetch=async(url,init)=>{const body=JSON.parse(init.body);rpcCalls.push({url,body});
+    return {status:200,json:async()=>body.method==='eth_call'?{jsonrpc:'2.0',id:1,error:{code:3,message:'execution reverted',data:'0x08c379a0'}}:{jsonrpc:'2.0',id:1,result:'0x5208'}};};
   await import(new URL(`worker.mjs?instance=${++serial}`,dir));
   const popup={id:'wallet',url:'chrome-extension://wallet/popup.html?surface=approval'};
   const page=(tabId=1)=>({id:'wallet',url:tabs.get(tabId).url,tab:tabs.get(tabId),frameId:0,documentId:`doc-${tabId}`});
@@ -66,7 +69,7 @@ async function setup({panelFails=false, sessionData={}, broadcastFails=false, rp
     const request=await next();
     assert.equal((await send({type:'APPROVE_CONNECTION',payload:{requestId:request.id}})).success,true);
   };
-  return {local,session,tabs,sent,windows,broadcasts,panelOptions,events,popup,page,send,unlock,next,connect};
+  return {local,session,tabs,sent,windows,broadcasts,panelOptions,events,popup,page,send,unlock,next,connect,registered,rpcCalls};
 }
 
 test('connection preserves client ID, resumes after unlock and scopes account event to its origin', async()=>{
@@ -259,4 +262,51 @@ test('connection account selection requires a local key and a separate unlock/ap
 test('retry brings the original approval forward without authorizing a second request',async()=>{
  const h=await setup();await h.send({type:'eth_requestAccounts',requestId:'first'},h.page());const firstRequest=await h.next();
  const next=await h.send({type:'eth_requestAccounts',requestId:'retry'},h.page());assert.equal(next.code,-32002);assert.equal((await h.next()).id,firstRequest.id);assert.equal(h.panelOptions.length,2);
+});
+test('provider is registered in the MAIN world at document_start so dApps detect it before boot',async()=>{
+  const h=await setup();
+  await h.send({type:'IS_UNLOCKED'});
+  assert.equal(h.registered.length,1);
+  assert.deepEqual([h.registered[0].world,h.registered[0].runAt,h.registered[0].js[0]],['MAIN','document_start','inpage.js']);
+});
+test('read-only RPC used by wagmi is forwarded without approval and keeps revert data',async()=>{
+  const h=await setup();
+  const estimate=await h.send({type:'eth_estimateGas',requestId:'gas',payload:[{from:active.address,to:first.address,value:'0x1'}]},h.page());
+  assert.equal(estimate.data,'0x5208');
+  assert.equal(h.rpcCalls[0].url,'https://bsc-dataseed.binance.org/');
+  assert.equal(h.rpcCalls[0].body.method,'eth_estimateGas');
+  const reverted=await h.send({type:'eth_call',requestId:'call',payload:[{to:first.address,data:'0x'}, 'latest']},h.page());
+  assert.equal(reverted.code,3);assert.equal(reverted.errorData,'0x08c379a0');
+  assert.equal((await h.send({type:'net_version',requestId:'net'},h.page())).data,'56');
+  assert.equal(h.windows.length+(await h.next()===null?0:1),0);
+});
+test('unlocking reconnects a site that already holds permission, like MetaMask',async()=>{
+  const h=await setup();await h.connect();
+  await h.send({type:'LOCK_WALLET'});
+  assert.deepEqual((await h.send({type:'eth_accounts',requestId:'locked'},h.page())).data,[]);
+  await h.send({type:'eth_requestAccounts',requestId:'reconnect'},h.page());
+  const request=await h.next();
+  const unlocked=await h.unlock();
+  assert.deepEqual(unlocked.data.autoApproved,[request.id]);
+  assert.deepEqual(h.sent.find(x=>x.message.requestId==='reconnect').message.result,[active.address]);
+  assert.deepEqual(h.sent.filter(x=>x.message.type==='accountsChanged').at(-1).message.accounts,[active.address]);
+  assert.equal(await h.next(),null);
+});
+test('wallet permissions: request returns eth_accounts caveat, revoke disconnects the site',async()=>{
+  const h=await setup();await h.unlock();
+  await h.send({type:'wallet_requestPermissions',requestId:'perm',payload:[{eth_accounts:{}}]},h.page());
+  const request=await h.next();
+  const approved=await h.send({type:'APPROVE_CONNECTION',payload:{requestId:request.id}});
+  assert.deepEqual(approved.data[0].caveats[0].value,[active.address]);
+  assert.equal((await h.send({type:'wallet_getPermissions',requestId:'get'},h.page())).data[0].parentCapability,'eth_accounts');
+  assert.equal((await h.send({type:'wallet_revokePermissions',requestId:'revoke',payload:[{eth_accounts:{}}]},h.page())).success,true);
+  assert.deepEqual((await h.send({type:'eth_accounts',requestId:'after'},h.page())).data,[]);
+  assert.deepEqual((await h.send({type:'wallet_getPermissions',requestId:'get2'},h.page())).data,[]);
+});
+test('personal_sign accepts UTF-8 text and signs it as MetaMask does',async()=>{
+  const h=await setup();await h.connect();
+  await h.send({type:'personal_sign',requestId:'text',payload:['Đăng nhập FUN Profile',active.address]},h.page());
+  const request=await h.next();
+  const response=await h.send({type:'APPROVE_SIGN',payload:{requestId:request.id,password}});
+  assert.equal(ethers.verifyMessage('Đăng nhập FUN Profile',response.data),active.address);
 });
