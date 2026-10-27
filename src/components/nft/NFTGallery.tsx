@@ -67,7 +67,11 @@ export const NFTGallery = ({
           token_id: m.tokenId,
           name: m.name,
           description: null,
-          image_url: m.image || null,
+          image_url: m.image
+            ? m.image.startsWith("ipfs://")
+              ? `https://ipfs.io/ipfs/${m.image.slice(7).replace(/^ipfs\//, "")}`
+              : m.image
+            : null,
           metadata_url: null,
           chain: String(m.chainId),
         },
