@@ -57,6 +57,8 @@ async function scanBSC(address: string): Promise<NFTResult[]> {
             collection: tx.tokenName || 'Unknown',
             chainId: 56,
             balance: '1',
+            floorPrice: null,
+            explorerUrl: `https://bscscan.com/nft/${tx.contractAddress}/${tx.tokenID}`,
           });
         } else if (tx.from?.toLowerCase() === address.toLowerCase()) {
           owned.delete(key);
