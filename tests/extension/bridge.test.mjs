@@ -20,9 +20,10 @@ test('provider promise stays pending until the matching approval reply; errors c
   const context=vm.createContext({window,console:{log(){},error(){}},crypto:webcrypto,Map,Set,Promise,URL,Event,CustomEvent:class {constructor(type,init){this.type=type;this.detail=init.detail;}},
     setTimeout(fn,ms){const id=++timerSerial;timers.set(id,{fn,ms});return id;},clearTimeout(id){timers.delete(id);},
     document:{readyState:'loading',createElement(){return {remove(){}};},head:{insertBefore(){injected++;}},documentElement:{},addEventListener(){}},
-    chrome:{runtime:{getURL:path=>`chrome-extension://wallet/${path}`,sendMessage(message,callback){background.push(message);callback({success:true,pending:true});},onMessage:{addListener(fn){responseHandler=fn;}}}},
+    chrome:{runtime:{getURL:path=>`chrome-extension://wallet/${path}`,sendMessage(message,callback){background.push(message);callback(message.type==='eth_chainId'?{success:true,data:'0x38'}:{success:true,pending:true});},onMessage:{addListener(fn){responseHandler=fn;}}}},
   });
-  vm.runInContext(content,context);assert.equal(injected,1);vm.runInContext(inpage,context);
+  vm.runInContext(content,context);assert.equal(injected,0); // MAIN-world registration is tested in worker.test.mjs.
+  vm.runInContext(inpage,context);
   let settled=false;
   const result=window.funWallet.request({method:'eth_requestAccounts'}).then(value=>{settled=true;return value;});
   await new Promise(resolve=>setTimeout(resolve,5));

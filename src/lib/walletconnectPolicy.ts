@@ -1,3 +1,4 @@
+import { PROFILE_HOSTS } from './profileOrigins';
 import { Interface, getAddress, getBytes, toUtf8String, formatUnits } from 'ethers';
 const transfer = new Interface(['function transfer(address to, uint256 amount)']);
 const tokens: Record<string, {symbol:string; decimals:number}> = {
@@ -31,9 +32,10 @@ export function loginMessage(params: unknown[], account: string): Uint8Array {
   if (params.length !== 2 || typeof params[1] !== 'string' || params[1].toLowerCase() !== account.toLowerCase() || typeof params[0] !== 'string') throw Error('Sai tài khoản ký');
   const bytes = getBytes(params[0]);
   const text = toUtf8String(bytes);
-  if (bytes.length > 4096 || !text.startsWith('fun-profile-clone.lovable.app wants you to sign in with your Ethereum account:\n') || !text.toLowerCase().includes(account.toLowerCase())) throw Error('Chỉ hỗ trợ thông điệp đăng nhập FUN Profile');
+  const host=PROFILE_HOSTS.find(host=>text.startsWith(`${host} wants you to sign in with your Ethereum account:\n`));
+  if (bytes.length > 4096 || !host || !text.toLowerCase().includes(account.toLowerCase())) throw Error('Chỉ hỗ trợ thông điệp đăng nhập FUN Profile');
   const issued = Date.parse(/^Issued At: (.+)$/m.exec(text)?.[1] ?? '');
-  if (!Number.isFinite(issued) || issued > Date.now()+30000 || issued+300000 <= Date.now() || !/^Chain ID: 56$/m.test(text) || !/^URI: https:\/\/fun-profile-clone\.lovable\.app\/?$/m.test(text) || !/^Nonce: [a-f0-9]{32,64}$/m.test(text)) throw Error('Thông điệp đã hết hạn hoặc không hợp lệ');
+  if (!Number.isFinite(issued) || issued > Date.now()+30000 || issued+300000 <= Date.now() || !/^Chain ID: 56$/m.test(text) || !text.split('\n').some(line=>line===`URI: https://${host}`||line===`URI: https://${host}/`) || !/^Nonce: [a-f0-9]{32,64}$/m.test(text)) throw Error('Thông điệp đã hết hạn hoặc không hợp lệ');
   return bytes;
 }
 
@@ -44,14 +46,16 @@ export function personalSignMessage(params: unknown[], account: string): { bytes
   const bytes = getBytes(params[0]);
   if (bytes.length > 4096) throw Error('Thông điệp quá dài');
   const text = toUtf8String(bytes);
-  if (text.startsWith('fun-profile-clone.lovable.app wants you to sign in with your Ethereum account:\n')) {
+  if (PROFILE_HOSTS.some(host=>text.startsWith(`${host} wants you to sign in with your Ethereum account:\n`))) {
     return { bytes: loginMessage(params,account), review: `Đăng nhập FUN Profile — không gửi tiền\n\n${text}` };
   }
   const lines = text.split('\n');
+  const host=lines[1]?.startsWith('Domain: ')?lines[1].slice(8):'';
+  if(!PROFILE_HOSTS.includes(host))throw Error('Tên miền FUN Profile không hợp lệ');
   const fixed = [
     'FUN Profile: authorize recording an on-chain gift',
-    'Domain: fun-profile-clone.lovable.app',
-    'URI: https://fun-profile-clone.lovable.app',
+    `Domain: ${host}`,
+    `URI: https://${host}`,
     'Purpose: FUN_PROFILE_DONATION_V1',
     'This signature records a gift only. It does not send funds or approve tokens.',
   ];

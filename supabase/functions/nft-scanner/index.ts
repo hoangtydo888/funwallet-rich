@@ -93,9 +93,7 @@ function ipfsToHttp(u: string) {
 
 async function floorPrice(network: string, key: string, contract: string): Promise<number | null> {
   try {
-    const r = await fetch(`https://${network}.g.alchemy.com/nft/v3/${key}/getFloorPrice?contractAddress=${contract}`);
-    if (!r.ok) return null;
-    const j = await r.json();
+    const j = await upstreamJson(`https://${network}.g.alchemy.com/nft/v3/${key}/getFloorPrice?contractAddress=${contract}`);
     const vals = [j?.openSea?.floorPrice, j?.looksRare?.floorPrice].filter((v) => typeof v === 'number');
     return vals.length ? Math.min(...vals) : null;
   } catch { return null; }

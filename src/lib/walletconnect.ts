@@ -3,7 +3,7 @@ import { WalletKit, type WalletKitTypes } from '@reown/walletkit';
 
 // Public relay identifier for Cha's existing Reown project (not a secret).
 export const WALLETCONNECT_PROJECT_ID = '438c4373fc7f4c3b5561f0d2d2b2aa0e';
-export const PROFILE_ORIGIN = 'https://fun-profile-clone.lovable.app';
+export { PROFILE_ORIGIN, isProfilePeer } from './profileOrigins';
 export const WC_METHODS = ['personal_sign', 'eth_sendTransaction', 'wallet_switchEthereumChain'];
 export type Proposal = {id:number;params:WalletKitTypes.SessionProposal['params'];verifyContext?:WalletKitTypes.SessionProposal['verifyContext']};
 export type Request = WalletKitTypes.SessionRequest;
@@ -21,7 +21,5 @@ export function validPairingUri(uri: string): boolean {
   const params = new URLSearchParams(match[2]);
   return params.get('relay-protocol') === 'irn' && /^[a-f0-9]{64}$/i.test(params.get('symKey') ?? '');
 }
-export function isProfilePeer(url: string): boolean {
-  try { return new URL(url).origin === PROFILE_ORIGIN; } catch { return false; }
-}
+
 export const rejected = { code: 5000, message: 'User rejected request' };
