@@ -1,3 +1,5 @@
+import { exactTokenUnits } from "@/lib/tokenAmounts";
+import { createSessionSigner } from "@/lib/guardedSigner";
 import { ethers } from "ethers";
 
 // BNB Chain Mainnet
@@ -147,11 +149,11 @@ export const sendBNB = async (
 ): Promise<{ hash: string } | { error: string }> => {
   try {
     const provider = getProvider();
-    const wallet = new ethers.Wallet(privateKey, provider);
+    const wallet = createSessionSigner(privateKey, provider);
     
     const tx = await wallet.sendTransaction({
       to: toAddress,
-      value: ethers.parseEther(amount),
+      value: exactTokenUnits(amount, 18),
     });
     
     return { hash: tx.hash };
@@ -184,7 +186,7 @@ export const sendToken = async (
 ): Promise<{ hash: string } | { error: string }> => {
   try {
     const provider = getProvider();
-    const wallet = new ethers.Wallet(privateKey, provider);
+    const wallet = createSessionSigner(privateKey, provider);
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
     
     // Lấy decimals thực tế từ blockchain để đảm bảo chính xác 100%
@@ -195,18 +197,12 @@ export const sendToken = async (
     const realBalance = await contract.balanceOf(wallet.address);
     
     // Parse amount với precision chuẩn
-    let parsedAmount = ethers.parseUnits(amount, useDecimals);
+    let parsedAmount = exactTokenUnits(amount, useDecimals);
     
     console.log(`[SEND TOKEN] Amount: ${amount}, Parsed: ${parsedAmount.toString()}, Balance: ${realBalance.toString()}, Decimals: ${useDecimals}`);
     
-    // Nếu amount gần bằng balance (99.99%+), sử dụng toàn bộ balance để tránh dust
-    const threshold = realBalance * 9999n / 10000n; // 99.99%
-    if (parsedAmount >= threshold && parsedAmount <= realBalance) {
-      console.log(`[SEND TOKEN] Amount gần max, sử dụng toàn bộ balance: ${realBalance.toString()}`);
-      parsedAmount = realBalance;
-    }
-    
-    // Double-check không vượt quá balance
+    // Send exactly the amount the user confirmed; MAX is an explicit UI action.
+
     if (parsedAmount > realBalance) {
       const formattedBalance = ethers.formatUnits(realBalance, useDecimals);
       return { error: `Số dư không đủ. Balance thực tế: ${formattedBalance}` };

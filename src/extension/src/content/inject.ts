@@ -7,13 +7,17 @@
  * Uses external script injection to bypass CSP restrictions
  */
 
-const publicMethods = new Set(['eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'eth_sendTransaction', 'personal_sign', 'eth_signTypedData_v4', 'wallet_switchEthereumChain']);
+const publicMethods = new Set(['eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'eth_sendTransaction', 'personal_sign', 'eth_signTypedData_v4', 'wallet_switchEthereumChain', 'eth_getTransactionReceipt', 'eth_blockNumber']);
 
 /**
  * Inject the provider script into the page
  * Uses external script file to bypass CSP
  */
+let injected=false;
 function injectProvider() {
+  if(injected)return;
+  if(!document.head&&!document.documentElement)return;
+  injected=true;
   try {
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('inpage.js');
@@ -148,11 +152,11 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
   }
 });
 
-// Inject provider when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', injectProvider);
-} else {
-  injectProvider();
+// Inject at document_start; waiting for DOMContentLoaded made wagmi choose
+// the web fallback before the installed FUN Wallet provider was discoverable.
+if(document.head||document.documentElement)injectProvider();
+else {
+ const observer=new MutationObserver(()=>{if(document.head||document.documentElement){injectProvider();observer.disconnect();}});
+ observer.observe(document,{childList:true,subtree:true});
+ document.addEventListener('DOMContentLoaded',()=>{injectProvider();observer.disconnect();},{once:true});
 }
-
-console.log('[FUN Wallet] Content script loaded');

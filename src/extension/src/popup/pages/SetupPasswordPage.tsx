@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { encryptPrivateKey, getPasswordStrength } from '@shared/lib/encryption';
+import { encryptPrivateKey, encryptRecoveryPhrase, getPasswordStrength } from '@shared/lib/encryption';
 import { STORAGE_KEYS } from '@shared/storage/types';
 import { SecureWalletStorage, WalletAccount } from '@shared/types';
 
@@ -37,8 +37,8 @@ function SetupPasswordPage({
     setError('');
 
     // Validate password
-    if (password.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự');
+    if (password.length < 12) {
+      setError('Mật khẩu phải có ít nhất 12 ký tự');
       return;
     }
 
@@ -62,7 +62,7 @@ function SetupPasswordPage({
 
       // 2b. If mnemonic exists (new wallet), encrypt and store it too
       if (mnemonic) {
-        const encryptedMnemonic = await encryptPrivateKey(mnemonic, password);
+        const encryptedMnemonic = await encryptRecoveryPhrase(mnemonic, password);
         walletStorage.mnemonics = { [walletAddress]: encryptedMnemonic };
       }
 
@@ -142,7 +142,7 @@ function SetupPasswordPage({
                 setPassword(e.target.value);
                 setError('');
               }}
-              placeholder="Nhập mật khẩu (ít nhất 6 ký tự)"
+              placeholder="Nhập mật khẩu (ít nhất 12 ký tự)"
               className="w-full pr-12"
               disabled={loading}
             />

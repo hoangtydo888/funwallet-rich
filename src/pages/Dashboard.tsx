@@ -1,3 +1,6 @@
+import {TokenApprovalsPanel} from '@/components/wallet/TokenApprovalsPanel';
+import { PendingTransactionsPanel } from "@/components/wallet/PendingTransactionsPanel";
+import { WalletSecurityPanel } from "@/components/wallet/WalletSecurityPanel";
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -109,6 +112,8 @@ const Dashboard = () => {
     unlock,
     lock,
     hasOldStorageData,
+    encryptAndSaveKey,
+    getCachedPassword,
   } = useSecureWallet();
 
   const {
@@ -408,20 +413,24 @@ const Dashboard = () => {
           </div>
         </div>
 
+        <WalletSecurityPanel />
+        {activeWallet && <TokenApprovalsPanel account={activeWallet.address} chain={currentChain} />}
+        {activeWallet && <PendingTransactionsPanel account={activeWallet.address} chain={currentChain} />}
+
         {/* Quick actions grid - premium */}
         <div className="mb-8 space-y-3">
           <div className="grid grid-cols-6 gap-2 sm:gap-3">
             <QuickAction 
               icon={<ArrowUpRight />} 
               label="Gửi" 
-              onClick={() => setSendOpen(true)}
+              onClick={() => currentChain.chainId === 56 ? setSendOpen(true) : toast({title:"Chỉ hỗ trợ gửi trực tiếp trên BSC",description:"Chọn BSC trước khi mở màn gửi.",variant:"destructive"})}
               disabled={!hasWallet}
               colorClass={TILE_STYLES.red}
             />
             <QuickAction 
               icon={<Users />} 
               label="Gửi nhiều" 
-              onClick={() => setBulkSendOpen(true)}
+              onClick={() => currentChain.chainId === 56 ? setBulkSendOpen(true) : toast({title:"Chỉ hỗ trợ gửi nhiều trên BSC",variant:"destructive"})}
               disabled={!hasWallet}
               colorClass={TILE_STYLES.coral}
             />
@@ -746,8 +755,8 @@ const Dashboard = () => {
             open={backupOpen}
             onOpenChange={setBackupOpen}
             wallets={wallets.map(w => ({ name: w.name, address: w.address }))}
-            onRestoreWallet={async (name, address, privateKey) => {
-              localStorage.setItem(`pk_${address.toLowerCase()}`, privateKey);
+            onRestoreWallet={async (name, address, privateKey, backupPassword) => {
+              if(!await encryptAndSaveKey(address,privateKey,getCachedPassword() ?? backupPassword))throw Error("Chưa lưu được khóa mã hóa; mở khóa ví hoặc kiểm tra mật khẩu");
               // The wallet will be added via the normal flow
             }}
           />
@@ -756,6 +765,8 @@ const Dashboard = () => {
             open={walletConnectOpen}
             onOpenChange={setWalletConnectOpen}
             walletAddress={activeWallet.address}
+            onImportWallet={()=>{setWalletConnectOpen(false);setCreateWalletOpen(true);}}
+            onChooseWallet={()=>{setWalletConnectOpen(false);setWalletManagerOpen(true);}}
           />
 
           <ImportTokenDialog

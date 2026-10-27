@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,9 +21,9 @@ import { SeedQuizDialog } from "./SeedQuizDialog";
 interface CreateWalletDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreateWallet: (name: string) => Promise<{ mnemonic: string; address: string; privateKey: string } | null>;
-  onImportMnemonic: (mnemonic: string, name: string) => Promise<{ address: string; privateKey: string } | null>;
-  onImportPrivateKey: (privateKey: string, name: string) => Promise<{ address: string } | null>;
+  onCreateWallet: (name: string,password?:string) => Promise<{ mnemonic: string; address: string; privateKey: string } | null>;
+  onImportMnemonic: (mnemonic: string, name: string,password?:string) => Promise<{ address: string; privateKey: string } | null>;
+  onImportPrivateKey: (privateKey: string, name: string,password?:string) => Promise<{ address: string } | null>;
 }
 
 type Step = "choice" | "create" | "password" | "backup" | "quiz" | "import" | "complete";
@@ -39,8 +39,10 @@ export const CreateWalletDialog = ({
   const [walletName, setWalletName] = useState("Ví chính");
   const [mnemonic, setMnemonic] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
-  const [privateKey, setPrivateKey] = useState("");
+  const [backupVerified,setBackupVerified]=useState(false);
   const [loading, setLoading] = useState(false);
+  const busy=useRef(false);
+  const [flow,setFlow]=useState<"create"|"import">("create");
 
   // Import states
   const [importType, setImportType] = useState<"mnemonic" | "privateKey">("mnemonic");
@@ -51,56 +53,32 @@ export const CreateWalletDialog = ({
   // Security hooks
   const { 
     isPasswordSet, 
-    setupPassword, 
-    encryptAndSaveKey,
     isUnlocked,
     getCachedPassword,
   } = useSecureWallet();
 
-  const handleCreateWallet = async () => {
-    setLoading(true);
-    const result = await onCreateWallet(walletName);
-    setLoading(false);
-    
-    if (result) {
-      setMnemonic(result.mnemonic);
-      setWalletAddress(result.address);
-      setPrivateKey(result.privateKey);
-      
-      // Check if password already set
-      if (isPasswordSet && isUnlocked) {
-        // Encrypt immediately with cached password
-        const cachedPwd = getCachedPassword();
-        if (cachedPwd) {
-          await encryptAndSaveKey(result.address, result.privateKey, cachedPwd);
-          setStep("backup");
-        } else {
-          setStep("password");
-        }
-      } else {
-        // Need to setup password first
-        setStep("password");
-      }
-    }
+  const createProtected = async(password:string)=>{
+    const result=await onCreateWallet(walletName,password);
+    if(!result)throw Error('Chưa tạo được ví bảo vệ. Không có ví mới nào sẵn sàng nhận tiền.');
+    setMnemonic(result.mnemonic);setWalletAddress(result.address);setBackupVerified(false);setStep("backup");
   };
-
-  const handlePasswordSet = useCallback(async (password: string) => {
-    try {
-      if (!isPasswordSet) {
-        await setupPassword(password);
-      }
-      
-      // Encrypt the private key with the new password
-      if (walletAddress && privateKey) {
-        await encryptAndSaveKey(walletAddress, privateKey, password);
-      }
-      
-      setStep("backup");
-    } catch (error) {
-      console.error("Password setup error:", error);
-      throw error;
-    }
-  }, [isPasswordSet, setupPassword, encryptAndSaveKey, walletAddress, privateKey]);
+  const importProtected = async(password:string)=>{
+    const result=importType==="mnemonic"?await onImportMnemonic(importMnemonic,walletName,password):await onImportPrivateKey(importPrivateKey,walletName,password);
+    if(!result)throw Error('Chưa import được ví. Kiểm tra dữ liệu và mật khẩu, rồi thử lại.');
+    setWalletAddress(result.address);setImportMnemonic("");setImportPrivateKey("");setStep("complete");
+  };
+  const handleCreateWallet = async () => {
+    if(busy.current)return;busy.current=true;setLoading(true);setFlow("create");setStep("password");
+    try{const password=isPasswordSet&&isUnlocked?getCachedPassword():null;if(password)await createProtected(password);}
+    catch(error){toast({title:"Chưa hoàn tất tạo ví",description:error instanceof Error?error.message:"Vui lòng thử lại",variant:"destructive"});}
+    finally{busy.current=false;setLoading(false);}
+  };
+  const handlePasswordSet = async(password:string)=>{
+    if(busy.current)throw Error('Đang xử lý ví, vui lòng đợi');
+    busy.current=true;setLoading(true);
+    try{if(flow==="create")await createProtected(password);else await importProtected(password);}
+    finally{busy.current=false;setLoading(false);}
+  };
 
   const handleBackupComplete = () => {
     setStep("quiz");
@@ -111,6 +89,7 @@ export const CreateWalletDialog = ({
   };
 
   const handleQuizComplete = () => {
+    setBackupVerified(true);
     setStep("complete");
   };
 
@@ -121,65 +100,26 @@ export const CreateWalletDialog = ({
   const handleSkipBackup = () => {
     toast({
       title: "⚠️ Cảnh báo",
-      description: "Bạn có thể backup seed phrase sau trong phần Cài đặt → Backup",
+      description: "Hãy giữ seed ở nơi an toàn ngay bây giờ. Bản web hiện chỉ sao lưu kho khóa mã hóa, không khôi phục lại seed sau khi đóng màn này.",
       variant: "destructive",
     });
     setStep("complete");
   };
 
   const handleImport = async () => {
-    setLoading(true);
-    
-    try {
-      if (importType === "mnemonic") {
-        const result = await onImportMnemonic(importMnemonic, walletName);
-        if (result) {
-          setWalletAddress(result.address);
-          setPrivateKey(result.privateKey);
-          
-          // If password set and unlocked, encrypt immediately
-          if (isPasswordSet && isUnlocked) {
-            const cachedPwd = getCachedPassword();
-            if (cachedPwd) {
-              await encryptAndSaveKey(result.address, result.privateKey, cachedPwd);
-              setStep("complete");
-            } else {
-              setStep("password");
-            }
-          } else {
-            setStep("password");
-          }
-        }
-      } else {
-        const result = await onImportPrivateKey(importPrivateKey, walletName);
-        if (result) {
-          setWalletAddress(result.address);
-          setPrivateKey(importPrivateKey);
-          
-          if (isPasswordSet && isUnlocked) {
-            const cachedPwd = getCachedPassword();
-            if (cachedPwd) {
-              await encryptAndSaveKey(result.address, importPrivateKey, cachedPwd);
-              setStep("complete");
-            } else {
-              setStep("password");
-            }
-          } else {
-            setStep("password");
-          }
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
+    if(busy.current)return;busy.current=true;setFlow("import");setMnemonic("");setLoading(true);setStep("password");
+    try{const password=isPasswordSet&&isUnlocked?getCachedPassword():null;if(password)await importProtected(password);}
+    catch(error){toast({title:"Chưa hoàn tất import",description:error instanceof Error?error.message:"Vui lòng thử lại",variant:"destructive"});}
+    finally{busy.current=false;setLoading(false);}
   };
 
   const resetAndClose = () => {
     setStep("choice");
+    setFlow("create");
     setWalletName("Ví chính");
     setMnemonic("");
     setWalletAddress("");
-    setPrivateKey("");
+    setBackupVerified(false);
     setImportMnemonic("");
     setImportPrivateKey("");
     onOpenChange(false);
@@ -365,7 +305,7 @@ export const CreateWalletDialog = ({
                       <Check className="h-4 w-4" />
                       Mật khẩu bảo vệ đã được thiết lập
                     </li>
-                    {mnemonic && (
+                    {backupVerified && (
                       <li className="flex items-center gap-2">
                         <Check className="h-4 w-4" />
                         Seed phrase đã được xác minh

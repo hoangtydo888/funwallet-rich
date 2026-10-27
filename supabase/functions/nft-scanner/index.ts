@@ -1,10 +1,12 @@
+import {nftOwnershipCalls,ownedNftResults} from '../_shared/nftOwnership.ts';
+import {readBoundedJson,upstreamJson,requireScanBudget,scannerFailure} from '../_shared/scannerSafety.ts';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3.23.8';
 
 const BodySchema = z.object({
   address: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  chainIds: z.array(z.number()).min(1).max(10),
+  chainIds: z.array(z.number().int().positive()).min(1).max(10),
 });
 
 // Alchemy network slug per chainId
@@ -38,14 +40,14 @@ async function scanBSC(address: string): Promise<NFTResult[]> {
   for (const [action, standard] of endpoints) {
     const url = `https://api.bscscan.com/api?module=account&action=${action}&address=${address}&page=1&offset=100&sort=desc&apikey=${key}`;
     try {
-      const r = await fetch(url);
-      const j = await r.json();
+      const j=await upstreamJson(url);
       if (j.status !== '1' || !Array.isArray(j.result)) continue;
-      // Aggregate: keep NFTs currently owned (incoming - outgoing != 0)
+      // History only supplies candidates. Current on-chain ownership decides display.
       const owned = new Map<string, NFTResult>();
       for (const tx of j.result) {
         const key = `${tx.contractAddress}-${tx.tokenID}`;
-        if (tx.to?.toLowerCase() === address.toLowerCase()) {
+        if (!/^0x[\da-f]{40}$/i.test(tx.contractAddress)||!/^\d+$/.test(tx.tokenID)||BigInt(tx.tokenID)>=1n<<256n)continue;
+        if (!owned.has(key)) {
           owned.set(key, {
             contractAddress: tx.contractAddress,
             tokenId: tx.tokenID,
@@ -56,13 +58,12 @@ async function scanBSC(address: string): Promise<NFTResult[]> {
             chainId: 56,
             balance: '1',
           });
-        } else if (tx.from?.toLowerCase() === address.toLowerCase()) {
-          owned.delete(key);
         }
       }
-      results.push(...owned.values());
+      const candidates=[...owned.values()].slice(0,40);
+      if(candidates.length){const proof=await upstreamJson('https://bsc-dataseed.binance.org/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(nftOwnershipCalls(candidates,address))});results.push(...ownedNftResults(candidates,proof,address));}
     } catch (e) {
-      console.error(`BSC ${action} error:`, e);
+      console.error('Upstream scanner failed');
     }
   }
   return results;
@@ -74,12 +75,7 @@ async function scanAlchemy(address: string, chainId: number): Promise<NFTResult[
   if (!key || !network) return [];
   const url = `https://${network}.g.alchemy.com/nft/v3/${key}/getNFTsForOwner?owner=${address}&withMetadata=true&pageSize=100`;
   try {
-    const r = await fetch(url);
-    if (!r.ok) {
-      console.error(`Alchemy ${network} ${r.status}: ${await r.text()}`);
-      return [];
-    }
-    const j = await r.json();
+    const j=await upstreamJson(url);
     return (j.ownedNfts || []).map((n: any): NFTResult => ({
       contractAddress: n.contract?.address ?? '',
       tokenId: n.tokenId ?? '',
@@ -91,13 +87,15 @@ async function scanAlchemy(address: string, chainId: number): Promise<NFTResult[
       balance: n.balance ?? '1',
     }));
   } catch (e) {
-    console.error(`Alchemy ${network} error:`, e);
+    console.error('Upstream scanner failed');
     return [];
   }
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  if(req.method!=='POST')return new Response('POST only',{status:405,headers:corsHeaders});
 
   try {
     // Validate JWT
@@ -115,14 +113,16 @@ Deno.serve(async (req) => {
     );
     const token = authHeader.replace('Bearer ', '');
     const { data: claimData, error: authError } = await supabase.auth.getClaims(token);
-    if (authError || !claimData?.claims) {
+    if (authError || typeof claimData?.claims?.sub !== 'string' || claimData.claims.role !== 'authenticated') {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const parsed = BodySchema.safeParse(await req.json());
+    const budgetClient=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
+    await requireScanBudget(budgetClient,claimData.claims.sub,'nft-scanner');
+    const parsed = BodySchema.safeParse(await readBoundedJson(req));
     if (!parsed.success) {
       return new Response(JSON.stringify({ error: parsed.error.flatten().fieldErrors }), {
         status: 400,
@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
     }
     const { address, chainIds } = parsed.data;
 
-    const perChain = await Promise.all(chainIds.map(async (chainId) => {
+    const perChain = await Promise.all([...new Set(chainIds)].map(async (chainId) => {
       if (chainId === 56) {
         return { chainId, nfts: await scanBSC(address), unsupported: false };
       }
@@ -149,10 +149,6 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (e) {
-    console.error('nft-scanner error:', e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'unknown' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return scannerFailure(e,corsHeaders);
   }
 });

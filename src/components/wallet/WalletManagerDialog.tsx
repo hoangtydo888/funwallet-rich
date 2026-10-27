@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useSecureWallet } from "@/hooks/useSecureWallet";
+import { SetupPasswordDialog } from "./SetupPasswordDialog";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -81,7 +83,23 @@ export const WalletManagerDialog = ({
   const [showInputKey, setShowInputKey] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
-  const qrPrivateKey = showQRForWallet ? getPrivateKey(showQRForWallet) : null;
+  const security = useSecureWallet();
+  const [exportRequest,setExportRequest] = useState<{address:string;kind:'copy'|'qr'}|null>(null);
+  const [qrKey,setQrKey] = useState<string|null>(null);
+  const qrPrivateKey = security.isUnlocked ? qrKey : null;
+  useEffect(() => { if (!open || !security.isUnlocked) { setQrKey(null); setShowQRForWallet(null); setExportRequest(null); } }, [open,security.isUnlocked]);
+  useEffect(() => { if (!qrKey) return; const timer=setTimeout(()=>{setQrKey(null);setShowQRForWallet(null);},60000); return ()=>clearTimeout(timer); },[qrKey]);
+  useEffect(()=>{const hide=()=>{if(document.hidden){setQrKey(null);setShowQRForWallet(null);}};document.addEventListener('visibilitychange',hide);return()=>document.removeEventListener('visibilitychange',hide);},[]);
+  const exportWithPassword = async (password:string) => {
+    if (!exportRequest) return;
+    const key=await security.getDecryptedKey(exportRequest.address,password);
+    if (!key) throw Error('Không xác minh được mật khẩu/khóa ví');
+    if (exportRequest.kind==='copy') {
+      await navigator.clipboard.writeText(key);
+      toast({title:'Đã sao chép khóa riêng',description:'Không dán khóa vào website hoặc gửi cho người khác. Xóa clipboard khi dùng xong.'});
+    } else { setQrKey(key);setShowQRForWallet(exportRequest.address); }
+    setExportRequest(null);
+  };
   
   const handleImportKey = async () => {
     if (!importKeyForWallet || !inputPrivateKey) return;
@@ -163,47 +181,12 @@ export const WalletManagerDialog = ({
     }
   };
 
-  const handleCopyPrivateKey = async (address: string) => {
-    const privateKey = getPrivateKey(address);
-    if (!privateKey) {
-      toast({
-        title: "Không tìm thấy Private Key",
-        description: "Private key không được lưu trên thiết bị này. Hãy import lại ví bằng seed phrase.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(privateKey);
-      toast({
-        title: "Đã copy Private Key! 🔑",
-        description: "Hãy giữ bí mật - không chia sẻ với ai!",
-      });
-    } catch {
-      toast({
-        title: "Lỗi",
-        description: "Không thể copy. Hãy thử lại.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleShowQR = (address: string) => {
-    const privateKey = getPrivateKey(address);
-    if (!privateKey) {
-      toast({
-        title: "Không tìm thấy Private Key",
-        description: "Private key không được lưu trên thiết bị này.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setShowQRForWallet(address);
-  };
+  const handleCopyPrivateKey = (address:string) => setExportRequest({address,kind:'copy'});
+  const handleShowQR = (address:string) => setExportRequest({address,kind:'qr'});
 
   return (
     <>
+      <SetupPasswordDialog open={!!exportRequest} onOpenChange={value=>{if(!value)setExportRequest(null);}} mode="enter" title="Xác nhận xuất khóa riêng" description="Nhập lại mật khẩu ví hiện tại. Khóa riêng cho phép toàn quyền sử dụng tiền; chỉ xuất khi tự mình cần sao lưu." onPasswordSet={exportWithPassword}/>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[450px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -221,7 +204,7 @@ export const WalletManagerDialog = ({
               </div>
             ) : (
               wallets.map((wallet) => {
-                const hasPrivateKey = !!getPrivateKey(wallet.address);
+                const hasPrivateKey = security.hasKey(wallet.address);
                 
                 return (
                   <div
@@ -374,7 +357,7 @@ export const WalletManagerDialog = ({
       </Dialog>
 
       {/* QR Code Dialog */}
-      <Dialog open={!!showQRForWallet} onOpenChange={() => setShowQRForWallet(null)}>
+      <Dialog open={!!showQRForWallet && security.isUnlocked} onOpenChange={() => {setShowQRForWallet(null);setQrKey(null);}}>
         <DialogContent className="sm:max-w-[350px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -387,7 +370,7 @@ export const WalletManagerDialog = ({
           </DialogHeader>
           {qrPrivateKey && (
             <div className="flex flex-col items-center gap-4">
-              <div className="p-4 bg-white rounded-lg">
+              <div className="p-4 bg-background rounded-lg">
                 <QRCodeSVG value={qrPrivateKey} size={200} />
               </div>
               <p className="text-center text-sm text-muted-foreground">

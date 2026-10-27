@@ -1,4 +1,7 @@
-import { useState, useCallback } from "react";
+import {exactTokenUnits,decimalIsPositive} from "@/lib/tokenAmounts";
+import {validateLifiIntent,type LifiIntent} from "@/lib/lifiValidation";
+import { createSessionSigner } from "@/lib/guardedSigner";
+import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -44,6 +47,8 @@ export const LifiPanel = ({
   const [amount, setAmount] = useState("");
   const [slippage, setSlippage] = useState(0.5);
   const [quote, setQuote] = useState<LiFiStep | null>(null);
+  const quotedIntent=useRef<LifiIntent|null>(null);
+  const quoteGeneration=useRef(0);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [progressMsg, setProgressMsg] = useState<string>("");
@@ -54,13 +59,14 @@ export const LifiPanel = ({
   const toTokens = CHAIN_TOKENS[toChainId] ?? [];
 
   const handleQuote = useCallback(async () => {
-    if (!amount || parseFloat(amount) <= 0 || !fromChain) return;
+    if (!decimalIsPositive(amount) || !fromChain) return;
+    const generation=++quoteGeneration.current;
     setQuoteLoading(true);
     setQuote(null);
     try {
       const fromTokenMeta = fromTokens.find((t) => (t.address ?? NATIVE) === fromToken);
       const decimals = fromTokenMeta?.decimals ?? 18;
-      const rawAmount = ethers.parseUnits(amount, decimals).toString();
+      const rawAmount = exactTokenUnits(amount, decimals).toString();
       const q = await getLifiQuote({
         fromChain: fromChainId,
         toChain: toChainId,
@@ -70,7 +76,9 @@ export const LifiPanel = ({
         fromAddress: walletAddress,
         slippage: slippage / 100,
       });
-      setQuote(q);
+      const intent:LifiIntent={account:walletAddress,fromChainId,toChainId,fromToken,toToken,amount:rawAmount,slippage,quotedAt:Date.now()};
+      validateLifiIntent(q,intent);
+      if(generation===quoteGeneration.current){quotedIntent.current=intent;setQuote(q);}
     } catch (e) {
       console.error("LiFi quote error", e);
       toast({
@@ -98,8 +106,10 @@ export const LifiPanel = ({
     setProgressMsg("Đang gửi giao dịch...");
     try {
       const provider = getProviderForChain(fromChain);
-      const signer = new ethers.Wallet(pk, provider);
-      const hash = await executeLifiStep(quote, signer);
+      const signer = createSessionSigner(pk, provider, fromChainId);
+      const intent=quotedIntent.current;
+      if(!intent||intent.account.toLowerCase()!==walletAddress.toLowerCase()||intent.fromChainId!==fromChainId||intent.toChainId!==toChainId||intent.fromToken!==fromToken||intent.toToken!==toToken||intent.slippage!==slippage||intent.amount!==exactTokenUnits(amount,quote.action.fromToken.decimals).toString())throw Error("Lựa chọn đã thay đổi; lấy báo giá mới");
+      const hash = await executeLifiStep(quote, signer,intent);
       setProgressMsg("Đã gửi. Đang xác nhận...");
 
       // Persist to transactions table
@@ -276,7 +286,7 @@ export const LifiPanel = ({
             placeholder="0.0"
             value={
               quote?.estimate
-                ? (Number(quote.estimate.toAmount) / 10 ** quote.action.toToken.decimals).toFixed(6)
+                ? ethers.formatUnits(quote.estimate.toAmount,quote.action.toToken.decimals)
                 : ""
             }
             className="text-lg font-semibold border-0 bg-transparent p-0 focus-visible:ring-0"

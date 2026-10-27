@@ -42,7 +42,7 @@ interface BackupRestoreDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wallets: { name: string; address: string }[];
-  onRestoreWallet: (name: string, address: string, privateKey: string) => Promise<void>;
+  onRestoreWallet: (name: string, address: string, privateKey: string, backupPassword:string) => Promise<void>;
 }
 
 export const BackupRestoreDialog = ({
@@ -225,7 +225,7 @@ export const BackupRestoreDialog = ({
       const restoredWallets = await restoreBackup(content, password);
       
       for (const wallet of restoredWallets) {
-        await onRestoreWallet(wallet.name, wallet.address, wallet.privateKey);
+        await onRestoreWallet(wallet.name, wallet.address, wallet.privateKey, password);
       }
       
       toast({
@@ -261,7 +261,7 @@ export const BackupRestoreDialog = ({
       const restoredWallets = await restoreBackup(backup, password);
       
       for (const wallet of restoredWallets) {
-        await onRestoreWallet(wallet.name, wallet.address, wallet.privateKey);
+        await onRestoreWallet(wallet.name, wallet.address, wallet.privateKey, password);
       }
       
       toast({

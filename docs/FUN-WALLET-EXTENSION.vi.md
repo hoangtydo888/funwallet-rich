@@ -1,6 +1,20 @@
 # FUN Wallet — Kế hoạch nâng cấp ví và bản thử extension
 
-Ngày cập nhật: 07/10/2026.
+Ngày cập nhật: 08/10/2026.
+
+## Bổ sung theo luồng tặng quà trong sáu ảnh
+
+Đã cập nhật phần ví: khi phiên ví còn mở khóa, người dùng bấm Xác nhận mà không phải nhập lại mật khẩu. Signer chỉ tồn tại trong bộ nhớ background tối đa 15 phút; khóa ví, thay đổi tài khoản/kho khóa hoặc khởi động lại worker sẽ yêu cầu mở khóa lại. Mỗi giao dịch vẫn cần người dùng duyệt riêng; dApp không được gọi lệnh duyệt nội bộ.
+
+Sau broadcast, màn duyệt tự trở về màn tài sản. Hoạt động gần đây lưu hash trước khi phát và theo dõi receipt bằng RPC của đúng mạng. Chính sách bản thử là 2 xác nhận để đánh dấu kết quả, không phải bảo đảm finality cho mọi mạng. RPC lỗi không bị coi là giao dịch thất bại. Receipt biến mất hoặc không còn ở block canonical sẽ trở lại trạng thái chờ khi còn trong khoảng theo dõi. Phần này chưa xử lý tìm giao dịch thay thế cùng nonce.
+
+Theo dõi tự động tối đa 20 giao dịch mới nhất mỗi lượt; giao dịch chưa rõ kết quả được theo dõi trong 24 giờ, giao dịch đã có kết quả được kiểm tra lại trong giờ đầu sau khi gửi. Dữ liệu cũ giữ lại và có link explorer. Lịch sử này chỉ gồm giao dịch dApp đã đi qua màn duyệt mới, không phải toàn bộ giao dịch của tài khoản.
+
+Đã thêm eth_getTransactionReceipt và eth_blockNumber để dApp tra cứu kết quả qua provider. Cần kiểm tra chainId khi dùng; sau khi đổi mạng, việc tra cứu phải dùng RPC của mạng giao dịch ban đầu.
+
+**Phần FUN Profile chưa sửa:** URL https://fun.rich/ đã được cung cấp nhưng chưa có repository/thư mục mã nguồn hoặc dự án Lovable. Biên nhận ảnh 6, avatar/tên người tặng/người nhận và lời nhắn thuộc ứng dụng FUN Profile. Website cần chờ receipt, kiểm tra Transfer log của đúng token/sender/recipient và lượng token thực nhận, lưu biên nhận có khóa duy nhất (chainId, txHash, logIndex), rồi mới mở trang donations/biên nhận. Receipt status=1 chỉ chứng minh giao dịch không revert, chưa tự chứng minh chuyển đúng số token. Không tạo biên nhận Success ngay khi chỉ nhận được txHash, và không tự tạo giao dịch USDT từ nội dung lời nhắn.
+
+Thứ tự tích hợp theo ảnh: chọn profile → nhập token/số lượng/lời nhắn → xem lại người gửi/nhận → Confirm & Gift gọi provider FUN Wallet → người dùng xác nhận trong ví → ví về tài sản, website chờ kết quả và mở biên nhận đã xác minh. Các đoạn xử lý website chưa được triển khai trên fun.rich.
 
 ## Mục tiêu đã chốt
 
@@ -34,7 +48,7 @@ Không cam kết ngày phát hành trước khi nghiệm thu trên trình duyệ
 - Ước tính gas có địa chỉ from, kiểm tra chain của RPC và số dư trả phí. Phí không đọc được thì chưa cho xác nhận, không dùng số giả thay thế. Báo giá hết hạn sau tối đa 60 giây.
 - Kiểm tra quyền/tài khoản/mạng lại trước khi ký và phát; chặn xác nhận trùng; hết hạn sau 5 phút. Reload/đóng tab làm yêu cầu mất hiệu lực. Đóng popup từ chối yêu cầu chưa xử lý; đóng side panel để yêu cầu hết hạn nếu chưa hủy.
 - Ký personal_sign theo bytes, không ép dữ liệu nhị phân thành UTF-8. Typed data hiện toàn bộ nội dung có cuộn, kiểm tra chainId khi có.
-- Sau broadcast hiển thị đang chờ xác nhận và link explorer. Nếu RPC timeout lúc phát, trả thông báo kèm hash để tra cứu, không cung cấp cơ chế thử lại mù trong cùng yêu cầu.
+- Sau broadcast trở về tài sản và hiển thị hoạt động đang chờ xác nhận kèm link explorer. Nếu RPC timeout lúc phát, trả thông báo kèm hash để tra cứu, không cung cấp cơ chế thử lại mù trong cùng yêu cầu.
 
 Các phương thức RPC hiện có: eth_accounts, eth_requestAccounts, eth_chainId, eth_sendTransaction, personal_sign, eth_signTypedData_v4, wallet_switchEthereumChain. Các phương thức khác trả lỗi 4200; chưa tuyên bố tương thích toàn bộ dApp/MetaMask. Chưa hỗ trợ tạo hợp đồng, access list, blob transaction hoặc authorization list trong màn duyệt này.
 
@@ -88,7 +102,7 @@ Thông tin EIP-6963 là thông tin provider tự công bố, không phải chứ
 
 ## Kết quả kiểm tra và phần còn lại
 
-- 18 kiểm thử Node chạy qua, bao gồm bridge/inpage, điều phối request, khóa/mở, phân quyền nguồn gửi, định dạng giao dịch, token decimals, ký bytes, duplicate submit, quote hết hạn, chuyển mạng, reload tab, restart worker và broadcast không rõ kết quả.
+- 25 kiểm thử Node chạy qua, bao gồm bridge/inpage, điều phối request, khóa/mở, phân quyền nguồn gửi, định dạng giao dịch, token decimals, ký bytes, duplicate submit, quote hết hạn, chuyển mạng, reload tab, restart worker, broadcast không rõ kết quả, phiên ký trong bộ nhớ, lưu hoạt động và phân loại receipt/reorg.
 - Các kiểm thử dùng Chrome API/RPC giả lập và tài khoản ngẫu nhiên chỉ dành cho test; không xác nhận tương thích thực tế với Chrome hoặc hợp đồng CAMLY đang triển khai.
 - Typecheck extension, build extension và build website chính đã chạy qua. Website build có cảnh báo kích thước bundle; chưa tối ưu bundle trong đợt này.
 - Chưa kiểm tra hình ảnh trực tiếp trong Chrome, chưa có công cụ browser runtime phù hợp trong phiên này; chưa nghiệm thu tương tác trên FUN Profile, chưa gửi tiền hoặc xác minh receipt thật.

@@ -1,3 +1,5 @@
+import {verifyErc721Ownership} from '@/lib/nftOwnership';
+import { createSessionSigner } from "@/lib/guardedSigner";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,15 +81,16 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     tokenId: string,
     metadata?: { name?: string; description?: string; image_url?: string; metadata_url?: string }
   ) => {
-    if (!user || !walletId) return null;
+    if (!user || !walletId || !walletAddress) return null;
 
     try {
+      await verifyErc721Ownership(getProvider(),contractAddress,tokenId,walletAddress);
       const { data, error } = await supabase
         .from("nft_collections")
         .insert({
           user_id: user.id,
           wallet_id: walletId,
-          contract_address: contractAddress,
+          contract_address: contractAddress.toLowerCase(),
           token_id: tokenId,
           name: metadata?.name || null,
           description: metadata?.description || null,
@@ -102,7 +105,7 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
       await fetchNFTs();
       return data;
     } catch (error) {
-      console.error("Error adding NFT:", error);
+      toast({title:"Chưa thêm được NFT",description:error instanceof Error?error.message:"Không xác minh được quyền sở hữu",variant:"destructive"});
       return null;
     }
   };
@@ -148,67 +151,8 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     }
   };
 
-  // Mint FUN Badge (simulated - in production connect to actual contract)
-  const mintFunBadge = async (
-    privateKey: string,
-    badgeType: "gold" | "silver" | "bronze"
-  ): Promise<{ success: boolean; tokenId?: string; error?: string }> => {
-    if (!user || !walletAddress || !walletId) {
-      return { success: false, error: "Wallet not connected" };
-    }
-
-    try {
-      // Simulate minting process
-      toast({
-        title: "Đang mint...",
-        description: "Vui lòng chờ trong giây lát",
-      });
-
-      // In production: call actual smart contract
-      // const provider = getProvider();
-      // const wallet = new ethers.Wallet(privateKey, provider);
-      // const contract = new ethers.Contract(FUN_BADGE_CONTRACT, ..., wallet);
-      // const tx = await contract.mint(badgeType);
-      // await tx.wait();
-
-      // Simulated token ID
-      const tokenId = Math.floor(Math.random() * 10000).toString();
-
-      // Add to database
-      const badgeNames = {
-        gold: "FUN Gold Badge",
-        silver: "FUN Silver Badge",
-        bronze: "FUN Bronze Badge",
-      };
-
-      const badgeImages = {
-        gold: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop",
-        silver: "https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=400&h=400&fit=crop",
-        bronze: "https://images.unsplash.com/photo-1614680376408-16a7b8d96d1e?w=400&h=400&fit=crop",
-      };
-
-      await addNFT(FUN_BADGE_CONTRACT, tokenId, {
-        name: badgeNames[badgeType],
-        description: `Official FUN ${badgeType.charAt(0).toUpperCase() + badgeType.slice(1)} Badge - Exclusive member of FUN Ecosystem`,
-        image_url: badgeImages[badgeType],
-      });
-
-      toast({
-        title: "Mint thành công! 🎉",
-        description: `Bạn đã sở hữu ${badgeNames[badgeType]}`,
-      });
-
-      return { success: true, tokenId };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Mint failed";
-      toast({
-        title: "Mint thất bại",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      return { success: false, error: errorMessage };
-    }
-  };
+  // Minting requires a real, reviewed contract. Never invent a token ID.
+  const mintFunBadge = async (_key:string,_badge:"gold"|"silver"|"bronze"):Promise<{success:boolean;tokenId?:string;error?:string}> => ({success:false,error:"Mint FUN Badge chưa khả dụng: chưa cấu hình hợp đồng on-chain được thẩm định."});
 
   // Transfer NFT
   const transferNFT = async (
@@ -217,23 +161,28 @@ export const useNFT = (walletAddress: string | undefined, walletId: string | und
     tokenId: string,
     toAddress: string
   ): Promise<{ success: boolean; hash?: string; error?: string }> => {
-    if (!walletAddress) {
-      return { success: false, error: "Wallet not connected" };
+    if (!walletAddress || !walletId || !user) {
+      return { success: false, error: "Đăng nhập và chọn ví trước khi chuyển NFT" };
     }
 
     try {
       const provider = getProvider();
-      const wallet = new ethers.Wallet(privateKey, provider);
+      const wallet = createSessionSigner(privateKey, provider);
+      if(wallet.address.toLowerCase()!==walletAddress.toLowerCase())throw Error('Khóa ký không khớp ví đang chọn');
+      await verifyErc721Ownership(provider,contractAddress,tokenId,walletAddress);
       const contract = new ethers.Contract(contractAddress, ERC721_ABI, wallet);
 
       const tx = await contract.safeTransferFrom(walletAddress, toAddress, tokenId);
-      await tx.wait();
+      const receipt=await tx.wait();
+      if(!receipt||receipt.status!==1)throw Error("Giao dịch NFT chưa được xác nhận thành công");
 
       // Remove from database
       await supabase
         .from("nft_collections")
         .delete()
-        .eq("contract_address", contractAddress)
+        .eq("user_id",user!.id)
+        .eq("wallet_id",walletId!)
+        .eq("contract_address", contractAddress.toLowerCase())
         .eq("token_id", tokenId);
 
       await fetchNFTs();

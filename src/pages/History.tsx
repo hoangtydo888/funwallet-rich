@@ -58,6 +58,7 @@ const statusColors: Record<string, string> = {
   pending: "bg-warning/20 text-warning",
   failed: "bg-destructive/20 text-destructive",
   active: "bg-primary/20 text-primary",
+  unknown: "bg-muted text-muted-foreground",
 };
 
 const History = () => {
@@ -121,7 +122,7 @@ const History = () => {
         amount: formatTxValue(tx.value, decimals),
         from_address: tx.from,
         to_address: tx.to,
-        status: tx.isError === '0' ? 'success' : 'failed',
+        status: tx.isError === '0' ? 'success' : tx.isError === '1' ? 'failed' : 'unknown',
         tx_hash: tx.hash,
         created_at: new Date(parseInt(tx.timeStamp) * 1000).toISOString(),
         tx_timestamp: new Date(parseInt(tx.timeStamp) * 1000).toISOString(),
@@ -305,7 +306,7 @@ const History = () => {
       tx.tx_type.toUpperCase(),
       tx.token_symbol,
       tx.amount,
-      tx.status === 'success' ? 'Thành công' : tx.status === 'pending' ? 'Đang xử lý' : 'Thất bại',
+      tx.status === 'success' ? 'Thành công' : tx.status === 'pending' ? 'Đang xử lý' : tx.status === 'unknown' ? 'Chưa xác minh' : 'Thất bại',
       tx.tx_hash.slice(0, 20) + '...'
     ]);
 
@@ -469,7 +470,7 @@ const History = () => {
                           <Badge className={`text-xs ${statusColors[tx.status]}`}>
                             {tx.status === "success" ? "✅ Success" :
                              tx.status === "pending" ? "⏳ Pending" :
-                             tx.status === "active" ? "🔄 Active" : "❌ Failed"}
+                             tx.status === "active" ? "🔄 Active" : tx.status === "unknown" ? "Chưa xác minh" : "❌ Failed"}
                           </Badge>
                         </div>
                         

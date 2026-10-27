@@ -16,28 +16,32 @@ const vault = JSON.stringify({version:1,wallets:{[first.address]:await encryptPr
 const compiled = await build({ entryPoints:['src/extension/src/background/service-worker.ts'], bundle:true, packages:'external', platform:'node', format:'esm', write:false, alias:{'@shared':'./src/shared'}, plugins:[{
   name:'offline-rpc', setup(build) {
     build.onResolve({filter:/^ethers$/}, () => ({path:'ethers',namespace:'offline'}));
-    build.onLoad({filter:/.*/,namespace:'offline'}, () => ({contents:'export const ethers = globalThis.__walletTestEthers;'}));
+    build.onLoad({filter:/.*/,namespace:'offline'}, () => ({contents:'export const ethers = globalThis.__walletTestEthers; export const Wallet=ethers.Wallet;'}));
   }
 }] });
 await writeFile(new URL('worker.mjs',dir),compiled.outputFiles[0].text);
 let serial=0;
-async function setup({panelFails=false, sessionData={}, broadcastFails=false}={}) {
+async function setup({panelFails=false, sessionData={}, broadcastFails=false, rpcState={}}={}) {
   const local={fun_wallet_active:active.address,fun_wallet_encrypted_v2:vault,fun_wallet_chain:'56',fun_wallet_last_activity:String(Date.now())};
   const session={...sessionData};
-  const events={}; const sent=[]; const windows=[]; const broadcasts=[];
+  const events={}; const sent=[]; const windows=[]; const broadcasts=[];const panelOptions=[];
   const tabs=new Map([[1,{id:1,windowId:1,url:'https://fun.rich/profile'}],[2,{id:2,windowId:1,url:'https://other.example/'}]]);
   const event=name=>({addListener(fn){events[name]=fn;}});
   const area=data=>({async setAccessLevel(){},async get(key){return key===null?{...data}:{[key]:data[key]};},async set(values){Object.assign(data,structuredClone(values));},async remove(key){delete data[key];}});
   globalThis.chrome={
     runtime:{id:'wallet',getURL:path=>`chrome-extension://wallet/${path}`,onMessage:event('message')},
-    storage:{local:area(local),session:area(session)},
-    sidePanel:{async setPanelBehavior(){},async open(){if(panelFails)throw new Error('user gesture required');}},
+    storage:{local:area(local),session:area(session),onChanged:event('storageChanged')},
+    sidePanel:{async setPanelBehavior(){},async setOptions(options){panelOptions.push(options);},async open(){if(panelFails)throw new Error('user gesture required');}},
     alarms:{async create(){},onAlarm:event('alarm')},
     tabs:{async get(id){return tabs.get(id);},async query(){return [...tabs.values()];},async sendMessage(id,message,options){sent.push({id,message,options});},onRemoved:event('tabRemoved'),onUpdated:event('tabUpdated')},
     windows:{async get(){return {top:0,left:0,width:1280,height:900};},async create(options){windows.push(options);return {id:100};},onRemoved:event('windowRemoved')},
   };
   class Provider {
     async getNetwork(){return {chainId:56n};}
+    async getTransactionReceipt(hash){return rpcState.receipt ? {...rpcState.receipt,hash} : null;}
+    async getBlockNumber(){return rpcState.head ?? 101;}
+    async getBlock(){return {hash:rpcState.canonicalHash ?? '0xaaa'};}
+    async send(method){return method==='eth_blockNumber' ? '0x65' : rpcState.rawReceipt ?? null;}
     async estimateGas(){return 65000n;}
     async getFeeData(){return {gasPrice:1000000000n,maxFeePerGas:null,maxPriorityFeePerGas:null};}
     async getBalance(){return ethers.parseEther('100');}
@@ -62,7 +66,7 @@ async function setup({panelFails=false, sessionData={}, broadcastFails=false}={}
     const request=await next();
     assert.equal((await send({type:'APPROVE_CONNECTION',payload:{requestId:request.id}})).success,true);
   };
-  return {local,session,tabs,sent,windows,broadcasts,events,popup,page,send,unlock,next,connect};
+  return {local,session,tabs,sent,windows,broadcasts,panelOptions,events,popup,page,send,unlock,next,connect};
 }
 
 test('connection preserves client ID, resumes after unlock and scopes account event to its origin', async()=>{
@@ -109,7 +113,7 @@ test('token approval uses selected account, exact calldata, quoted fees; double 
   const review=await h.send({type:'REVIEW_TRANSACTION',payload:{requestId:request.id}});
   assert.equal(review.success,true);assert.equal(review.data.amount,'500000.0');assert.equal(review.data.symbol,'CAMLY');
   assert.equal(review.data.recipient,recipient);
-  const payload={requestId:request.id,reviewId:review.data.id,password};
+  const payload={requestId:request.id,reviewId:review.data.id};
   const results=await Promise.all([h.send({type:'APPROVE_TRANSACTION',payload}),h.send({type:'APPROVE_TRANSACTION',payload})]);
   assert.equal(results.filter(x=>x.success).length,1);
   assert.equal(h.broadcasts.length,1);
@@ -142,7 +146,7 @@ test('broadcast uncertainty consumes request and never allows silent retry',asyn
   await h.send({type:'eth_sendTransaction',requestId:'uncertain',payload:[{from:active.address,to:first.address,value:'0x1'}]},h.page());
   const request=await h.next();
   const review=await h.send({type:'REVIEW_TRANSACTION',payload:{requestId:request.id}});
-  const payload={requestId:request.id,reviewId:review.data.id,password};
+  const payload={requestId:request.id,reviewId:review.data.id};
   assert.equal((await h.send({type:'APPROVE_TRANSACTION',payload})).success,false);
   assert.equal((await h.send({type:'APPROVE_TRANSACTION',payload})).success,false);
   assert.equal(h.broadcasts.length,1);
@@ -201,4 +205,58 @@ test('unknown or stale quote cannot authorize a transaction',async()=>{
     assert.equal((await h.send({type:'APPROVE_TRANSACTION',payload:{requestId:request.id,password,reviewId:quote.data.id}})).success,false);
   } finally {Date.now=originalNow;}
   assert.equal(h.broadcasts.length,0);
+});
+test('one-click send saves pending activity and receipt updates it without another signature',async()=>{
+  const rpcState={receipt:{blockNumber:100,blockHash:'0xaaa',status:1},head:101};
+  const h=await setup({rpcState});await h.connect();
+  await h.send({type:'eth_sendTransaction',requestId:'gift',payload:[{from:active.address,to:first.address,value:'0x1'}]},h.page());
+  const request=await h.next();
+  const review=await h.send({type:'REVIEW_TRANSACTION',payload:{requestId:request.id}});
+  const sent=await h.send({type:'APPROVE_TRANSACTION',payload:{requestId:request.id,reviewId:review.data.id}});
+  assert.equal(sent.success,true);
+  let activity=(await h.send({type:'GET_ACTIVITY'})).data;
+  assert.equal(activity[0].hash,sent.data);
+  assert.equal(activity[0].status,'pending');
+  assert.equal((await h.send({type:'REFRESH_ACTIVITY'})).success,true);
+  activity=(await h.send({type:'GET_ACTIVITY'})).data;
+  assert.equal(activity[0].status,'confirmed');
+  assert.equal(activity[0].confirmations,2);
+  assert.equal(h.broadcasts.length,1);
+  const saved=JSON.stringify(h.session)+JSON.stringify(h.local);
+  assert.equal(saved.includes(password),false);
+  assert.equal(saved.includes(active.privateKey),false);
+});
+test('locked session cannot approve just by resending a password in an approval message',async()=>{
+  const h=await setup();await h.connect();
+  await h.send({type:'personal_sign',requestId:'locked',payload:['0x1234',active.address]},h.page());
+  const request=await h.next();
+  await h.send({type:'LOCK_WALLET'});
+  assert.equal((await h.send({type:'APPROVE_SIGN',payload:{requestId:request.id,password}})).code,4100);
+});
+test('dApp can poll a receipt and block height; malformed hash is rejected',async()=>{
+  const h=await setup();
+  assert.equal((await h.send({type:'eth_blockNumber',requestId:'height',payload:[]},h.page())).data,'0x65');
+  assert.equal((await h.send({type:'eth_getTransactionReceipt',requestId:'poll',payload:['0x'+'a'.repeat(64)]},h.page())).data,null);
+  assert.equal((await h.send({type:'eth_getTransactionReceipt',requestId:'bad',payload:['http://wrong']},h.page())).code,-32602);
+});
+
+test('connection opens the exact approval route instead of an old side-panel page',async()=>{
+ const h=await setup();await h.send({type:'eth_requestAccounts',requestId:'open-flow'},h.page());const request=await h.next();
+ assert.equal(h.panelOptions.length,1);assert.equal(h.panelOptions[0].tabId,1);assert.equal(h.panelOptions[0].enabled,true);assert.match(h.panelOptions[0].path,new RegExp('surface=approval-panel#\\/request\\?requestId='+request.id));
+});
+test('connection account selection requires a local key and a separate unlock/approval',async()=>{
+ const h=await setup();await h.send({type:'eth_requestAccounts',requestId:'choose-account'},h.page());const request=await h.next();
+ const accounts=await h.send({type:'GET_CONNECTION_ACCOUNTS',payload:{requestId:request.id}});
+ assert.equal(accounts.success,true);assert.equal(accounts.data.length,2);assert.equal(JSON.stringify(accounts).includes(first.privateKey),false);
+ assert.equal((await h.send({type:'SELECT_CONNECTION_ACCOUNT',payload:{requestId:request.id,account:'0x'+'9'.repeat(40)}})).code,4100);
+ assert.equal((await h.send({type:'SELECT_CONNECTION_ACCOUNT',requestId:'spoof',payload:{requestId:request.id,account:first.address}},h.page())).code,4200);
+ await h.unlock();const selected=await h.send({type:'SELECT_CONNECTION_ACCOUNT',payload:{requestId:request.id,account:first.address}});
+ assert.equal(selected.data.unlocked,false);assert.equal(selected.data.request.account,first.address);assert.equal(h.local.fun_wallet_active,first.address);
+ assert.equal((await h.send({type:'APPROVE_CONNECTION',payload:{requestId:request.id}})).code,4100);
+ await h.unlock();assert.equal((await h.send({type:'APPROVE_CONNECTION',payload:{requestId:request.id}})).success,true);
+ assert.deepEqual(h.sent.find(row=>row.message.type==='FUN_WALLET_RESPONSE').message.result,[first.address]);
+});
+test('retry brings the original approval forward without authorizing a second request',async()=>{
+ const h=await setup();await h.send({type:'eth_requestAccounts',requestId:'first'},h.page());const firstRequest=await h.next();
+ const next=await h.send({type:'eth_requestAccounts',requestId:'retry'},h.page());assert.equal(next.code,-32002);assert.equal((await h.next()).id,firstRequest.id);assert.equal(h.panelOptions.length,2);
 });

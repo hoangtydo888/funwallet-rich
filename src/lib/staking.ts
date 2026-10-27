@@ -20,68 +20,8 @@ export interface StakingPool {
 }
 
 // Available staking pools (simulated for demo)
-export const STAKING_POOLS: StakingPool[] = [
-  {
-    id: "cake-bnb",
-    name: "CAKE-BNB LP",
-    tokenAddress: "0x0eD7e52944161450477ee417DE9Cd3a859b14fD0",
-    tokenSymbol: "CAKE-BNB LP",
-    rewardToken: "CAKE",
-    apy: 24.5,
-    tvl: "$156.2M",
-    minStake: "0.01",
-    lockPeriod: 0,
-    logo: "🥞"
-  },
-  {
-    id: "cake-pool",
-    name: "CAKE Syrup Pool",
-    tokenAddress: CAKE_ADDRESS,
-    tokenSymbol: "CAKE",
-    rewardToken: "CAKE",
-    apy: 12.8,
-    tvl: "$89.4M",
-    minStake: "0.1",
-    lockPeriod: 0,
-    logo: "🎂"
-  },
-  {
-    id: "bnb-usdt",
-    name: "BNB-USDT LP",
-    tokenAddress: "0x16b9a82891338f9bA80E2D6970FddA79D1eb0daE",
-    tokenSymbol: "BNB-USDT LP",
-    rewardToken: "CAKE",
-    apy: 18.3,
-    tvl: "$234.7M",
-    minStake: "0.01",
-    lockPeriod: 0,
-    logo: "💰"
-  },
-  {
-    id: "eth-bnb",
-    name: "ETH-BNB LP",
-    tokenAddress: "0x74E4716E431f45807DCF19f284c7aa99F18a4fbc",
-    tokenSymbol: "ETH-BNB LP",
-    rewardToken: "CAKE",
-    apy: 15.2,
-    tvl: "$78.9M",
-    minStake: "0.001",
-    lockPeriod: 0,
-    logo: "⟠"
-  },
-  {
-    id: "cake-locked",
-    name: "CAKE Locked Staking",
-    tokenAddress: CAKE_ADDRESS,
-    tokenSymbol: "CAKE",
-    rewardToken: "CAKE",
-    apy: 45.6,
-    tvl: "$412.3M",
-    minStake: "1",
-    lockPeriod: 365,
-    logo: "🔒"
-  }
-];
+export const STAKING_ENABLED = false;
+export const STAKING_POOLS: StakingPool[] = [];
 
 // User stake info
 export interface UserStake {
@@ -122,98 +62,11 @@ export const getTokenBalance = async (
   }
 };
 
-// Simulate staking (demo - actual implementation would use MasterChef contract)
-export const stakeTokens = async (
-  privateKey: string,
-  poolId: string,
-  amount: string
-): Promise<{ success: boolean; txHash?: string; error?: string }> => {
-  try {
-    const pool = STAKING_POOLS.find(p => p.id === poolId);
-    if (!pool) {
-      return { success: false, error: "Pool not found" };
-    }
-
-    const provider = getProvider();
-    const wallet = new ethers.Wallet(privateKey, provider);
-    
-    // Check token balance
-    const tokenContract = new ethers.Contract(pool.tokenAddress, ERC20_ABI, provider);
-    const decimals = await tokenContract.decimals();
-    const balance = await tokenContract.balanceOf(wallet.address);
-    const amountWei = ethers.parseUnits(amount, decimals);
-    
-    if (balance < amountWei) {
-      return { success: false, error: "Insufficient token balance" };
-    }
-
-    // In a real implementation, this would:
-    // 1. Approve MasterChef to spend tokens
-    // 2. Call deposit() on MasterChef
-    // For demo, we simulate a successful stake
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Generate mock tx hash
-    const mockTxHash = `0x${Array.from({ length: 64 }, () => 
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}`;
-
-    return { success: true, txHash: mockTxHash };
-  } catch (error: any) {
-    console.error("Staking error:", error);
-    return { success: false, error: error.message || "Failed to stake" };
-  }
-};
-
-// Simulate unstaking
-export const unstakeTokens = async (
-  privateKey: string,
-  poolId: string,
-  amount: string
-): Promise<{ success: boolean; txHash?: string; error?: string }> => {
-  try {
-    const pool = STAKING_POOLS.find(p => p.id === poolId);
-    if (!pool) {
-      return { success: false, error: "Pool not found" };
-    }
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Generate mock tx hash
-    const mockTxHash = `0x${Array.from({ length: 64 }, () => 
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}`;
-
-    return { success: true, txHash: mockTxHash };
-  } catch (error: any) {
-    console.error("Unstaking error:", error);
-    return { success: false, error: error.message || "Failed to unstake" };
-  }
-};
-
-// Claim rewards
-export const claimRewards = async (
-  privateKey: string,
-  poolId: string
-): Promise<{ success: boolean; txHash?: string; error?: string }> => {
-  try {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Generate mock tx hash
-    const mockTxHash = `0x${Array.from({ length: 64 }, () => 
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}`;
-
-    return { success: true, txHash: mockTxHash };
-  } catch (error: any) {
-    console.error("Claim rewards error:", error);
-    return { success: false, error: error.message || "Failed to claim rewards" };
-  }
-};
+// No verified staking contracts are configured. Never fabricate tx hashes.
+const unavailable: {success:boolean;txHash?:string;error?:string} = {success:false,error:"Staking chưa khả dụng: chưa có hợp đồng được thẩm định và cấu hình."};
+export const stakeTokens = async (_key:string,_pool:string,_amount:string) => unavailable;
+export const unstakeTokens = async (_key:string,_pool:string,_amount:string) => unavailable;
+export const claimRewards = async (_key:string,_pool:string) => unavailable;
 
 // Calculate estimated rewards
 export const calculateRewards = (

@@ -1,3 +1,4 @@
+import { walletKeySession } from "./walletKeySession";
 import { ethers } from "ethers";
 
 // Backup data structure
@@ -116,11 +117,12 @@ export const createBackup = async (
   password: string
 ): Promise<string> => {
   try {
+    if (password.length < 12) throw new Error("Mật khẩu sao lưu cần ít nhất 12 ký tự");
     const backupWallets: WalletBackup["wallets"] = [];
 
     for (const wallet of wallets) {
       // Get private key from local storage
-      const storedKey = localStorage.getItem(`pk_${wallet.address.toLowerCase()}`);
+      const storedKey = walletKeySession.getKey(wallet.address);
       if (!storedKey) {
         throw new Error(`Private key not found for ${wallet.address}`);
       }
@@ -257,33 +259,12 @@ export const syncToCloud = async (
   userId: string,
   encryptedBackup: string
 ): Promise<{ success: boolean; error?: string }> => {
-  try {
-    // Store in localStorage as a simulated cloud
-    localStorage.setItem(`cloud_backup_${userId}`, encryptedBackup);
-    localStorage.setItem(`cloud_backup_timestamp_${userId}`, Date.now().toString());
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+  return {success:false,error:"Chưa cấu hình dịch vụ sao lưu đám mây. Hãy tải tệp sao lưu mã hóa về thiết bị."};
 };
 
 // Get cloud backup
 export const getCloudBackup = async (
   userId: string
 ): Promise<{ backup: string | null; timestamp: number | null }> => {
-  try {
-    const backup = localStorage.getItem(`cloud_backup_${userId}`);
-    const timestamp = localStorage.getItem(`cloud_backup_timestamp_${userId}`);
-    
-    return {
-      backup,
-      timestamp: timestamp ? parseInt(timestamp) : null,
-    };
-  } catch {
-    return { backup: null, timestamp: null };
-  }
+  return {backup:null,timestamp:null};
 };

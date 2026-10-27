@@ -95,12 +95,10 @@ export const SwapDialog = ({
   const handleSwap = async () => {
     if (!amountIn || !amountOut) return;
 
-    // Warn if using estimated price
+    // An estimated off-chain price is not a safe execution quote.
     if (isEstimate) {
-      toast({
-        title: "Cảnh báo",
-        description: "Đây là giá ước tính. Token có thanh khoản thấp có thể có slippage cao.",
-      });
+      toast({title:"Chưa có báo giá on-chain",description:"Không thực hiện swap từ giá ước tính. Hãy lấy báo giá mới.",variant:"destructive"});
+      return;
     }
 
     const privateKey = getPrivateKey(walletAddress);

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, Loader2, Shield, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { decryptPrivateKey } from '@shared/lib/encryption';
+import { decryptRecoveryPhrase } from '@shared/lib/encryption';
 import { STORAGE_KEYS } from '@shared/storage/types';
 import { SecureWalletStorage } from '@shared/types';
 
@@ -75,7 +75,7 @@ function BackupSeedSettingsPage() {
 
     try {
       const encryptedData = encryptedMnemonic[activeWallet];
-      const decryptedMnemonic = await decryptPrivateKey(encryptedData, password);
+      const decryptedMnemonic = await decryptRecoveryPhrase(encryptedData, password);
       
       setMnemonic(decryptedMnemonic);
       setStep('show');

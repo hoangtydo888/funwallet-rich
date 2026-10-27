@@ -1,3 +1,5 @@
+import { formatUnits } from "ethers";
+import { exactTokenUnits,decimalIsPositive } from "@/lib/tokenAmounts";
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -64,9 +66,9 @@ export const useBulkTransfer = () => {
         items.push({
           address,
           amount,
-          status: isValidAddress(address) && parseFloat(amount) > 0 ? 'pending' : 'failed',
+          status: isValidAddress(address) && decimalIsPositive(amount) ? 'pending' : 'failed',
           error: !isValidAddress(address) ? 'Địa chỉ không hợp lệ' : 
-                 parseFloat(amount) <= 0 ? 'Số tiền không hợp lệ' : undefined,
+                 !decimalIsPositive(amount) ? 'Số tiền không hợp lệ' : undefined,
         });
       }
     }
@@ -80,7 +82,7 @@ export const useBulkTransfer = () => {
     const invalid: TransferItem[] = [];
 
     for (const item of items) {
-      if (isValidAddress(item.address) && parseFloat(item.amount) > 0) {
+      if (isValidAddress(item.address) && decimalIsPositive(item.amount)) {
         valid.push({ ...item, status: 'pending' });
       } else {
         invalid.push({
@@ -123,7 +125,7 @@ export const useBulkTransfer = () => {
     if (!token) return { bulkTransferId: null, results: items };
 
     // Calculate total amount
-    const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
+    const totalAmount = formatUnits(items.reduce((sum,item)=>sum+exactTokenUnits(item.amount,token.decimals),0n),token.decimals);
 
     // Create bulk transfer record
     const { data: bulkTransferData, error: bulkError } = await supabase

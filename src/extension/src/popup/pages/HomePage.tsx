@@ -15,6 +15,10 @@ import { useTokenPrices } from '@shared/hooks/useTokenPrices';
 import { useBalance } from '@shared/hooks/useBalance';
 import { formatPrice } from '@shared/lib/priceTracker';
 import { TokenList } from '../../components/TokenList';
+import RecentActivity from '../components/RecentActivity';
+
+const topTokens = COMMON_TOKENS;
+const tokenSymbols = topTokens.map(t => t.symbol);
 
 function HomePage() {
   const navigate = useNavigate();
@@ -22,8 +26,6 @@ function HomePage() {
   const [copied, setCopied] = useState(false);
 
   // Get all tokens (không giới hạn 5)
-  const topTokens = COMMON_TOKENS;
-  const tokenSymbols = topTokens.map(t => t.symbol);
 
   // Fetch prices using shared hook
   const { priceMap, loading: pricesLoading, refetch: refetchPrices } = useTokenPrices(
@@ -203,6 +205,7 @@ function HomePage() {
       
       {/* Token List */}
       <div className="flex-1 overflow-y-auto p-4 pt-0">
+        <RecentActivity account={address} onConfirmed={refreshBalances} />
         <h3 className="text-sm font-medium text-muted-foreground mb-2">Tokens</h3>
         <TokenList 
           tokens={tokenListData} 

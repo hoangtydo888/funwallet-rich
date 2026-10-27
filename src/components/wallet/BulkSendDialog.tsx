@@ -1,3 +1,6 @@
+import { assetKey } from "@/lib/assetIdentity";
+import { parseUnits, formatUnits } from "ethers";
+import { exactTokenUnits, decimalIsPositive } from "@/lib/tokenAmounts";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Dialog,
@@ -87,9 +90,9 @@ export const BulkSendDialog = ({
 }: BulkSendDialogProps) => {
   const { user } = useAuth();
   // Ưu tiên CAMLY làm token mặc định
-  const [selectedToken, setSelectedToken] = useState(() => {
+  const [selectedTokenKey, setSelectedTokenKey] = useState(() => {
     const camly = balances.find(b => b.symbol === "CAMLY");
-    return camly ? "CAMLY" : "BNB";
+    return camly ? assetKey(camly) : "native";
   });
   const [items, setItems] = useState<TransferItem[]>([]);
   const [manualInput, setManualInput] = useState("");
@@ -109,7 +112,9 @@ export const BulkSendDialog = ({
   // Gas price estimate (in BNB) - average gas per transfer
   const GAS_PER_TRANSFER = 0.00021; // ~21000 gas * 10 gwei
 
-  const selectedBalance = balances.find((b) => b.symbol === selectedToken);
+  const selectedBalance = balances.find((b) => assetKey(b) === selectedTokenKey);
+  const selectedToken=selectedBalance?.symbol ?? "BNB";
+  const isNative=selectedBalance?.address === null;
   const maxAmount = parseFloat(selectedBalance?.balance || "0");
 
   // Fetch user stats and history
@@ -323,7 +328,7 @@ export const BulkSendDialog = ({
     for (const item of itemsList) {
       if (!isValidAddress(item.address)) {
         invalid.push({ ...item, status: "failed", error: "Địa chỉ không hợp lệ" });
-      } else if (isNaN(parseFloat(item.amount)) || parseFloat(item.amount) <= 0) {
+      } else if (isNaN(parseFloat(item.amount)) || !decimalIsPositive(item.amount)) {
         invalid.push({ ...item, status: "failed", error: "Số lượng không hợp lệ" });
       } else {
         valid.push(item);
@@ -357,6 +362,7 @@ export const BulkSendDialog = ({
 
   // Execute bulk transfer with database logging - accepts items as parameter
   const handleBulkSendWithItems = async (itemsToSend: TransferItem[]) => {
+    if (!selectedBalance) {toast({title:"Chọn lại token trước khi gửi",variant:"destructive"});return;}
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
       toast({
@@ -378,20 +384,24 @@ export const BulkSendDialog = ({
       return;
     }
 
-    const totalAmt = valid.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+    const tokenDecimals=isNative ? 18 : balances.find(b=>assetKey(b)===selectedTokenKey)?.decimals ?? 18;
+    let totalUnits:bigint;
+    try { totalUnits=valid.reduce((sum,item)=>sum+exactTokenUnits(item.amount,tokenDecimals),0n); }
+    catch { toast({title:"Có số tiền vượt precision token; kiểm tra lại danh sách",variant:"destructive"});return; }
+    const totalAmt=formatUnits(totalUnits,tokenDecimals);
     
     // Check real blockchain balance before sending
-    const token = balances.find((b) => b.symbol === selectedToken);
-    const realBalance = selectedToken === "BNB"
+    const token = balances.find((b) => assetKey(b) === selectedTokenKey);
+    const realBalance = isNative
       ? await getBNBBalance(walletAddress)
       : await getTokenBalance(token?.address || "", walletAddress);
     
-    const realBalanceNum = parseFloat(realBalance);
+    const realBalanceNum = parseUnits(realBalance,tokenDecimals);
     
-    if (totalAmt > realBalanceNum) {
+    if (totalUnits > realBalanceNum) {
       toast({
         title: "Số dư thực tế không đủ!",
-        description: `Số dư trên blockchain: ${formatBalance(realBalance)} ${selectedToken}. Cần: ${totalAmt.toFixed(4)} ${selectedToken}`,
+        description: `Số dư trên blockchain: ${formatBalance(realBalance)} ${selectedToken}. Cần: ${totalAmt} ${selectedToken}`,
         variant: "destructive",
       });
       return;
@@ -399,11 +409,12 @@ export const BulkSendDialog = ({
 
     // Check BNB for gas
     const bnbBalance = await getBNBBalance(walletAddress);
-    const estimatedGas = valid.length * GAS_PER_TRANSFER;
-    if (parseFloat(bnbBalance) < estimatedGas) {
+    const estimatedGasUnits=BigInt(valid.length)*parseUnits(String(GAS_PER_TRANSFER),18);
+    const estimatedGas=formatUnits(estimatedGasUnits,18);
+    if (parseUnits(bnbBalance,18) < estimatedGasUnits) {
       toast({
         title: "Không đủ BNB cho phí gas",
-        description: `Cần ít nhất ${estimatedGas.toFixed(4)} BNB cho ${valid.length} giao dịch. Có: ${parseFloat(bnbBalance).toFixed(4)} BNB`,
+        description: `Cần ít nhất ${estimatedGas} BNB cho ${valid.length} giao dịch. Có: ${bnbBalance} BNB`,
         variant: "destructive",
       });
       return;
@@ -417,7 +428,7 @@ export const BulkSendDialog = ({
     // Create bulk transfer record
     let bulkTransferId: string | null = null;
     if (user) {
-      const tokenData = balances.find((b) => b.symbol === selectedToken);
+      const tokenData = balances.find((b) => assetKey(b) === selectedTokenKey);
       const { data: bulkData } = await supabase
         .from('bulk_transfers')
         .insert({
@@ -451,7 +462,7 @@ export const BulkSendDialog = ({
       const item = valid[i];
       
       let result;
-      if (selectedToken === "BNB") {
+      if (isNative) {
         result = await sendBNB(privateKey, item.address, item.amount);
       } else {
         if (!token?.address) continue;
@@ -675,7 +686,7 @@ export const BulkSendDialog = ({
                 {/* Token Selection */}
                 <div className="space-y-2">
                   <Label>Chọn token</Label>
-                  <Select value={selectedToken} onValueChange={setSelectedToken} disabled={isProcessing}>
+                  <Select value={selectedTokenKey} onValueChange={setSelectedTokenKey} disabled={isProcessing}>
                     <SelectTrigger>
                       <SelectValue>
                         <div className="flex items-center gap-2">
@@ -700,7 +711,7 @@ export const BulkSendDialog = ({
                           return parseFloat(b.balance) - parseFloat(a.balance);
                         })
                         .map((token) => (
-                        <SelectItem key={token.symbol} value={token.symbol}>
+                        <SelectItem key={assetKey(token)} value={assetKey(token)}>
                           <div className="flex items-center gap-2">
                             <img
                               src={token.logo}

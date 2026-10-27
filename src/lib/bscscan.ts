@@ -1,3 +1,4 @@
+import {formatExactTokenValue} from './tokenAmounts';
 // BSCScan API integration via Edge Function Proxy (bypass CORS)
 import { supabase } from "@/integrations/supabase/client";
 
@@ -118,12 +119,7 @@ export const getAllTransactions = async (
 };
 
 // Format transaction value
-export const formatTxValue = (value: string, decimals: number = 18): string => {
-  const val = parseFloat(value) / Math.pow(10, decimals);
-  if (val === 0) return "0";
-  if (val < 0.0001) return "<0.0001";
-  return val.toFixed(4);
-};
+export const formatTxValue = formatExactTokenValue;
 
 // Get transaction direction
 export const getTxDirection = (

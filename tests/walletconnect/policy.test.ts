@@ -9,7 +9,7 @@ describe('WalletConnect transfer policy',()=>{
   it('rejects another sender',()=>expect(()=>unsignedTransfer({from:to,to},from)).toThrow());
   it('rejects another chain',()=>expect(()=>unsignedTransfer({from,to,chainId:'0x1'},from)).toThrow());
   it('rejects numeric token quantities',()=>expect(()=>unsignedTransfer({from,to,value:123},from)).toThrow());
-  it('decodes CAMLY recipient and exact amount',()=>{const r=unsignedTransfer({from,to:'0x0910320181889fefde0bb1ca63962b0a8882e413',data:iface.encodeFunctionData('transfer',[to,1000000000000000001n])},from);expect(r.recipient).toBe(to);expect(r.amount).toBe('1.000000000000000001');expect(r.symbol).toBe('CAMLY');});
+  it('decodes CAMLY recipient and exact amount',()=>{const r=unsignedTransfer({from,to:'0x0910320181889fefde0bb1ca63962b0a8882e413',data:iface.encodeFunctionData('transfer',[to,9007199254740993001n])},from);expect(r.recipient).toBe(to);expect(r.amount).toBe('9007199254740993.001');expect(r.symbol).toBe('CAMLY');});
   it('rejects approvals and unknown contracts',()=>{expect(()=>unsignedTransfer({from,to,data:iface.encodeFunctionData('transfer',[to,1n])},from)).toThrow();expect(()=>unsignedTransfer({from,to:'0x0910320181889fefde0bb1ca63962b0a8882e413',data:'0x095ea7b3'},from)).toThrow();});
   it('rejects transfer calldata with extra bytes',()=>expect(()=>unsignedTransfer({from,to:'0x0910320181889fefde0bb1ca63962b0a8882e413',data:iface.encodeFunctionData('transfer',[to,1n])+'00'},from)).toThrow());
 });

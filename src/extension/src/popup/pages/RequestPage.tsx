@@ -1,3 +1,5 @@
+import {popupRpc} from '../popupRpc';
+import {ConnectionSteps} from '../components/ConnectionSteps';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, CheckCircle2, Globe2, ShieldCheck, RefreshCw } from 'lucide-react';
@@ -7,11 +9,7 @@ import { COMMON_TOKENS } from '@shared/constants/tokens';
 import { ApprovalRequest, TransactionReview, RpcTransaction, displayAmount, REQUEST_TTL } from '../../lib/approval';
 import UnlockPage from './UnlockPage';
 
-async function call<T>(type: string, payload?: Record<string, unknown>): Promise<T> {
-  const response = await chrome.runtime.sendMessage({ type, payload });
-  if (!response?.success) throw new Error(response?.error || 'Không thể liên lạc với ví');
-  return response.data as T;
-}
+const call=popupRpc;
 function messageText(request: ApprovalRequest) {
   const content = request.params[0] as string;
   try {
@@ -28,11 +26,14 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState<TransactionReview | null>(null);
   const [reviewing, setReviewing] = useState(false);
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   const [done, setDone] = useState<'approved' | 'rejected' | null>(null);
   const [hash, setHash] = useState('');
+  const [accounts,setAccounts]=useState<Array<{address:string;name:string}>>([]);
+  const [selectedAccount,setSelectedAccount]=useState('');
+  const [connectionStage,setConnectionStage]=useState<'accounts'|'permissions'>('accounts');
+  const [loadVersion,setLoadVersion]=useState(0);
   const [now, setNow] = useState(Date.now());
   const actionInFlight = useRef(false);
   const reviewSequence = useRef(0);
@@ -40,14 +41,14 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
 
   useEffect(() => {
     let live = true;
-    setLoading(true); setError(''); setReview(null); setPassword(''); setDone(null); setRequest(null);
+    setLoading(true); setError(''); setReview(null); setDone(null); setRequest(null);setAccounts([]);setConnectionStage('accounts');
     Promise.all([call<ApprovalRequest>('GET_PENDING_REQUEST', { requestId }), call<{ unlocked: boolean }>('IS_UNLOCKED')])
-      .then(([next, state]) => { if (live) { setRequest(next); setUnlocked(state.unlocked); } })
+      .then(async([next,state])=>{if(!live)return;setRequest(next);setUnlocked(state.unlocked);setSelectedAccount(next.account);if(next.method==='eth_requestAccounts'){const options=await call<Array<{address:string;name:string}>>('GET_CONNECTION_ACCOUNTS',{requestId});if(live)setAccounts(options);}})
       .catch(e => { if (live) setError(e.message); })
       .finally(() => { if (live) setLoading(false); });
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => { live = false; clearInterval(interval); };
-  }, [requestId]);
+  }, [requestId,loadVersion]);
 
   const refreshReview = useCallback(async () => {
     const sequence = ++reviewSequence.current;
@@ -67,6 +68,8 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
     if (new URLSearchParams(window.location.search).get('surface') === 'approval') window.close();
     else navigate('/');
   };
+  const isConnection=request?.method==='eth_requestAccounts';
+  const selectBeforeUnlock=isConnection&&!accounts.some(a=>a.address.toLowerCase()===request?.account.toLowerCase());
   const isTransaction = request?.method === 'eth_sendTransaction';
   const isSign = request?.method === 'personal_sign' || request?.method === 'eth_signTypedData_v4';
   const isSwitch = request?.method === 'wallet_switchEthereumChain';
@@ -75,21 +78,40 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
   const chain = request ? getChainById(request.chainId) : undefined;
   const targetChain = isSwitch ? getChainById((request!.params[0] as { chainId: number }).chainId) : undefined;
   const token = request?.chainId === 56 && review?.contract ? COMMON_TOKENS.find(t => t.address?.toLowerCase() === review.contract!.toLowerCase()) : undefined;
-  const canApprove = request && !expired && !working && unlocked && (!isSign || password) && (!isTransaction || (review && !quoteExpired && !reviewing && password));
+  const canApprove = request && !expired && !working && unlocked && (!isTransaction || (review && !quoteExpired && !reviewing))&&(!isConnection||connectionStage==='permissions');
 
   const act = async (approve: boolean) => {
     if (actionInFlight.current || !request || (approve && !canApprove)) return;
     actionInFlight.current = true; setWorking(true); setError('');
     const suffix = isTransaction ? 'TRANSACTION' : isSign ? 'SIGN' : 'CONNECTION';
     try {
-      const result = await call<unknown>(`${approve ? 'APPROVE' : 'REJECT'}_${suffix}`, { requestId, ...(approve ? { password, reviewId: review?.id } : {}) });
-      setPassword(''); setDone(approve ? 'approved' : 'rejected');
-      if (approve && isTransaction && typeof result === 'string') setHash(result);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Không thể xử lý yêu cầu'); }
+      const result = await call<unknown>(`${approve ? 'APPROVE' : 'REJECT'}_${suffix}`, { requestId, ...(approve ? { reviewId: review?.id } : {}) });
+      setDone(approve ? 'approved' : 'rejected');
+      if (approve && isTransaction && typeof result === 'string') {
+        setHash(result);
+        onUnlock?.();
+        navigate(`/?tx=${result}`, { replace: true });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không thể xử lý yêu cầu');
+      if (e instanceof Error && e.message.includes('Ví đã khóa')) setUnlocked(false);
+    }
     finally { setWorking(false); actionInFlight.current = false; }
   };
 
-  if (!loading && request && !unlocked && !done) return <UnlockPage onUnlock={() => { setUnlocked(true); onUnlock?.(); }} />;
+  const selectAccount=async()=>{
+    if(actionInFlight.current||!request||!selectedAccount||expired)return;
+    actionInFlight.current=true;setWorking(true);setError('');
+    try{const next=await call<{request:ApprovalRequest;unlocked:boolean}>('SELECT_CONNECTION_ACCOUNT',{requestId,account:selectedAccount});setRequest(next.request);setUnlocked(next.unlocked);setConnectionStage('permissions');}
+    catch(e){setError(e instanceof Error?e.message:'Không chọn được tài khoản');}
+    finally{setWorking(false);actionInFlight.current=false;}
+  };
+  if(!loading&&request&&!unlocked&&!done&&!expired&&!selectBeforeUnlock)return <div className="approval-shell">
+    <header className="approval-header"><img src="/icons/icon-48.png" alt="" width="30" height="30"/><strong>FUN Wallet</strong></header>
+    {isConnection&&<ConnectionSteps stage="unlock"/>}
+    <UnlockPage origin={request.origin} onUnlock={()=>{setUnlocked(true);onUnlock?.();}} onCancel={()=>void act(false)}/>
+    {error&&<p role="alert" className="approval-warning">{error}</p>}
+  </div>;
 
   return <div className="approval-shell">
     <header className="approval-header">
@@ -97,10 +119,11 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
       <strong className="text-base">FUN Wallet</strong>
       <span className="ml-auto flex items-center gap-1 text-xs text-emerald-700"><ShieldCheck size={14} /> Bạn kiểm soát</span>
     </header>
+    {isConnection&&<ConnectionSteps stage={done==='approved'?'done':connectionStage}/> }
     <main className="approval-content" aria-busy={loading || reviewing || working}>
       {loading ? <p role="status">Đang đọc yêu cầu…</p> : done ? <>
         <CheckCircle2 size={40} className="text-emerald-700 mb-4" />
-        <h1 className="text-2xl font-semibold">{done === 'rejected' ? 'Đã hủy yêu cầu' : hash ? 'Đã gửi lên mạng' : 'Đã phê duyệt'}</h1>
+        <h1 className="text-2xl font-semibold">{done === 'rejected' ? 'Đã hủy yêu cầu' : hash ? 'Đã gửi lên mạng' : isConnection?'Đã kết nối FUN Wallet':'Đã phê duyệt'}</h1>
         <p className="approval-label mt-3">{hash ? 'Giao dịch đang chờ xác nhận on-chain.' : 'Ứng dụng đã được thông báo kết quả.'}</p>
         {hash && <a className="approval-address underline mt-5" target="_blank" rel="noreferrer" href={`${chain?.explorer}/tx/${hash}`}>{hash} ↗</a>}
       </> : request ? <>
@@ -113,14 +136,15 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
           {isTransaction && <img src={token?.logo || chain?.logo || '/tokens/default.svg'} alt="" className="w-11 h-11 rounded-full" />}
         </div>
         {!isTransaction && !isSign && !isSwitch && <p className="approval-label mt-3 leading-relaxed">Cho phép ứng dụng xem địa chỉ tài khoản. Mỗi yêu cầu ký hoặc gửi tiền vẫn cần bạn xác nhận riêng.</p>}
-        <section className="approval-card">
+        {isConnection&&connectionStage==='accounts'?<fieldset className="connection-accounts"><legend>Chọn một tài khoản để kết nối</legend>{accounts.map(account=><label key={account.address} className="connection-account"><input type="radio" name="connection-account" value={account.address} checked={selectedAccount.toLowerCase()===account.address.toLowerCase()} disabled={working||expired} onChange={()=>setSelectedAccount(account.address)}/><span><strong>{account.name}</strong><span className="approval-address">{account.address}</span></span></label>)}{!unlocked&&accounts.length>0&&<p className="approval-warning">Ví đang chọn chưa có khóa trên tiện ích này. Chọn tài khoản có khóa để mở khóa và tiếp tục.</p>}{!accounts.length&&<p role="alert" className="approval-warning">Chưa có khóa ví trên tiện ích này. Hãy tạo hoặc import ví ngay trong FUN Wallet, rồi kết nối lại. Không gửi khóa hoặc seed cho website.</p>}</fieldset>:<section className="approval-card">
           <span className="approval-label">{isTransaction ? 'Từ tài khoản' : 'Tài khoản kết nối'}</span>
           <span className="approval-address">{request.account}</span>
           {isTransaction && <div className="border-t border-slate-200 mt-4 pt-4">
             <span className="approval-label">{review?.kind === 'approve' ? 'Bên được cấp quyền' : review?.kind === 'contract' ? 'Hợp đồng tương tác' : 'Đến'}</span>
             <span className="approval-address">{review?.recipient || (request.params[0] as RpcTransaction).to}</span>
           </div>}
-        </section>
+        </section>}
+        {isConnection&&connectionStage==='permissions'&&<section className="approval-card"><h2 className="font-semibold">Quyền ứng dụng yêu cầu</h2><ul className="connection-permissions"><li>Xem địa chỉ tài khoản đã chọn.</li><li>Tra cứu số dư và hoạt động công khai trên blockchain.</li><li>Gửi yêu cầu ký hoặc giao dịch để bạn xem xét riêng.</li></ul><p className="approval-warning">Kết nối không cho phép tự chuyển tiền hoặc đọc khóa riêng/seed. Mỗi chữ ký và giao dịch vẫn cần bạn xác nhận.</p><button type="button" className="mt-3 text-sm text-primary underline" disabled={working} onClick={()=>setConnectionStage('accounts')}>Chọn lại tài khoản</button></section>}
         {isTransaction && review && <section className="approval-card">
           <span className="approval-label">{review.kind === 'approve' ? 'Hạn mức yêu cầu' : 'Giá trị theo yêu cầu'}</span>
           <div className="approval-row font-semibold"><span>{review.kind === 'approve' ? 'Cho phép chi tiêu' : 'Bạn gửi'}</span><span className="text-red-700">{review.unlimited ? 'Không giới hạn' : displayAmount(review.amount)} {review.symbol}</span></div>
@@ -144,18 +168,15 @@ export default function RequestPage({ onUnlock }: { onUnlock?: () => void }) {
         </section>
         {isTransaction && <details className="mt-4 text-xs"><summary className="cursor-pointer text-slate-500">Xem dữ liệu giao dịch gốc</summary><pre className="mt-2 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">{JSON.stringify(request.params[0], null, 2)}</pre></details>}
         {(review?.kind === 'contract' || review?.unlimited) && <div className="approval-warning">{review.unlimited ? 'Ứng dụng yêu cầu hạn mức không giới hạn. Quyền này có thể tiếp tục tồn tại sau khi ngắt kết nối ví.' : 'Chưa giải mã được tác động của hợp đồng. Kiểm tra dữ liệu trước khi xác nhận.'}</div>}
-        {(isTransaction || isSign) && <div className="mt-5">
-          <label htmlFor="approval-password" className="approval-label">Mật khẩu xác nhận</label>
-          <input id="approval-password" type="password" autoComplete="current-password" value={password} disabled={working} onChange={e => setPassword(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-emerald-600" placeholder="Nhập mật khẩu ví" />
-        </div>}
         {(expired || quoteExpired) && <p className="approval-warning" role="status">{expired ? 'Yêu cầu đã hết hạn. Hãy tạo lại từ ứng dụng.' : 'Ước tính phí đã hết hạn. Cập nhật phí để tiếp tục.'}</p>}
       </> : null}
+      {error&&!loading&&!done&&<button className="approval-button mt-3" onClick={()=>setLoadVersion(v=>v+1)}>Đọc lại yêu cầu</button>}
       {error && <p role="alert" className="approval-warning text-red-800">{error}</p>}
     </main>
     <footer className="approval-footer">
       {done || (!loading && !request) ? <button className="approval-button primary col-span-2" onClick={close}>Đóng</button> : <>
         <button className="approval-button" disabled={working || loading} onClick={() => expired ? close() : act(false)}>Hủy</button>
-        <button className="approval-button primary" disabled={!canApprove} onClick={() => act(true)}>{working ? 'Đang xử lý…' : isTransaction ? 'Xác nhận' : isSign ? 'Ký thông điệp' : isSwitch ? 'Chuyển mạng' : 'Kết nối'}{!working && <ArrowUpRight size={14} className="inline ml-1" />}</button>
+        <button className="approval-button primary" disabled={isConnection&&connectionStage==='accounts'?(!selectedAccount||!accounts.some(a=>a.address.toLowerCase()===selectedAccount.toLowerCase())||working||expired||(!unlocked&&!selectBeforeUnlock)):!canApprove} onClick={() => isConnection&&connectionStage==='accounts'?void selectAccount():void act(true)}>{working ? 'Đang xử lý…' : isConnection&&connectionStage==='accounts'?'Tiếp tục':isTransaction ? 'Xác nhận' : isSign ? 'Ký thông điệp' : isSwitch ? 'Chuyển mạng' : 'Kết nối'}{!working && <ArrowUpRight size={14} className="inline ml-1" />}</button>
       </>}
     </footer>
   </div>;

@@ -73,6 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    window.dispatchEvent(new Event("fun-wallet-lock"));
     await supabase.auth.signOut();
   };
 

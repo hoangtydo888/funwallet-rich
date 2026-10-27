@@ -5,6 +5,7 @@ export const PUBLIC_METHODS = new Set([
   'eth_accounts', 'eth_requestAccounts', 'eth_chainId',
   'eth_sendTransaction', 'personal_sign', 'eth_signTypedData_v4',
   'wallet_switchEthereumChain',
+  'eth_getTransactionReceipt', 'eth_blockNumber',
 ]);
 
 export class RpcError extends Error {

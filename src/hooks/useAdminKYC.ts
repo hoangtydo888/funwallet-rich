@@ -71,25 +71,8 @@ export function useAdminKYC() {
       const submission = kycList.find(k => k.id === submissionId);
       if (!submission) throw new Error('Submission not found');
 
-      // Update kyc_submissions status
-      const { error: kycError } = await supabase
-        .from('kyc_submissions')
-        .update({
-          status: 'approved',
-          reviewed_by: user?.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', submissionId);
-
-      if (kycError) throw kycError;
-
-      // Update user profile kyc_status
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ kyc_status: 'approved' })
-        .eq('user_id', submission.user_id);
-
-      if (profileError) throw profileError;
+      const {error}=await supabase.rpc('review_wallet_kyc' as never,{p_submission_id:submissionId,p_status:'approved',p_reason:null} as never);
+      if(error)throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-kyc-submissions'] });
@@ -107,26 +90,8 @@ export function useAdminKYC() {
       const submission = kycList.find(k => k.id === submissionId);
       if (!submission) throw new Error('Submission not found');
 
-      // Update kyc_submissions status
-      const { error: kycError } = await supabase
-        .from('kyc_submissions')
-        .update({
-          status: 'rejected',
-          rejection_reason: reason,
-          reviewed_by: user?.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', submissionId);
-
-      if (kycError) throw kycError;
-
-      // Update user profile kyc_status
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ kyc_status: 'rejected' })
-        .eq('user_id', submission.user_id);
-
-      if (profileError) throw profileError;
+      const {error}=await supabase.rpc('review_wallet_kyc' as never,{p_submission_id:submissionId,p_status:'rejected',p_reason:reason} as never);
+      if(error)throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-kyc-submissions'] });

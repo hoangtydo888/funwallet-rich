@@ -1,4 +1,6 @@
+import {readBoundedJson,upstreamJson,requireScanBudget,scannerFailure} from '../_shared/scannerSafety.ts';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { ethers } from 'npm:ethers@6.13.4';
 
 interface Req {
@@ -81,50 +83,51 @@ const ERC20_ABI = [
   'function decimals() view returns (uint8)',
 ];
 
+function boundedProvider(url:string) {
+ const request=new ethers.FetchRequest(url);request.timeout=5000;
+ return new ethers.JsonRpcProvider(request);
+}
+async function rpcWork<T>(url:string,chainId:number,work:(provider:ethers.JsonRpcProvider)=>Promise<T>):Promise<T> {
+ const provider=boundedProvider(url);let timer:ReturnType<typeof setTimeout>|undefined;
+ try{return await Promise.race([(async()=>{if((await provider.getNetwork()).chainId!==BigInt(chainId))throw Error('RPC chain mismatch');return await work(provider);})(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('RPC deadline exceeded')),8000);})]);}
+ finally{clearTimeout(timer);provider.destroy();}
+}
+
 async function scanBSC(address: string): Promise<DetectedToken[]> {
   const apiKey = Deno.env.get('BSCSCAN_API_KEY');
   if (!apiKey) return [];
   try {
-    const url = `https://api.bscscan.com/api?module=account&action=tokentx&address=${address}&sort=desc&apikey=${apiKey}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const url = `https://api.bscscan.com/api?module=account&action=tokentx&address=${address}&page=1&offset=100&sort=desc&apikey=${apiKey}`;
+    const data = await upstreamJson(url);
     if (data.status !== '1' || !Array.isArray(data.result)) return [];
     // Get unique tokens
     const seen = new Map<string, { symbol: string; name: string; decimals: number }>();
     for (const tx of data.result) {
       const addr = String(tx.contractAddress).toLowerCase();
+      const decimals=parseInt(tx.tokenDecimal || '18');
+      if (!ethers.isAddress(addr)||!Number.isInteger(decimals)||decimals<0||decimals>36)continue;
       if (!seen.has(addr)) {
         seen.set(addr, {
           symbol: tx.tokenSymbol,
           name: tx.tokenName,
-          decimals: parseInt(tx.tokenDecimal || '18'),
+          decimals,
         });
       }
     }
     // Check current balance for each
-    const provider = new ethers.JsonRpcProvider(DEFAULT_RPC[56]);
-    const results: DetectedToken[] = [];
-    for (const [addr, meta] of seen) {
-      try {
-        const c = new ethers.Contract(addr, ERC20_ABI, provider);
-        const bal = (await c.balanceOf(address)) as bigint;
-        if (bal > 0n) {
-          results.push({
-            address: addr,
-            symbol: meta.symbol,
-            name: meta.name,
-            decimals: meta.decimals,
-            balance: ethers.formatUnits(bal, meta.decimals),
-          });
-        }
-      } catch {
-        /* skip */
-      }
-      if (results.length >= 30) break;
-    }
-    return results;
+    return await rpcWork(DEFAULT_RPC[56],56,async(provider)=>{
+      const results=await Promise.all([...seen].slice(0,30).map(async([addr,meta])=>{
+       try{
+        const c=new ethers.Contract(addr,ERC20_ABI,provider);
+        const [bal,rawDecimals]=await Promise.all([c.balanceOf(address),c.decimals()]);
+        if(typeof bal!=='bigint'||bal<=0n||BigInt(rawDecimals)>36n)return null;
+        const decimals=parseInt(String(rawDecimals),10);
+        return {address:addr,symbol:String(meta.symbol).slice(0,32),name:String(meta.name).slice(0,120),decimals,balance:ethers.formatUnits(bal,decimals)};
+       }catch{return null;}
+      }));return results.filter((value):value is NonNullable<typeof value>=>value!==null);
+    });
   } catch (e) {
-    console.error('BSC scan error', e);
+    console.error('BSC scan failed');
     return [];
   }
 }
@@ -132,20 +135,21 @@ async function scanBSC(address: string): Promise<DetectedToken[]> {
 async function scanCommonTokens(address: string, chainId: number, rpcUrl: string): Promise<DetectedToken[]> {
   const tokens = COMMON_TOKENS[chainId] || [];
   if (tokens.length === 0) return [];
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  return await rpcWork(rpcUrl,chainId,async(provider)=>{
   const results: DetectedToken[] = [];
   await Promise.all(
     tokens.map(async (t) => {
       try {
         const c = new ethers.Contract(t.address, ERC20_ABI, provider);
-        const bal = (await c.balanceOf(address)) as bigint;
-        if (bal > 0n) {
+        const [bal,rawDecimals]=await Promise.all([c.balanceOf(address),c.decimals()]);
+        const decimals=parseInt(String(rawDecimals),10);
+        if (typeof bal==='bigint'&&bal>0n&&Number.isInteger(decimals)&&decimals>=0&&decimals<=36) {
           results.push({
             address: t.address,
             symbol: t.symbol,
             name: t.name,
-            decimals: t.decimals,
-            balance: ethers.formatUnits(bal, t.decimals),
+            decimals,
+            balance: ethers.formatUnits(bal,decimals),
           });
         }
       } catch {
@@ -154,13 +158,23 @@ async function scanCommonTokens(address: string, chainId: number, rpcUrl: string
     }),
   );
   return results;
+  });
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  if (req.method !== 'POST') return new Response('POST only', { status:405, headers:corsHeaders });
   try {
-    const body = (await req.json()) as Req;
+    const authorization=req.headers.get('Authorization');
+    if(!authorization?.startsWith('Bearer ')) return new Response('Unauthorized',{status:401,headers:corsHeaders});
+    const client=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')!);
+    const {data,error}=await client.auth.getClaims(authorization.slice(7));
+    if(error || typeof data?.claims?.sub !== 'string' || data.claims.role !== 'authenticated') return new Response('Unauthorized',{status:401,headers:corsHeaders});
+    const budgetClient=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
+    await requireScanBudget(budgetClient,data.claims.sub,'token-scanner');
+    if(Number(req.headers.get('Content-Length')||0)>4096)return new Response('Payload too large',{status:413,headers:corsHeaders});
+    const body = (await readBoundedJson(req) as any) as Req;
     if (!body.address || !body.chainId) {
       return new Response(JSON.stringify({ error: 'address and chainId required' }), {
         status: 400,
@@ -174,12 +188,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    if(!Number.isInteger(body.chainId)||!DEFAULT_RPC[body.chainId])return new Response('Unsupported chain',{status:400,headers:corsHeaders});
     let tokens: DetectedToken[] = [];
     if (body.chainId === 56) {
       tokens = await scanBSC(body.address);
     }
     if (tokens.length === 0) {
-      const rpc = body.rpcUrl || DEFAULT_RPC[body.chainId];
+      const rpc = DEFAULT_RPC[body.chainId];
       if (rpc) tokens = await scanCommonTokens(body.address, body.chainId, rpc);
     }
 
@@ -187,10 +202,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
-    console.error('token-scanner error', e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'unknown' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return scannerFailure(e,corsHeaders);
   }
 });

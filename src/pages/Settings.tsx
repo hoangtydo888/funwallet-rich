@@ -1,3 +1,5 @@
+import { WalletSecurityPanel } from "@/components/wallet/WalletSecurityPanel";
+import { useWalletSecurity } from "@/contexts/WalletSecurityContext";
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -108,15 +110,7 @@ const Settings = () => {
     return DEFAULT_SETTINGS;
   });
 
-  const [setup2FAOpen, setSetup2FAOpen] = useState(false);
-  const [show2FASecret, setShow2FASecret] = useState(false);
-  const [verifyCode, setVerifyCode] = useState("");
-  const [is2FAEnabled, setIs2FAEnabled] = useState(() => {
-    return localStorage.getItem("fun_wallet_2fa") === "true";
-  });
-
-  // Simulated 2FA secret
-  const mockSecret = "JBSWY3DPEHPK3PXP";
+  const is2FAEnabled = false; // No simulated account-MFA state.
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -128,7 +122,9 @@ const Settings = () => {
     localStorage.setItem("fun_wallet_settings", JSON.stringify(settings));
   }, [settings]);
 
+  const walletSecurity = useWalletSecurity();
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    if (key === "autoLock" && typeof value === "number") walletSecurity.setSessionTimeout(value);
     setSettings((prev) => ({ ...prev, [key]: value }));
     toast({
       title: "Đã lưu",
@@ -136,43 +132,9 @@ const Settings = () => {
     });
   };
 
-  const handleEnable2FA = () => {
-    if (verifyCode.length !== 6) {
-      toast({
-        title: "Lỗi",
-        description: "Vui lòng nhập mã 6 chữ số",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    // Simulated verification
-    setIs2FAEnabled(true);
-    localStorage.setItem("fun_wallet_2fa", "true");
-    setSetup2FAOpen(false);
-    setVerifyCode("");
-    toast({
-      title: "2FA đã được bật",
-      description: "Tài khoản của bạn giờ đã được bảo vệ thêm một lớp",
-    });
-  };
 
-  const handleDisable2FA = () => {
-    setIs2FAEnabled(false);
-    localStorage.removeItem("fun_wallet_2fa");
-    toast({
-      title: "2FA đã được tắt",
-      description: "Xác thực 2 bước đã được vô hiệu hóa",
-    });
-  };
 
-  const copySecret = () => {
-    navigator.clipboard.writeText(mockSecret);
-    toast({
-      title: "Đã sao chép",
-      description: "Secret key đã được sao chép",
-    });
-  };
 
   const handleExportData = () => {
     const data = {
@@ -413,31 +375,33 @@ const Settings = () => {
                     Xác thực 2 bước (2FA)
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Bảo vệ tài khoản với mã xác thực
+                    Chưa có dịch vụ 2FA thực; không dùng mã mô phỏng
                   </p>
                 </div>
                 {is2FAEnabled ? (
-                  <Button variant="destructive" size="sm" onClick={handleDisable2FA}>
+                  <Button variant="destructive" size="sm" disabled>
                     Tắt
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => setSetup2FAOpen(true)}>
-                    Bật
+                  <Button size="sm" disabled>
+                    Chưa cấu hình
                   </Button>
                 )}
               </div>
+
+              <WalletSecurityPanel />
 
               {/* Biometric Auth */}
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Xác thực sinh trắc học</Label>
                   <p className="text-sm text-muted-foreground">
-                    Sử dụng vân tay hoặc Face ID
+                    Chưa có tích hợp WebAuthn; hiện dùng mật khẩu kho khóa
                   </p>
                 </div>
                 <Switch
-                  checked={settings.biometricAuth}
-                  onCheckedChange={(v) => updateSetting("biometricAuth", v)}
+                  checked={false}
+                  disabled
                 />
               </div>
 
@@ -480,7 +444,7 @@ const Settings = () => {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-success mt-0.5" />
-                  Sử dụng 2FA để bảo vệ tài khoản
+                  Ưu tiên mật khẩu kho khóa mạnh và sao lưu ngoại tuyến
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-success mt-0.5" />
@@ -542,76 +506,7 @@ const Settings = () => {
         </Tabs>
       </main>
 
-      {/* 2FA Setup Dialog */}
-      <Dialog open={setup2FAOpen} onOpenChange={setSetup2FAOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5" />
-              Thiết lập xác thực 2 bước
-            </DialogTitle>
-            <DialogDescription>
-              Sử dụng ứng dụng xác thực như Google Authenticator hoặc Authy
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* QR Code placeholder */}
-            <div className="flex justify-center">
-              <div className="w-40 h-40 bg-muted rounded-lg flex items-center justify-center">
-                <div className="text-center text-muted-foreground">
-                  <Key className="h-10 w-10 mx-auto mb-2" />
-                  <span className="text-xs">QR Code</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Secret key */}
-            <div className="space-y-2">
-              <Label>Hoặc nhập thủ công:</Label>
-              <div className="flex gap-2">
-                <Input
-                  type={show2FASecret ? "text" : "password"}
-                  value={mockSecret}
-                  readOnly
-                  className="font-mono"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setShow2FASecret(!show2FASecret)}
-                >
-                  {show2FASecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-                <Button variant="outline" size="icon" onClick={copySecret}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Verification code */}
-            <div className="space-y-2">
-              <Label>Nhập mã xác thực</Label>
-              <Input
-                placeholder="000000"
-                maxLength={6}
-                value={verifyCode}
-                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                className="text-center font-mono text-lg tracking-widest"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSetup2FAOpen(false)}>
-              Hủy
-            </Button>
-            <Button onClick={handleEnable2FA}>
-              Xác nhận
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

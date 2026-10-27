@@ -13,6 +13,7 @@ import ApproveSignPage from './pages/ApproveSignPage';
 import ConnectedDAppsPage from './pages/ConnectedDAppsPage';
 import BackupSeedSettingsPage from './pages/BackupSeedSettingsPage';
 import RequestPage from './pages/RequestPage';
+import {popupRpc} from './popupRpc';
 
 // An already-open side panel picks up new requests without reopening or losing
 // the currently displayed approval. Passwords never enter the URL or storage.
@@ -22,9 +23,8 @@ function PendingRequestNavigation() {
   useEffect(() => {
     let live = true;
     const refresh = async () => {
-      if (!['/', '/unlock'].includes(location.pathname)) return;
-      const response = await chrome.runtime.sendMessage({ type: 'GET_NEXT_PENDING' });
-      if (live && response?.success && response.data) navigate(`/request?requestId=${response.data.id}`);
+      if (['/send','/backup-seed','/request','/approve-tx','/approve-sign'].includes(location.pathname)) return;
+      try{const next=await popupRpc<{id:string}|null>('GET_NEXT_PENDING');if(live&&next)navigate(`/request?requestId=${next.id}`);}catch{/* The request screen displays actionable errors; do not loop here. */}
     };
     void refresh();
     const changed = (_changes: unknown, area: string) => { if (area === 'session') void refresh(); };
@@ -66,6 +66,7 @@ interface CreatedWallet {
 }
 
 function PopupApp() {
+  const location=useLocation();
   const [isUnlocked, setIsUnlocked] = useState<boolean | null>(null);
   const [hasWallet, setHasWallet] = useState<boolean | null>(null);
   const [version, setVersion] = useState('');
@@ -86,8 +87,8 @@ function PopupApp() {
   const checkWalletState = async () => {
     try {
       // Check if wallet exists
-      const response = await chrome.runtime.sendMessage({ type: 'IS_UNLOCKED' });
-      setIsUnlocked(response?.data?.unlocked ?? false);
+      const response=await popupRpc<{unlocked:boolean}>('IS_UNLOCKED');
+      setIsUnlocked(response.unlocked);
       
       // Check if wallet is set up
       const walletData = await chrome.storage.local.get('fun_wallet_list');
@@ -159,6 +160,10 @@ function PopupApp() {
       </PopupLayout>
     );
   }
+
+  // Approval routes must remain reachable even when old metadata is missing.
+  // RequestPage explains how to import/create and can reject the original dApp promise.
+  if(location.pathname==='/request')return <PopupLayout><RequestPage onUnlock={handleUnlock}/></PopupLayout>;
 
   // No wallet setup yet - show onboarding flow
   if (!hasWallet) {

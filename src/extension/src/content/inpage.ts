@@ -23,6 +23,7 @@ const provider = {
   networkVersion: '56',
   selectedAddress: null as string | null,
   _events: {} as Record<string, Array<(...args: unknown[]) => void>>,
+  _connectionRequest:null as Promise<unknown>|null,
   _pendingRequests: new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>(),
 
   /**
@@ -35,9 +36,11 @@ const provider = {
   /**
    * Main request method (EIP-1193)
    */
-  request: async function<T = unknown>(args: { method: string; params?: unknown[] }): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const id = Date.now().toString() + '_' + Math.random().toString(36).slice(2);
+  request: function<T = unknown>(args: { method: string; params?: unknown[] }): Promise<T> {
+    if(args.method==='eth_requestAccounts'&&this._connectionRequest)return this._connectionRequest as Promise<T>;
+    const request=new Promise<T>((resolve,reject)=>{
+      const id=crypto.randomUUID();
+      let timer:ReturnType<typeof setTimeout>|undefined;
       
       this._pendingRequests.set(id, { 
         resolve: resolve as (value: unknown) => void, 
@@ -48,7 +51,7 @@ const provider = {
       const handler = (event: MessageEvent) => {
         if (event.source !== window || event.origin !== window.location.origin || !event.data) return;
         if (event.data.type === 'FUN_WALLET_RESPONSE' && event.data.id === id) {
-          window.removeEventListener('message', handler);
+          clearTimeout(timer);window.removeEventListener('message', handler);
           this._pendingRequests.delete(id);
           
           if (event.data.error) {
@@ -75,14 +78,20 @@ const provider = {
       }, window.location.origin);
       
       // Timeout after 5 minutes
-      setTimeout(() => {
+      timer=setTimeout(() => {
         if (this._pendingRequests.has(id)) {
           window.removeEventListener('message', handler);
           this._pendingRequests.delete(id);
-          reject(Object.assign(new Error('Request timeout'), { code: -32000 }));
+          reject(Object.assign(new Error('Yêu cầu đã hết hạn. Mở lại FUN Wallet và kết nối lại từ ứng dụng.'), { code: -32000 }));
         }
-      }, 300000);
+      },300000);
     });
+    if(args.method==='eth_requestAccounts'){
+      this._connectionRequest=request;
+      const clear=()=>{if(this._connectionRequest===request)this._connectionRequest=null;};
+      void request.then(clear,clear);
+    }
+    return request;
   },
 
   /**

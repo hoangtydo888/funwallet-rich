@@ -19,6 +19,12 @@ import {
   hasEncryptedKey,
   migrateToEncryptedStorage,
   getPasswordStrength,
+  changeVaultPassword,
+  decryptVaultKeys,
+  MIN_WALLET_PASSWORD_LENGTH,
+  getSecureStorage,
+  storePrivateKey,
+  hasLegacyKeys,
   type EncryptedKeyData,
 } from '@/lib/keyEncryption';
 import {
@@ -69,10 +75,10 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
   const setupPassword = useCallback(async (
     password: string
   ): Promise<boolean> => {
-    if (password.length < 6) {
+    if (password.length < MIN_WALLET_PASSWORD_LENGTH) {
       toast({
         title: 'Mật khẩu quá ngắn',
-        description: 'Mật khẩu phải có ít nhất 6 ký tự',
+        description: 'Mật khẩu phải có ít nhất 12 ký tự',
         variant: 'destructive',
       });
       return false;
@@ -80,8 +86,7 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
 
     try {
       // If there's old storage data, migrate it
-      const oldData = localStorage.getItem(OLD_STORAGE_KEY);
-      if (oldData) {
+      if (hasLegacyKeys()) {
         const count = await migrateToEncryptedStorage(OLD_STORAGE_KEY, password);
         if (count > 0) {
           await logMigrationCompleted(count);
@@ -91,7 +96,7 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
       await logPasswordSetup();
       
       // Unlock with new password
-      await security.unlock(password);
+      if (!await security.unlock(password)) return false;
       
       toast({
         title: 'Thiết lập thành công',
@@ -163,24 +168,9 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
         return false;
       }
 
-      // Re-encrypt all keys with new password
-      const storage = localStorage.getItem('fun_wallet_encrypted_v2');
-      if (!storage) return false;
-
-      const parsed = JSON.parse(storage);
-      const addresses = Object.keys(parsed.wallets || {});
-
-      for (const address of addresses) {
-        const encryptedData = getEncryptedKey(address);
-        if (encryptedData) {
-          const privateKey = await decryptPrivateKey(encryptedData, oldPassword);
-          const newEncrypted = await encryptPrivateKey(privateKey, newPassword);
-          saveEncryptedKey(address, newEncrypted);
-        }
-      }
-
-      // Re-unlock with new password
-      await security.unlock(newPassword);
+      await changeVaultPassword(oldPassword, newPassword);
+      security.lock();
+      if (!await security.unlock(newPassword)) throw new Error('Vui lòng mở khóa lại bằng mật khẩu mới');
 
       toast({
         title: 'Đổi mật khẩu thành công',
@@ -214,9 +204,8 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
     }
 
     try {
-      const encrypted = await encryptPrivateKey(privateKey, pwd);
-      saveEncryptedKey(address, encrypted);
-      return true;
+      await storePrivateKey(address,privateKey,pwd);
+      return await security.unlock(pwd);
     } catch (error) {
       console.error('Encrypt key error:', error);
       return false;
@@ -228,31 +217,10 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
     address: string,
     password?: string
   ): Promise<string | null> => {
-    const pwd = password || security.getCachedPassword();
-    if (!pwd) {
-      return null;
-    }
-
-    try {
-      const encryptedData = getEncryptedKey(address);
-      if (!encryptedData) {
-        // Fallback to old storage
-        const oldData = localStorage.getItem(OLD_STORAGE_KEY);
-        if (oldData) {
-          const keys = JSON.parse(oldData);
-          const key = keys[address] || keys[address.toLowerCase()];
-          if (key) return key;
-        }
-        return null;
-      }
-
-      const privateKey = await decryptPrivateKey(encryptedData, pwd);
-      await logPrivateKeyExported(address);
-      return privateKey;
-    } catch (error) {
-      console.error('Decrypt key error:', error);
-      return null;
-    }
+    if (password && !await security.unlock(password)) return null;
+    const key = security.getUnlockedKey(address);
+    if (key && password) await logPrivateKeyExported(address);
+    return key;
   }, [security]);
 
   // Remove encrypted key
@@ -275,7 +243,7 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
 
   // Check if key exists
   const hasKey = useCallback((address: string): boolean => {
-    if (hasEncryptedKey(address)) return true;
+    try { if (hasEncryptedKey(address)) return true; } catch { return false; }
     
     // Check old storage
     try {
@@ -315,16 +283,7 @@ export const useSecureWallet = (): UseSecureWalletReturn => {
   }, []);
 
   // Check if old storage has data
-  const hasOldStorageData = useCallback((): boolean => {
-    try {
-      const oldData = localStorage.getItem(OLD_STORAGE_KEY);
-      if (!oldData) return false;
-      const keys = JSON.parse(oldData);
-      return Object.keys(keys).length > 0;
-    } catch {
-      return false;
-    }
-  }, []);
+  const hasOldStorageData = useCallback(():boolean => { try{return hasLegacyKeys();}catch{return true;} }, []);
 
   // Get cached password
   const getCachedPassword = useCallback((): string | null => {

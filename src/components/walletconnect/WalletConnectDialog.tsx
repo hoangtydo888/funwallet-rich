@@ -1,5 +1,8 @@
+import {createPopupPairingGate} from '@/lib/popupPairing';
+import {dappKeyReadiness} from '@/lib/dappKeyProtection';
+import { createSessionSigner } from "@/lib/guardedSigner";
 import { useEffect, useRef, useState } from 'react';
-import { JsonRpcProvider, Wallet, formatEther, toUtf8String, type TransactionRequest } from 'ethers';
+import { JsonRpcProvider, Wallet, formatEther, type TransactionRequest } from 'ethers';
 import { buildApprovedNamespaces } from '@walletconnect/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -7,14 +10,14 @@ import { Input } from '@/components/ui/input';
 import { useWalletSecurity } from '@/contexts/WalletSecurityContext';
 import { decryptPrivateKey, getEncryptedKey } from '@/lib/keyEncryption';
 import { getWalletKit, validPairingUri, isProfilePeer, rejected, WC_METHODS, PROFILE_ORIGIN, type Proposal, type Request } from '@/lib/walletconnect';
-import { loginMessage, unsignedTransfer } from '@/lib/walletconnectPolicy';
+import { personalSignMessage, unsignedTransfer } from '@/lib/walletconnectPolicy';
 import { getChainById } from '@/lib/chains';
 import { WalletConnectSecurity } from './WalletConnectSecurity';
 
 type Kit = Awaited<ReturnType<typeof getWalletKit>>;
 type Review = { request: Request; text: string; tx?: TransactionRequest; account:string };
 const reason = (message:string) => ({code:4001,message});
-export const WalletConnectDialog = ({open,onOpenChange,walletAddress}:{open:boolean;onOpenChange:(value:boolean)=>void;walletAddress:string}) => {
+export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWallet,onChooseWallet,automaticPairing=false}:{open:boolean;onOpenChange:(value:boolean)=>void;walletAddress:string;onImportWallet?:()=>void;onChooseWallet?:()=>void;automaticPairing?:boolean}) => {
   const security = useWalletSecurity();
   const current = useRef({security,walletAddress,onOpenChange});
   current.current = {security,walletAddress,onOpenChange};
@@ -26,6 +29,7 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress}:{open:bool
   const [error,setError] = useState('');
   const [busy,setBusy] = useState(false);
   const inFlight = useRef(false);
+  const pairOnce = useRef(createPopupPairingGate());
   const provider = useRef(new JsonRpcProvider(getChainById(56)!.rpcUrl,56));
   const refresh = (client:Kit) => setSessions({...client.getActiveSessions()});
   useEffect(() => {
@@ -60,9 +64,19 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress}:{open:bool
     try { await action(); } catch(e) {setError(e instanceof Error ? e.message : 'Không thể xử lý yêu cầu');}
     finally {inFlight.current=false;setBusy(false);}
   };
+  // Pairing only receives a proposal. It never grants an account, signs or sends.
+  useEffect(() => {
+    if (!automaticPairing || !kit || !validPairingUri(uri)) return;
+    void run(async () => {
+      const paired = await pairOnce.current(uri, value => kit.pair({uri:value}));
+      if (!paired) return;
+      sessionStorage.removeItem('fun_wallet_pending_wc');
+      setUri('');
+    });
+  }, [automaticPairing, kit, uri]);
   const checkUnlocked = () => {
-    if (!current.current.security.checkSession() || !current.current.security.isUnlocked) throw Error('Hãy mở khóa ví trong mục bảo vệ bên dưới trước.');
-    if (!getEncryptedKey(current.current.walletAddress)) throw Error('Ví này chưa có khóa được mã hóa. Hãy hoàn tất bảo vệ ví trước.');
+    const ready=dappKeyReadiness(current.current.walletAddress,current.current.security.checkSession()&&Boolean(current.current.security.getUnlockedKey(current.current.walletAddress)));
+    if(!ready.canPair)throw Error(ready.message);
   };
   const approveSession = () => run(async()=>{
     if (!kit || !proposal) return;
@@ -85,8 +99,8 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress}:{open:bool
       if (request.params.chainId!=='eip155:56' || !session.namespaces.eip155?.accounts.includes(`eip155:56:${account}`) || !session.namespaces.eip155?.methods.includes(request.params.request.method)) throw Error('Sai tài khoản hoặc mạng');
       const {method,params}=request.params.request;
       if (method==='personal_sign') {
-        const bytes=loginMessage(params,account);
-        setReview({request,account,text:`Đăng nhập FUN Profile — không gửi tiền\n\n${toUtf8String(bytes)}`});
+        const consent=personalSignMessage(params,account);
+        setReview({request,account,text:consent.review});
       } else if(method==='eth_sendTransaction') {
         if(params.length!==1) throw Error('Giao dịch không hợp lệ');
         const decoded=unsignedTransfer(params[0],account);
@@ -121,7 +135,7 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress}:{open:bool
       const password=current.current.security.getCachedPassword();
       const encrypted=getEncryptedKey(account);
       if(!password||!encrypted) throw Error('Hãy mở khóa ví trước');
-      const signer=new Wallet(await decryptPrivateKey(encrypted,password),provider.current);
+      const signer=createSessionSigner(await decryptPrivateKey(encrypted,password),provider.current);
       if(signer.address.toLowerCase()!==account) throw Error('Khóa không khớp với ví');
       checkUnlocked();
       const requestKey = `fun_wallet_wc_handled:${request.topic}:${request.id}`;
@@ -138,19 +152,20 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress}:{open:bool
         const tx=await signer.sendTransaction(review.tx);result=tx.hash;
         localStorage.setItem(requestKey,result);
         setError(`Đã phát giao dịch: ${result}. Không gửi lại nếu phản hồi mạng bị gián đoạn.`);
-      } else if(request.params.request.method==='personal_sign') result=await signer.signMessage(loginMessage(request.params.request.params,account));
+      } else if(request.params.request.method==='personal_sign') result=await signer.signMessage(personalSignMessage(request.params.request.params,account).bytes);
       localStorage.setItem(requestKey,result??'confirmed');
       setReview(undefined);
       await kit.respondSessionRequest({topic:request.topic,response:{id:request.id,jsonrpc:'2.0',result}});
     });
   });
+  const readiness=dappKeyReadiness(walletAddress,security.isUnlocked&&Boolean(security.getUnlockedKey(walletAddress)));
   const pendingCount=kit?.getPendingSessionRequests().length??0;
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
     <DialogHeader><DialogTitle>Kết nối FUN Profile</DialogTitle><DialogDescription>Giữ trang FUN Wallet mở để nhận yêu cầu. Mỗi lần ký và gửi tiền đều cần Cha duyệt.</DialogDescription></DialogHeader>
     <p className="break-all text-sm">Ví: {walletAddress.toLowerCase()} · BSC</p>
-    <WalletConnectSecurity address={walletAddress.toLowerCase()} />
+    <WalletConnectSecurity address={walletAddress.toLowerCase()} onImportWallet={onImportWallet} onChooseWallet={onChooseWallet} autoUnlock={automaticPairing} />
     {error&&<p role="alert" className="text-destructive break-words">{error}</p>}
-    {proposal ? <div className="space-y-3"><p>Ứng dụng xin kết nối: {proposal.params.proposer.metadata.name}</p><p className="break-all">{proposal.params.proposer.metadata.url}</p><p>Trạng thái xác minh nguồn: {proposal.verifyContext?.verified?.validation??'UNKNOWN'}</p><p>Chia sẻ địa chỉ ví trên BSC. Ký đăng nhập và chuyển tiền chỉ thực hiện sau khi duyệt từng yêu cầu.</p><Button disabled={busy} onClick={approveSession}>Cho phép kết nối</Button><Button variant="outline" disabled={busy} onClick={rejectProposal}>Từ chối</Button></div> : review ? <div className="space-y-3"><pre className="whitespace-pre-wrap break-all text-sm">{review.text}</pre><Button disabled={busy} onClick={()=>respond(true)}>{review.tx?'Xác nhận gửi tiền':'Đồng ý ký / xác nhận'}</Button><Button variant="outline" disabled={busy} onClick={()=>respond(false)}>Từ chối</Button></div> : <div className="space-y-3"><Input aria-label="WalletConnect URI" placeholder="Dán wc:… từ FUN Profile" value={uri} onChange={e=>setUri(e.target.value)} /><Button disabled={busy||!kit} onClick={()=>run(async()=>{if(!validPairingUri(uri.trim()))throw Error('WalletConnect URI không hợp lệ');await kit!.pair({uri:uri.trim()});sessionStorage.removeItem('fun_wallet_pending_wc');setUri('');})}>Kết nối WalletConnect thật</Button>{pendingCount>0&&<Button disabled={busy} onClick={prepare}>Kiểm tra yêu cầu chờ duyệt ({pendingCount})</Button>}</div>}
+    {proposal ? <div className="space-y-3"><p>Ứng dụng xin kết nối: {proposal.params.proposer.metadata.name}</p><p className="break-all">{proposal.params.proposer.metadata.url}</p><p>Trạng thái xác minh nguồn: {proposal.verifyContext?.verified?.validation??'UNKNOWN'}</p><p>Chia sẻ địa chỉ ví trên BSC. Ký đăng nhập và chuyển tiền chỉ thực hiện sau khi duyệt từng yêu cầu.</p><Button disabled={busy||!readiness.canPair} onClick={approveSession}>Kết nối</Button><Button variant="outline" disabled={busy} onClick={rejectProposal}>Từ chối</Button></div> : review ? <div className="space-y-3"><pre className="whitespace-pre-wrap break-all text-sm">{review.text}</pre><Button disabled={busy||!readiness.canPair} onClick={()=>respond(true)}>{review.tx?'Xác nhận gửi tiền':'Đồng ý ký / xác nhận'}</Button><Button variant="outline" disabled={busy} onClick={()=>respond(false)}>Từ chối</Button></div> : <div className="space-y-3">{automaticPairing ? <p role="status">{busy?'Đang nhận yêu cầu kết nối từ FUN Profile…':error?'Chưa nhận được đề nghị. Hãy tạo kết nối mới từ FUN Profile.':'Đang chờ đề nghị kết nối. Không cần dán mã thủ công.'}</p> : <><Input aria-label="WalletConnect URI" placeholder="Dán wc:… từ FUN Profile" value={uri} onChange={e=>setUri(e.target.value)} /><Button disabled={busy||!kit||!readiness.canPair} onClick={()=>run(async()=>{checkUnlocked();if(!validPairingUri(uri.trim()))throw Error('WalletConnect URI không hợp lệ');await kit!.pair({uri:uri.trim()});sessionStorage.removeItem('fun_wallet_pending_wc');setUri('');})}>Kết nối WalletConnect</Button></>}{pendingCount>0&&<Button disabled={busy} onClick={prepare}>Kiểm tra yêu cầu chờ duyệt ({pendingCount})</Button>}</div>}
     <div className="space-y-2">{Object.keys(sessions).length > 0 && <div className="space-y-2"><p className="text-sm">Kết nối xong. Mở FUN Profile ở tab mới và giữ tab ví này mở để duyệt yêu cầu ký.</p><Button asChild><a href={`${PROFILE_ORIGIN}/auth`} target="_blank" rel="noopener noreferrer">Mở FUN Profile ở tab mới</a></Button></div>}<p className="font-medium">Kết nối hiện có</p>{Object.values(sessions).map(session=><div key={session.topic} className="rounded border p-3 text-sm"><p>{session.peer.metadata.name}</p><p className="break-all">{session.peer.metadata.url}</p><Button variant="outline" disabled={busy} onClick={()=>run(async()=>{await kit!.disconnectSession({topic:session.topic,reason:rejected});refresh(kit!);setReview(undefined);})}>Ngắt kết nối</Button></div>)}</div>
   </DialogContent></Dialog>;
 };

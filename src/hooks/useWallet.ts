@@ -1,4 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import {AsyncContextGate} from '@/lib/asyncContextGate';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useWalletSecurity } from "@/contexts/WalletSecurityContext";
+import { encryptPrivateKey, saveEncryptedKey, getSecureStorage, decryptVaultKeys, storePrivateKey } from "@/lib/keyEncryption";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -35,16 +38,32 @@ const PRIVATE_KEY_STORAGE_KEY = "fun_wallet_pk";
 
 export const useWallet = () => {
   const { user } = useAuth();
+  const security = useWalletSecurity();
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [activeWallet, setActiveWallet] = useState<WalletData | null>(null);
   const [balances, setBalances] = useState<TokenBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
+  const currentUser=useRef(user?.id??null);currentUser.current=user?.id??null;
+  const loadedOwner=useRef<string|null>(null),loadedBalances=useRef<string|null>(null);
+  const walletRequests=useRef(new AsyncContextGate()),balanceRequests=useRef(new AsyncContextGate());
+  walletRequests.current.setContext(user?.id??null);
+  const balanceScope=user?.id&&activeWallet?`${user.id}:${activeWallet.address.toLowerCase()}`:null;
+  balanceRequests.current.setContext(balanceScope);
+  const ownedWallets=loadedOwner.current===user?.id?wallets:[];
+  const ownedActiveWallet=loadedOwner.current===user?.id?activeWallet:null;
+  const visibleBalances=loadedOwner.current===user?.id&&loadedBalances.current===balanceScope?balances:[];
+  const assertCurrentUser=()=>{if(!user||currentUser.current!==user.id)throw Error('Tài khoản đã thay đổi; mở lại thao tác ví');};
+
   // Fetch wallets from database
   const fetchWallets = useCallback(async () => {
+    if(currentUser.current!==(user?.id??null))return;
+    const ticket=walletRequests.current.start();
     if (!user) {
+      loadedOwner.current=null;loadedBalances.current=null;
       setWallets([]);
+      setBalances([]);
       setActiveWallet(null);
       setLoading(false);
       return;
@@ -59,27 +78,31 @@ export const useWallet = () => {
 
       if (error) throw error;
 
+      if(!walletRequests.current.accepts(ticket))return;
+      loadedOwner.current=user.id;
       setWallets(data || []);
       
       // Set primary wallet as active
       const primary = data?.find((w) => w.is_primary) || data?.[0];
       if (primary) {
-        setActiveWallet(primary);
-      }
+        setActiveWallet(previous=>data?.find(w=>w.id===previous?.id)??primary);
+      }else{setActiveWallet(null);setBalances([]);}
     } catch (error) {
       console.error("Error fetching wallets:", error);
     } finally {
-      setLoading(false);
+      if(walletRequests.current.accepts(ticket))setLoading(false);
     }
   }, [user]);
 
   // Fetch balances for active wallet
   const fetchBalances = useCallback(async () => {
-    if (!activeWallet) {
+    if (!activeWallet||!user||loadedOwner.current!==user.id) {
       setBalances([]);
       return;
     }
 
+    const ticket=balanceRequests.current.start();
+    const scope=`${user.id}:${activeWallet.address.toLowerCase()}`;
     setBalanceLoading(true);
     try {
       // Get balances for common tokens
@@ -98,22 +121,29 @@ export const useWallet = () => {
       );
 
       // Combine and set balances
-      setBalances([...tokenBalances, ...customBalances]);
+      if(balanceRequests.current.accepts(ticket)){loadedBalances.current=scope;setBalances([...tokenBalances, ...customBalances]);}
     } catch (error) {
       console.error("Error fetching balances:", error);
       // Set default empty balances
-      setBalances(COMMON_TOKENS.map((t) => ({ ...t, balance: "0" })));
+      if(balanceRequests.current.accepts(ticket)){loadedBalances.current=scope;setBalances(COMMON_TOKENS.map((t) => ({ ...t, balance: "0" })));}
     } finally {
-      setBalanceLoading(false);
+      if(balanceRequests.current.accepts(ticket))setBalanceLoading(false);
     }
-  }, [activeWallet]);
+  }, [activeWallet,user]);
 
   // Create new wallet
-  const createWallet = async (name: string = "Ví chính"): Promise<{ mnemonic: string; address: string; privateKey: string } | null> => {
+  const createWallet = async (name: string = "Ví chính",password?:string): Promise<{ mnemonic: string; address: string; privateKey: string } | null> => {
     if (!user) return null;
 
     try {
       const { address, privateKey, mnemonic } = createNewWallet();
+      const vaultPassword=password??security.getCachedPassword();
+      if(!vaultPassword)throw Error('Cần mật khẩu bảo vệ trước khi tạo ví');
+      assertCurrentUser();
+      await storePrivateKey(address.toLowerCase(),privateKey,vaultPassword);
+      assertCurrentUser();
+      if(!await security.unlock(vaultPassword))throw Error('Chưa mở khóa được kho khóa mới');
+      assertCurrentUser();
 
       // Save wallet to database
       const { data, error } = await supabase
@@ -121,19 +151,14 @@ export const useWallet = () => {
         .insert({
           user_id: user.id,
           name,
-          address,
+          address: address.toLowerCase(),
           chain: "bsc",
-          is_primary: wallets.length === 0,
+          is_primary: ownedWallets.length === 0,
         })
         .select()
         .single();
 
       if (error) throw error;
-
-      // Store private key in localStorage (legacy - will be encrypted by caller)
-      const existingKeys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
-      existingKeys[address] = privateKey;
-      localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(existingKeys));
 
       toast({
         title: "Ví đã được tạo!",
@@ -154,7 +179,7 @@ export const useWallet = () => {
   };
 
   // Import wallet from mnemonic
-  const importFromMnemonic = async (mnemonic: string, name: string = "Ví import"): Promise<{ address: string; privateKey: string } | null> => {
+  const importFromMnemonic = async (mnemonic: string, name: string = "Ví import",password?:string): Promise<{ address: string; privateKey: string } | null> => {
     if (!user) return null;
 
     const wallet = importWalletFromMnemonic(mnemonic);
@@ -168,31 +193,33 @@ export const useWallet = () => {
     }
 
     try {
+      const vaultPassword=password??security.getCachedPassword();
+      if(!vaultPassword)throw Error('Cần mật khẩu bảo vệ trước khi import ví');
+      assertCurrentUser();
+      await storePrivateKey(wallet.address.toLowerCase(),wallet.privateKey,vaultPassword);
+      assertCurrentUser();
+      if(!await security.unlock(vaultPassword))throw Error('Chưa mở khóa được kho khóa mới');
+      assertCurrentUser();
       // Check if wallet already exists
-      const existing = wallets.find((w) => w.address.toLowerCase() === wallet.address.toLowerCase());
+      const existing = ownedWallets.find((w) => w.address.toLowerCase() === wallet.address.toLowerCase());
       if (existing) {
         toast({
           title: "Ví đã tồn tại",
-          description: "Địa chỉ ví này đã được thêm vào tài khoản của bạn",
+          description: "Địa chỉ đã có trong tài khoản. Tiếp tục xác nhận mật khẩu để lưu khóa trên thiết bị này.",
           variant: "destructive",
         });
-        return null;
+        return {address:wallet.address.toLowerCase(),privateKey:wallet.privateKey};
       }
 
       const { error } = await supabase.from("wallets").insert({
         user_id: user.id,
         name,
-        address: wallet.address,
+        address: wallet.address.toLowerCase(),
         chain: "bsc",
-        is_primary: wallets.length === 0,
+        is_primary: ownedWallets.length === 0,
       });
 
       if (error) throw error;
-
-      // Store private key
-      const existingKeys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
-      existingKeys[wallet.address] = wallet.privateKey;
-      localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(existingKeys));
 
       toast({
         title: "Import thành công!",
@@ -200,7 +227,7 @@ export const useWallet = () => {
       });
 
       await fetchWallets();
-      return { address: wallet.address, privateKey: wallet.privateKey };
+      return { address: wallet.address.toLowerCase(), privateKey: wallet.privateKey };
     } catch (error) {
       console.error("Error importing wallet:", error);
       toast({
@@ -213,7 +240,7 @@ export const useWallet = () => {
   };
 
   // Import from private key
-  const importFromPrivateKey = async (privateKey: string, name: string = "Ví import"): Promise<{ address: string } | null> => {
+  const importFromPrivateKey = async (privateKey: string, name: string = "Ví import",password?:string): Promise<{ address: string } | null> => {
     if (!user) return null;
 
     const wallet = importWalletFromPrivateKey(privateKey);
@@ -227,29 +254,32 @@ export const useWallet = () => {
     }
 
     try {
-      const existing = wallets.find((w) => w.address.toLowerCase() === wallet.address.toLowerCase());
+      const vaultPassword=password??security.getCachedPassword();
+      if(!vaultPassword)throw Error('Cần mật khẩu bảo vệ trước khi import ví');
+      assertCurrentUser();
+      await storePrivateKey(wallet.address.toLowerCase(),privateKey.trim(),vaultPassword);
+      assertCurrentUser();
+      if(!await security.unlock(vaultPassword))throw Error('Chưa mở khóa được kho khóa mới');
+      assertCurrentUser();
+      const existing = ownedWallets.find((w) => w.address.toLowerCase() === wallet.address.toLowerCase());
       if (existing) {
         toast({
           title: "Ví đã tồn tại",
-          description: "Địa chỉ ví này đã được thêm vào tài khoản của bạn",
+          description: "Địa chỉ đã có trong tài khoản. Tiếp tục xác nhận mật khẩu để lưu khóa trên thiết bị này.",
           variant: "destructive",
         });
-        return null;
+        return {address:wallet.address.toLowerCase()};
       }
 
       const { error } = await supabase.from("wallets").insert({
         user_id: user.id,
         name,
-        address: wallet.address,
+        address: wallet.address.toLowerCase(),
         chain: "bsc",
-        is_primary: wallets.length === 0,
+        is_primary: ownedWallets.length === 0,
       });
 
       if (error) throw error;
-
-      const existingKeys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
-      existingKeys[wallet.address] = privateKey;
-      localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(existingKeys));
 
       toast({
         title: "Import thành công!",
@@ -269,22 +299,8 @@ export const useWallet = () => {
     }
   };
 
-  // Get private key for wallet (case-insensitive address matching)
-  const getPrivateKey = (address: string): string | null => {
-    try {
-      const keys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
-      // So sánh không phân biệt hoa/thường vì Ethereum address có checksum
-      const normalizedAddress = address.toLowerCase();
-      for (const storedAddress of Object.keys(keys)) {
-        if (storedAddress.toLowerCase() === normalizedAddress) {
-          return keys[storedAddress];
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
+  // Signing keys are memory-only and every read checks lock/expiry.
+  const getPrivateKey = (address: string): string | null => user ? security.getUnlockedKey(address) : null;
 
   // Delete wallet
   const deleteWallet = async (walletId: string): Promise<boolean> => {
@@ -402,10 +418,15 @@ export const useWallet = () => {
       return false;
     }
 
-    // Save private key to localStorage
-    const existingKeys = JSON.parse(localStorage.getItem(PRIVATE_KEY_STORAGE_KEY) || "{}");
-    existingKeys[wallet.address] = privateKey;
-    localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, JSON.stringify(existingKeys));
+    const password = security.getCachedPassword();
+    if (!password) {
+      toast({ title: "Vui lòng mở khóa ví", description: "Nếu chưa có mật khẩu, hãy dùng mục Import ví để thiết lập bảo vệ khóa.", variant: "destructive" });
+      return false;
+    }
+    try {
+      await storePrivateKey(wallet.address.toLowerCase(),privateKey,password);
+      if (!await security.unlock(password)) return false;
+    } catch { return false; }
 
     toast({
       title: "✅ Import thành công!",
@@ -419,13 +440,13 @@ export const useWallet = () => {
   const getTotalBalance = (prices?: TokenPrice[]): number => {
     if (!prices || prices.length === 0) {
       // Fallback: only count stablecoins at $1.00
-      return balances
+      return visibleBalances
         .filter((b) => ["USDT", "USDC", "BUSD", "DAI"].includes(b.symbol.toUpperCase()))
         .reduce((sum, b) => sum + parseFloat(b.balance), 0);
     }
 
     // Calculate with realtime prices for ALL tokens
-    return balances.reduce((sum, token) => {
+    return visibleBalances.reduce((sum, token) => {
       const price = prices.find(
         (p) => p.symbol.toUpperCase() === token.symbol.toUpperCase()
       );
@@ -444,10 +465,10 @@ export const useWallet = () => {
   }, [fetchBalances]);
 
   return {
-    wallets,
-    activeWallet,
+    wallets:ownedWallets,
+    activeWallet:ownedActiveWallet,
     setActiveWallet,
-    balances,
+    balances:visibleBalances,
     loading,
     balanceLoading,
     createWallet,

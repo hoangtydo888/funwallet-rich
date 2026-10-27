@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { Wallet } from 'ethers';
-import { protectDappKey, hasLocalDappKey } from '../../src/lib/dappKeyProtection';
-import { decryptPrivateKey, getEncryptedKey } from '../../src/lib/keyEncryption';
+import { protectDappKey, hasLocalDappKey,dappKeyReadiness } from '../../src/lib/dappKeyProtection';
+import { decryptPrivateKey, getEncryptedKey,ENCRYPTED_WALLET_STORAGE_KEY } from '../../src/lib/keyEncryption';
 const values=new Map<string,string>();
 Object.defineProperty(globalThis,'localStorage',{value:{getItem:(key:string)=>values.get(key)??null,setItem:(key:string,value:string)=>values.set(key,value),removeItem:(key:string)=>values.delete(key)},configurable:true});
-beforeEach(()=>values.clear());
+beforeEach(()=>{values.clear();Object.defineProperty(globalThis,'localStorage',{value:{getItem:(k:string)=>values.get(k)??null,setItem:(k:string,v:string)=>values.set(k,v),removeItem:(k:string)=>values.delete(k),get length(){return values.size;},key:(index:number)=>[...values.keys()][index]??null},configurable:true});});
 const password='wallet-test-only-password';
 describe('DApp key protection lifecycle',()=>{
- it('protects a local key without deleting the existing wallet backup',async()=>{
+ it('removes plaintext only after a verified encrypted copy exists',async()=>{
   const wallet=Wallet.createRandom();
   const legacy=JSON.stringify({[wallet.address]:wallet.privateKey});values.set('fun_wallet_pk',legacy);
   expect(hasLocalDappKey(wallet.address)).toBe(true);
   await protectDappKey(wallet.address,password);
   expect(await decryptPrivateKey(getEncryptedKey(wallet.address)!,password)).toBe(wallet.privateKey);
-  expect(values.get('fun_wallet_pk')).toBe(legacy);
+  expect(values.has('fun_wallet_pk')).toBe(false);
  });
  it('rejects a mismatched key without writing encrypted storage',async()=>{
   const wallet=Wallet.createRandom();const another=Wallet.createRandom();values.set('fun_wallet_pk',JSON.stringify({[wallet.address]:another.privateKey}));
@@ -29,4 +29,11 @@ describe('DApp key protection lifecycle',()=>{
   await expect(protectDappKey(wallet.address,password)).rejects.toThrow('chưa có khóa');
   values.set('fun_wallet_pk',JSON.stringify({[wallet.address]:wallet.privateKey}));await expect(protectDappKey(wallet.address,'short')).rejects.toThrow('12');
  });
+});
+
+describe('WalletConnect web prerequisites',()=>{
+ it('requires recovery for a watch-only wallet even if another vault account is unlocked',()=>{const w=Wallet.createRandom(),state=dappKeyReadiness(w.address,true);expect(state.state).toBe('missing');expect(state.canPair).toBe(false);expect(state.message).toContain('Khôi phục');});
+ it('distinguishes a present locked key from a ready signing account',async()=>{const w=Wallet.createRandom();values.set('fun_wallet_pk',JSON.stringify({[w.address]:w.privateKey}));await protectDappKey(w.address,password);expect(dappKeyReadiness(w.address,false).state).toBe('locked');expect(dappKeyReadiness(w.address,true).canPair).toBe(true);});
+ it('recognizes the older backup key prefix for exactly this account',async()=>{const w=Wallet.createRandom(),other=Wallet.createRandom();values.set('pk_'+w.address,w.privateKey);expect(dappKeyReadiness(w.address,false).state).toBe('legacy');expect(dappKeyReadiness(other.address,false).state).toBe('missing');await protectDappKey(w.address,password);expect(dappKeyReadiness(w.address,false).state).toBe('locked');});
+ it('reports corrupted vaults without crashing or suggesting overwriting them',()=>{values.set(ENCRYPTED_WALLET_STORAGE_KEY,'{broken');const state=dappKeyReadiness(Wallet.createRandom().address,true);expect(state.state).toBe('damaged');expect(state.canPair).toBe(false);expect(values.get(ENCRYPTED_WALLET_STORAGE_KEY)).toBe('{broken');});
 });

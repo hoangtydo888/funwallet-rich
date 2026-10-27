@@ -1,3 +1,6 @@
+import { assetKey } from "@/lib/assetIdentity";
+import { parseUnits, formatUnits } from "ethers";
+import { exactTokenUnits, maxNativeAmount, decimalIsPositive } from "@/lib/tokenAmounts";
 import { useState } from "react";
 import {
   Dialog,
@@ -54,19 +57,22 @@ export const SendCryptoDialog = ({
 }: SendCryptoDialogProps) => {
   const { user } = useAuth();
   // Ưu tiên CAMLY làm token mặc định nếu có trong balances
-  const [selectedToken, setSelectedToken] = useState(() => {
+  const [selectedTokenKey, setSelectedTokenKey] = useState(() => {
     const camly = balances.find(b => b.symbol === "CAMLY");
-    return camly ? "CAMLY" : "BNB";
+    return camly ? assetKey(camly) : "native";
   });
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState("");
 
-  const selectedBalance = balances.find((b) => b.symbol === selectedToken);
-  const maxAmount = parseFloat(selectedBalance?.balance || "0");
+  const selectedBalance = balances.find((b) => assetKey(b) === selectedTokenKey);
+  const selectedToken=selectedBalance?.symbol ?? "BNB";
+  const isNative=selectedBalance?.address === null;
+  const maxAmount = selectedBalance?.balance || "0";
 
   const handleSend = async () => {
+    if (!selectedBalance) {toast({title:"Chọn lại token trước khi gửi",variant:"destructive"});return;}
     if (!isValidAddress(recipient)) {
       toast({
         title: "Địa chỉ không hợp lệ",
@@ -76,8 +82,7 @@ export const SendCryptoDialog = ({
       return;
     }
 
-    const sendAmount = parseFloat(amount);
-    if (isNaN(sendAmount) || sendAmount <= 0) {
+    if (!decimalIsPositive(amount)) {
       toast({
         title: "Số lượng không hợp lệ",
         description: "Vui lòng nhập số lượng hợp lệ",
@@ -100,12 +105,17 @@ export const SendCryptoDialog = ({
     setLoading(true);
 
     // Kiểm tra số dư thực tế từ blockchain trước khi gửi
-    const tokenData = balances.find((b) => b.symbol === selectedToken);
-    const realBalance = selectedToken === "BNB"
+    const tokenData = balances.find((b) => assetKey(b) === selectedTokenKey);
+    const realBalance = isNative
       ? await getBNBBalance(walletAddress)
       : await getTokenBalance(tokenData?.address || "", walletAddress);
     
-    const realBalanceNum = parseFloat(realBalance);
+    let sendAmount: bigint;
+    const decimals=isNative ? 18 : tokenData?.decimals ?? 18;
+    try { sendAmount=exactTokenUnits(amount,decimals); } catch {
+      setLoading(false);toast({title:"Số lượng có quá nhiều chữ số thập phân hoặc không hợp lệ",variant:"destructive"});return;
+    }
+    const realBalanceNum = parseUnits(realBalance,decimals);
     console.log(`[SEND] Token: ${selectedToken}, Real balance: ${realBalance}, Amount: ${amount}`);
 
     if (sendAmount > realBalanceNum) {
@@ -119,13 +129,13 @@ export const SendCryptoDialog = ({
     }
 
     // Kiểm tra BNB cho gas nếu gửi token
-    if (selectedToken !== "BNB") {
+    if (!isNative) {
       const bnbBalance = await getBNBBalance(walletAddress);
-      if (parseFloat(bnbBalance) < GAS_PER_TRANSFER) {
+      if (parseUnits(bnbBalance,18) < parseUnits(String(GAS_PER_TRANSFER),18)) {
         setLoading(false);
         toast({
           title: "Không đủ BNB cho phí gas",
-          description: `Cần ít nhất ${GAS_PER_TRANSFER} BNB. Hiện có: ${parseFloat(bnbBalance).toFixed(6)} BNB`,
+          description: `Cần ít nhất ${GAS_PER_TRANSFER} BNB. Hiện có: ${bnbBalance} BNB`,
           variant: "destructive",
         });
         return;
@@ -133,7 +143,7 @@ export const SendCryptoDialog = ({
     }
 
     let result;
-    if (selectedToken === "BNB") {
+    if (isNative) {
       result = await sendBNB(privateKey, recipient, amount);
     } else {
       if (!tokenData?.address) {
@@ -157,7 +167,7 @@ export const SendCryptoDialog = ({
       
       // Lưu giao dịch vào database
       if (user && activeWallet) {
-        const tokenData = balances.find((b) => b.symbol === selectedToken);
+        const tokenData = balances.find((b) => assetKey(b) === selectedTokenKey);
         await supabase.from("transactions").insert({
           user_id: user.id,
           wallet_id: activeWallet.id,
@@ -173,7 +183,7 @@ export const SendCryptoDialog = ({
       }
       
       toast({
-        title: "Phước lành đã được chia sẻ! ❤️🌈",
+        title: "Giao dịch đã được gửi",
         description: `Đã gửi ${amount} ${selectedToken}`,
       });
       onSuccess();
@@ -184,20 +194,12 @@ export const SendCryptoDialog = ({
     setRecipient("");
     setAmount("");
     setTxHash("");
-    setSelectedToken("BNB");
+    setSelectedTokenKey("native");
     onOpenChange(false);
   };
 
   const setMaxAmount = () => {
-    // Leave some BNB for gas if sending BNB
-    if (selectedToken === "BNB") {
-      const maxWithGas = Math.max(0, maxAmount - 0.001);
-      // Làm tròn xuống 8 decimals để tránh floating point errors
-      setAmount(truncateDecimals(maxWithGas, 8));
-    } else {
-      // Cắt bớt decimals để đảm bảo không vượt quá balance thực tế
-      setAmount(truncateDecimals(maxAmount, 8));
-    }
+    setAmount(isNative ? maxNativeAmount(maxAmount,"0.001") : maxAmount);
   };
 
   if (txHash) {
@@ -207,7 +209,7 @@ export const SendCryptoDialog = ({
           <DialogHeader>
             <DialogTitle className="font-heading text-[#00FF7F] flex items-center gap-2">
               <Heart className="h-5 w-5 text-pink-500 animate-pulse" />
-              Phước lành đã được chia sẻ! ❤️🌈
+              Giao dịch đã được gửi
             </DialogTitle>
           </DialogHeader>
 
@@ -220,7 +222,7 @@ export const SendCryptoDialog = ({
                 {amount} {selectedToken}
               </p>
               <p className="text-muted-foreground text-sm mt-2">
-                Năng lượng yêu thương đã được gửi đi! 💚
+                Đang chờ blockchain xác nhận. Kiểm tra trạng thái trong lịch sử giao dịch.
               </p>
             </div>
 
@@ -259,7 +261,7 @@ export const SendCryptoDialog = ({
         <div className="space-y-4 pt-4">
           <div className="space-y-2">
             <Label>Chọn token</Label>
-            <Select value={selectedToken} onValueChange={setSelectedToken}>
+            <Select value={selectedTokenKey} onValueChange={setSelectedTokenKey}>
               <SelectTrigger>
                 <SelectValue>
                   <div className="flex items-center gap-2">
@@ -281,14 +283,14 @@ export const SendCryptoDialog = ({
                     return parseFloat(b.balance) - parseFloat(a.balance);
                   })
                   .map((token) => (
-                  <SelectItem key={token.symbol} value={token.symbol}>
+                  <SelectItem key={assetKey(token)} value={assetKey(token)}>
                     <div className="flex items-center gap-2">
                       <img 
                         src={token.logo} 
                         alt={token.symbol} 
                         className="w-5 h-5 rounded-full"
                       />
-                      <span className="font-medium">{token.symbol}</span>
+                      <span className="font-medium">{token.symbol}</span><span className="text-xs text-muted-foreground">{token.address ? `${token.address.slice(0,6)}…${token.address.slice(-4)}` : "Native"}</span>
                       {token.symbol === "CAMLY" && (
                         <span className="text-[10px] px-1 py-0.5 rounded bg-[#00FF7F]/20 text-[#00FF7F]">⭐</span>
                       )}
@@ -333,14 +335,14 @@ export const SendCryptoDialog = ({
           </div>
 
           {/* Gas estimate */}
-          {parseFloat(amount) > 0 && (
+          {decimalIsPositive(amount) && (
             <div className="flex items-center justify-between text-sm text-muted-foreground p-2 bg-muted/50 rounded-lg">
               <span>Phí gas ước tính:</span>
               <span className="font-mono">~{GAS_PER_TRANSFER} BNB</span>
             </div>
           )}
 
-          {selectedToken === "BNB" && parseFloat(amount) > 0 && (
+          {isNative && decimalIsPositive(amount) && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 text-warning text-sm">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
               <p>Hãy giữ lại một ít BNB để trả phí gas cho các giao dịch sau</p>

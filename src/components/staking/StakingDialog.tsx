@@ -1,29 +1,29 @@
 import { useState } from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  STAKING_POOLS, 
-  StakingPool, 
-  stakeTokens, 
-  unstakeTokens, 
+import {
+  STAKING_POOLS,
+  StakingPool,
+  stakeTokens,
+  unstakeTokens,
   claimRewards,
   calculateRewards
 } from "@/lib/staking";
 import { toast } from "@/hooks/use-toast";
-import { 
-  Loader2, 
-  TrendingUp, 
-  Lock, 
-  Gift, 
+import {
+  Loader2,
+  TrendingUp,
+  Lock,
+  Gift,
   ExternalLink,
   Clock
 } from "lucide-react";
@@ -49,14 +49,11 @@ export const StakingDialog = ({
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"stake" | "unstake">("stake");
 
-  // Mock user stakes (in production, fetch from contract)
-  const [userStakes] = useState<Record<string, { amount: string; rewards: string }>>({
-    "cake-pool": { amount: "100", rewards: "2.45" },
-  });
+  const [userStakes] = useState<Record<string, { amount: string; rewards: string }>>({});
 
   const handleStake = async () => {
     if (!selectedPool || !amount) return;
-    
+
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
       toast({
@@ -70,14 +67,14 @@ export const StakingDialog = ({
     setLoading(true);
     try {
       const result = await stakeTokens(privateKey, selectedPool.id, amount);
-      
+
       if (result.success) {
         toast({
           title: "Stake thành công!",
           description: (
             <div className="flex items-center gap-2">
               <span>Đã stake {amount} {selectedPool.tokenSymbol}</span>
-              <a 
+              <a
                 href={`${BSC_MAINNET.explorer}/tx/${result.txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -110,7 +107,7 @@ export const StakingDialog = ({
 
   const handleUnstake = async () => {
     if (!selectedPool || !amount) return;
-    
+
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
       toast({
@@ -124,7 +121,7 @@ export const StakingDialog = ({
     setLoading(true);
     try {
       const result = await unstakeTokens(privateKey, selectedPool.id, amount);
-      
+
       if (result.success) {
         toast({
           title: "Unstake thành công!",
@@ -157,7 +154,7 @@ export const StakingDialog = ({
     setLoading(true);
     try {
       const result = await claimRewards(privateKey, poolId);
-      
+
       if (result.success) {
         toast({
           title: "Claim thành công!",
@@ -194,7 +191,7 @@ export const StakingDialog = ({
             <TrendingUp className="h-5 w-5 text-primary" />
             Staking Pools
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription>Staking chưa mở: chưa có hợp đồng on-chain được thẩm định.
             Stake tokens vào PancakeSwap để nhận lợi nhuận
           </DialogDescription>
         </DialogHeader>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -37,11 +37,12 @@ export const SetupPasswordDialog = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => { if (!open) { setPassword(""); setConfirmPassword(""); setError(""); setShowPassword(false); } }, [open]);
   const strength = getPasswordStrength(password);
   const isConfirmMode = mode === "setup" || mode === "confirm";
   const passwordsMatch = password === confirmPassword;
-  const isValid = 
-    password.length >= 6 && 
+  const isValid =
+    password.length >= (mode === "enter" ? 1 : 12) &&
     (!isConfirmMode || passwordsMatch);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,8 +50,8 @@ export const SetupPasswordDialog = ({
     setError("");
 
     if (!isValid) {
-      if (password.length < 6) {
-        setError("Mật khẩu phải có ít nhất 6 ký tự");
+      if (password.length < (mode === "enter" ? 1 : 12)) {
+        setError("Mật khẩu mới phải có ít nhất 12 ký tự");
         return;
       }
       if (isConfirmMode && !passwordsMatch) {
@@ -202,8 +203,8 @@ export const SetupPasswordDialog = ({
             <div className="bg-muted/50 rounded-lg p-3 text-xs space-y-1">
               <p className="font-medium text-foreground">Yêu cầu mật khẩu:</p>
               <ul className="space-y-1 text-muted-foreground">
-                <li className={cn(password.length >= 6 && "text-success")}>
-                  • Ít nhất 6 ký tự
+                <li className={cn(password.length >= 12 && "text-success")}>
+                  • Ít nhất 12 ký tự
                 </li>
                 <li className={cn(/[A-Z]/.test(password) && /[a-z]/.test(password) && "text-success")}>
                   • Chữ hoa và chữ thường
@@ -255,7 +256,7 @@ export const SetupPasswordDialog = ({
           <p className="text-xs text-warning flex items-start gap-2">
             <Shield className="h-4 w-4 shrink-0 mt-0.5" />
             <span>
-              <strong>Quan trọng:</strong> Nếu bạn quên mật khẩu, bạn sẽ cần seed phrase để khôi phục ví. 
+              <strong>Quan trọng:</strong> Nếu bạn quên mật khẩu, bạn sẽ cần seed phrase để khôi phục ví.
               Hãy chắc chắn đã sao lưu seed phrase của bạn.
             </span>
           </p>

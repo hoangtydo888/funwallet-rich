@@ -1,3 +1,5 @@
+import {exactRawTransferValue} from '../_shared/explorerValues.ts';
+import {readBoundedJson,upstreamJson,requireScanBudget,scannerFailure} from '../_shared/scannerSafety.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -16,6 +18,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if(req.method!=='POST')return new Response('POST only',{status:405,headers:corsHeaders});
+
   try {
     // Require authenticated Supabase user (protects MEGANODE_API_KEY quota)
     const authHeader = req.headers.get("Authorization");
@@ -32,18 +36,20 @@ serve(async (req) => {
     );
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    if (claimsError || typeof claimsData?.claims?.sub !== 'string' || claimsData.claims.role !== 'authenticated') {
       return new Response(
         JSON.stringify({ error: "Unauthorized", status: "0", result: [] }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { address, action, page = 1, offset = 50 } = await req.json();
+    const budgetClient=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
+    await requireScanBudget(budgetClient,claimsData.claims.sub,'bscscan-proxy');
+    const { address, action, page = 1, offset = 50 } = await readBoundedJson(req) as any;
     
-    console.log(`[MegaNode] Fetching ${action} for ${address}, page ${page}`);
 
-    if (!address || !action) {
+
+    if (typeof address !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(address) || !['tokentx','txlist'].includes(action) || !Number.isInteger(page) || page < 1 || page > 100 || !Number.isInteger(offset) || offset < 1 || offset > 100) {
       return new Response(
         JSON.stringify({ error: "Missing required parameters: address and action", status: "0", result: [] }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -55,9 +61,10 @@ serve(async (req) => {
     
     console.log(`[MegaNode] Using category: ${JSON.stringify(category)}, halfOffset: ${halfOffset}`);
 
-    const [sentResponse, receivedResponse] = await Promise.all([
-      fetch(MEGANODE_API, {
+    const [sentData, receivedData] = await Promise.all([
+      upstreamJson(MEGANODE_API, {
         method: "POST",
+        signal: AbortSignal.timeout(10000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
@@ -71,8 +78,9 @@ serve(async (req) => {
           }]
         })
       }),
-      fetch(MEGANODE_API, {
+      upstreamJson(MEGANODE_API, {
         method: "POST",
+        signal: AbortSignal.timeout(10000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
@@ -88,13 +96,8 @@ serve(async (req) => {
       })
     ]);
 
-    const [sentData, receivedData] = await Promise.all([
-      sentResponse.json(),
-      receivedResponse.json()
-    ]);
-
-    if (sentData.error) console.error(`[MegaNode] Sent API Error:`, sentData.error);
-    if (receivedData.error) console.error(`[MegaNode] Received API Error:`, receivedData.error);
+    if (sentData.error) console.error('Upstream scanner failed');
+    if (receivedData.error) console.error('Upstream scanner failed');
 
     const sentTransfers = sentData.result?.transfers || [];
     const receivedTransfers = receivedData.result?.transfers || [];
@@ -115,19 +118,7 @@ serve(async (req) => {
       });
 
       const transformedResult = uniqueTransfers.map((tx: any) => {
-        let value = "0";
-        if (tx.value !== undefined && tx.value !== null) {
-          if (typeof tx.value === 'number') {
-            const decimals = tx.decimal ? parseInt(tx.decimal, 16) : 18;
-            value = String(Math.floor(tx.value * Math.pow(10, decimals)));
-          } else if (typeof tx.value === 'string') {
-            if (tx.value.startsWith('0x')) {
-              value = String(parseInt(tx.value, 16));
-            } else {
-              value = tx.value;
-            }
-          }
-        }
+        const value=exactRawTransferValue(tx);
 
         let timeStamp = String(Math.floor(Date.now() / 1000));
         if (tx.blockTimeStamp) timeStamp = String(tx.blockTimeStamp);
@@ -139,10 +130,10 @@ serve(async (req) => {
           value: value,
           timeStamp: timeStamp,
           blockNumber: tx.blockNum ? String(parseInt(tx.blockNum, 16)) : "0",
-          gasUsed: "21000",
-          gasPrice: "10000000000",
-          isError: "0",
-          txreceipt_status: "1",
+          gasUsed: "",
+          gasPrice: "",
+          isError: "unknown",
+          txreceipt_status: "unknown",
           tokenSymbol: tx.asset || (action === "tokentx" ? "TOKEN" : "BNB"),
           tokenDecimal: tx.decimal ? String(parseInt(tx.decimal, 16)) : "18",
           tokenName: tx.asset || "BNB",
@@ -168,11 +159,6 @@ serve(async (req) => {
     });
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("[MegaNode] Error:", errorMessage);
-    return new Response(
-      JSON.stringify({ error: errorMessage, status: "0", result: [] }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return scannerFailure(error,corsHeaders);
   }
 });

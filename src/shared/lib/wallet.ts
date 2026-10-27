@@ -1,3 +1,4 @@
+import { exactTokenUnits } from "../../lib/tokenAmounts";
 import { ethers } from "ethers";
 import { Chain, Token, TokenBalance, Result } from '../types';
 import { BSC_MAINNET, COMMON_TOKENS } from '../constants/tokens';
@@ -152,11 +153,13 @@ export const sendNativeToken = async (
 ): Promise<Result<{ hash: string }, string>> => {
   try {
     const provider = chain ? getProviderForChain(chain) : getProvider();
+    const network=await provider.getNetwork();
+    if(network.chainId !== BigInt(chain?.chainId ?? 56))throw Error("RPC trả về sai mạng");
     const wallet = new ethers.Wallet(privateKey, provider);
     
     const tx = await wallet.sendTransaction({
       to: toAddress,
-      value: ethers.parseEther(amount),
+      value: exactTokenUnits(amount, 18),
     });
     
     return { success: true, data: { hash: tx.hash } };
@@ -193,6 +196,7 @@ export const sendToken = async (
 ): Promise<{ hash: string } | { error: string }> => {
   try {
     const provider = getProvider();
+    if((await provider.getNetwork()).chainId !== 56n)throw Error("RPC trả về sai mạng");
     const wallet = new ethers.Wallet(privateKey, provider);
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
     
@@ -204,18 +208,12 @@ export const sendToken = async (
     const realBalance = await contract.balanceOf(wallet.address);
     
     // Parse amount with correct precision
-    let parsedAmount = ethers.parseUnits(amount, useDecimals);
+    let parsedAmount = exactTokenUnits(amount, useDecimals);
     
     console.log(`[SEND TOKEN] Amount: ${amount}, Parsed: ${parsedAmount.toString()}, Balance: ${realBalance.toString()}, Decimals: ${useDecimals}`);
     
-    // If amount is near max (99.99%+), use full balance to avoid dust
-    const threshold = realBalance * 9999n / 10000n;
-    if (parsedAmount >= threshold && parsedAmount <= realBalance) {
-      console.log(`[SEND TOKEN] Amount near max, using full balance: ${realBalance.toString()}`);
-      parsedAmount = realBalance;
-    }
-    
-    // Check sufficient balance
+    // Send exactly the amount the user confirmed; MAX is an explicit UI action.
+
     if (parsedAmount > realBalance) {
       const formattedBalance = ethers.formatUnits(realBalance, useDecimals);
       return { error: `Số dư không đủ. Balance thực tế: ${formattedBalance}` };

@@ -17,6 +17,7 @@ import {
   type SDKClient,
 } from '@lifi/sdk';
 import { ethers } from 'ethers';
+import {validateLifiIntent,validateLifiRequest,type LifiIntent} from './lifiValidation';
 
 let client: SDKClient | null = null;
 
@@ -58,20 +59,19 @@ export const getLifiChains = () => sdkGetChains(getClient());
 export async function executeLifiStep(
   step: LiFiStep,
   signer: ethers.Signer,
+  intent: LifiIntent,
 ): Promise<string> {
-  const stepWithTx = step.transactionRequest
-    ? step
-    : await sdkGetStepTransaction(getClient(), step);
-  const req = stepWithTx.transactionRequest;
-  if (!req?.to || !req?.data) throw new Error('Step has no transactionRequest');
-
-  const tx = await signer.sendTransaction({
-    to: req.to,
-    data: req.data,
-    value: req.value ? BigInt(req.value) : undefined,
-    gasLimit: req.gasLimit ? BigInt(req.gasLimit) : undefined,
-    gasPrice: req.gasPrice ? BigInt(req.gasPrice) : undefined,
-  });
+  validateLifiIntent(step,intent);
+  if(!signer.provider || (await signer.provider.getNetwork()).chainId!==BigInt(intent.fromChainId) || (await signer.getAddress()).toLowerCase()!==intent.account.toLowerCase())throw Error('Ví hoặc mạng đã thay đổi');
+  // Always refresh the transaction payload; never replay a stale API payload.
+  const stepWithTx=await sdkGetStepTransaction(getClient(),step);
+  validateLifiIntent(stepWithTx,intent);
+  const request=validateLifiRequest(stepWithTx.transactionRequest,intent);
+  // Read-only simulation before signing. RPC execution success is not a fraud guarantee.
+  await signer.provider.call(request);
+  const gasLimit=await signer.provider.estimateGas(request);
+  validateLifiIntent(stepWithTx,intent);
+  const tx=await signer.sendTransaction({...request,gasLimit:gasLimit*120n/100n});
   await tx.wait();
   return tx.hash;
 }
