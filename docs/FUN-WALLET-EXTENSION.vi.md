@@ -56,6 +56,7 @@ Các phương thức RPC hiện có: eth_accounts, eth_requestAccounts, eth_chai
 
 - `inpage.js` được service worker đăng ký bằng `chrome.scripting` ở MAIN world, `document_start`. Trước đây provider được chèn lúc DOMContentLoaded qua thẻ script bất đồng bộ, nên FUN Profile đọc `window.funWallet` khi khởi động thì chưa thấy và chuyển sang ví web/WalletConnect. Cần thêm quyền `scripting` và host `http(s)://*/*` (cảnh báo cài đặt không đổi vì content script vốn chạy trên mọi trang).
 - Luồng như ảnh MetaMask: chọn FUN Wallet → panel/popup mở → nếu ví khóa thì hiện màn mở khóa ghi rõ site đang yêu cầu → màn "Kết nối trang web này" có icon site, tài khoản, quyền ✓/✗ → Kết nối → tự quay về trang chủ ví; trang chủ hiện site của tab hiện tại và nút ngắt kết nối.
+- Side panel được mở ngay khi nhận yêu cầu, trước mọi `await`. Chrome chỉ cho `sidePanel.open` chạy khi còn thao tác bấm của người dùng, và thao tác đó mất ở `await` đầu tiên. Trước đây mọi yêu cầu đều rơi về cửa sổ popup riêng; trên macOS cửa sổ này có thể mở ở Space khác hoặc nằm sau Chrome, nên trang cứ quay "Đang mở FUN Wallet…" (28/10/2026).
 - Mở khóa sẽ tự trả tài khoản cho site đã được cấp quyền đang chờ kết nối lại và phát `accountsChanged`.
 - Giao dịch kiểu viem (trường `undefined`, `type: 0x2`, `accessList: []`, `input`) không còn bị từ chối nhầm. Chưa hỗ trợ tạo hợp đồng, access list, blob transaction hoặc authorization list trong màn duyệt này.
 

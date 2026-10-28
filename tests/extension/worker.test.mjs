@@ -24,14 +24,14 @@ let serial=0;
 async function setup({panelFails=false, sessionData={}, broadcastFails=false, rpcState={}}={}) {
   const local={fun_wallet_active:active.address,fun_wallet_encrypted_v2:vault,fun_wallet_chain:'56',fun_wallet_last_activity:String(Date.now())};
   const session={...sessionData};
-  const events={}; const sent=[]; const windows=[]; const broadcasts=[];const panelOptions=[];const registered=[];const rpcCalls=[];
+  const events={}; const opens=[]; const sent=[]; const windows=[]; const broadcasts=[];const panelOptions=[];const registered=[];const rpcCalls=[];
   const tabs=new Map([[1,{id:1,windowId:1,url:'https://fun.rich/profile'}],[2,{id:2,windowId:1,url:'https://other.example/'}]]);
   const event=name=>({addListener(fn){events[name]=fn;}});
   const area=data=>({async setAccessLevel(){},async get(key){return key===null?{...data}:{[key]:data[key]};},async set(values){Object.assign(data,structuredClone(values));},async remove(key){delete data[key];}});
   globalThis.chrome={
     runtime:{id:'wallet',getURL:path=>`chrome-extension://wallet/${path}`,getManifest:()=>({version:'1.1.0'}),onMessage:event('message')},
     storage:{local:area(local),session:area(session),onChanged:event('storageChanged')},
-    sidePanel:{async setPanelBehavior(){},async setOptions(options){panelOptions.push(options);},async open(){if(panelFails)throw new Error('user gesture required');}},
+    sidePanel:{async setPanelBehavior(){},async setOptions(options){panelOptions.push(options);},open(options){opens.push(options);return panelFails?Promise.reject(new Error('user gesture required')):Promise.resolve();}},
     scripting:{async getRegisteredContentScripts(){return [...registered];},async registerContentScripts(scripts){registered.push(...scripts);},async updateContentScripts(){}},
     alarms:{async create(){},onAlarm:event('alarm')},
     tabs:{async get(id){return tabs.get(id);},async query(){return [...tabs.values()];},async sendMessage(id,message,options){sent.push({id,message,options});},onRemoved:event('tabRemoved'),onUpdated:event('tabUpdated')},
@@ -69,7 +69,7 @@ async function setup({panelFails=false, sessionData={}, broadcastFails=false, rp
     const request=await next();
     assert.equal((await send({type:'APPROVE_CONNECTION',payload:{requestId:request.id}})).success,true);
   };
-  return {local,session,tabs,sent,windows,broadcasts,panelOptions,events,popup,page,send,unlock,next,connect,registered,rpcCalls};
+  return {opens,local,session,tabs,sent,windows,broadcasts,panelOptions,events,popup,page,send,unlock,next,connect,registered,rpcCalls};
 }
 
 test('connection preserves client ID, resumes after unlock and scopes account event to its origin', async()=>{
@@ -245,7 +245,7 @@ test('dApp can poll a receipt and block height; malformed hash is rejected',asyn
 
 test('connection opens the exact approval route instead of an old side-panel page',async()=>{
  const h=await setup();await h.send({type:'eth_requestAccounts',requestId:'open-flow'},h.page());const request=await h.next();
- assert.equal(h.panelOptions.length,1);assert.equal(h.panelOptions[0].tabId,1);assert.equal(h.panelOptions[0].enabled,true);assert.match(h.panelOptions[0].path,new RegExp('surface=approval-panel#\\/request\\?requestId='+request.id));
+ const exact=h.panelOptions.at(-1);assert.equal(h.panelOptions.length,2);assert.equal(exact.tabId,1);assert.equal(exact.enabled,true);assert.match(exact.path,new RegExp('surface=approval-panel#\\/request\\?requestId='+request.id));
 });
 test('connection account selection requires a local key and a separate unlock/approval',async()=>{
  const h=await setup();await h.send({type:'eth_requestAccounts',requestId:'choose-account'},h.page());const request=await h.next();
@@ -261,7 +261,7 @@ test('connection account selection requires a local key and a separate unlock/ap
 });
 test('retry brings the original approval forward without authorizing a second request',async()=>{
  const h=await setup();await h.send({type:'eth_requestAccounts',requestId:'first'},h.page());const firstRequest=await h.next();
- const next=await h.send({type:'eth_requestAccounts',requestId:'retry'},h.page());assert.equal(next.code,-32002);assert.equal((await h.next()).id,firstRequest.id);assert.equal(h.panelOptions.length,2);
+ const next=await h.send({type:'eth_requestAccounts',requestId:'retry'},h.page());assert.equal(next.code,-32002);assert.equal((await h.next()).id,firstRequest.id);assert.equal(h.panelOptions.length,4);assert.match(h.panelOptions.at(-1).path,new RegExp('requestId='+firstRequest.id));
 });
 test('provider is registered in the MAIN world at document_start so dApps detect it before boot',async()=>{
   const h=await setup();
@@ -310,3 +310,14 @@ test('personal_sign accepts UTF-8 text and signs it as MetaMask does',async()=>{
   const response=await h.send({type:'APPROVE_SIGN',payload:{requestId:request.id,password}});
   assert.equal(ethers.verifyMessage('Đăng nhập FUN Profile',response.data),active.address);
 });
+
+test('side panel opens synchronously with the dApp click, before any await, so Chrome keeps the gesture',async()=>{
+  const h=await setup();
+  const response=h.send({type:'eth_requestAccounts',requestId:'gesture'},h.page());
+  assert.deepEqual(h.opens,[{tabId:1}]);
+  assert.equal((await response).pending,true);
+  assert.equal(h.windows.length,0);
+  void h.send({type:'eth_chainId',requestId:'read'},h.page());
+  assert.equal(h.opens.length,1);
+});
+

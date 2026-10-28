@@ -145,11 +145,24 @@ async function readRpc(method: string, params: unknown) {
   if (json.error) throw Object.assign(new RpcError(typeof json.error.code === 'number' ? json.error.code : -32603, json.error.message || 'RPC lỗi'), { data: json.error.data });
   return json.result ?? null;
 }
+// Chrome only opens the side panel while the dApp click's user gesture is alive, which
+// ends at the first await. Open it synchronously on arrival, like MetaMask; the panel
+// then shows the queued request itself (PendingRequestNavigation).
+const APPROVAL_METHODS = new Set([...CONNECT_METHODS, ...SWITCH_METHODS, 'eth_sendTransaction', 'personal_sign', 'eth_signTypedData_v4']);
+const panelOpening = new Map<number, Promise<boolean>>();
+function openPanelEarly(message: Message, sender: chrome.runtime.MessageSender) {
+  const tabId = sender.tab?.id;
+  if (tabId === undefined || !APPROVAL_METHODS.has(message?.type)) return;
+  if (message.type === 'eth_requestAccounts' && !isLocked && sender.origin && connections.has(sender.origin)) return;
+  void chrome.sidePanel.setOptions({ tabId, path: 'popup.html?surface=approval-panel', enabled: true }).catch(() => {});
+  panelOpening.set(tabId, chrome.sidePanel.open({ tabId }).then(() => true, () => false));
+}
 async function openApproval(request: ApprovalRequest) {
-  // An async dApp request may no longer carry Chrome's required user gesture.
+  const opened = await panelOpening.get(request.tabId);
   try {
     await chrome.sidePanel.setOptions({tabId:request.tabId,path:`popup.html?surface=approval-panel#/request?requestId=${request.id}`,enabled:true});
-    await chrome.sidePanel.open({tabId:request.tabId});return;
+    if (!opened) await chrome.sidePanel.open({tabId:request.tabId});
+    return;
   }
   catch { /* Use a real extension popup when Chrome refuses the side panel. */ }
   const tab = await chrome.tabs.get(request.tabId);
@@ -166,8 +179,7 @@ async function openApproval(request: ApprovalRequest) {
   if (pending.has(request.id)) { request.windowId = window.id; await persistPending(); }
 }
 async function queue(message: Message, sender: chrome.runtime.MessageSender, origin: string, account: string, params: unknown[]) {
-  for(const old of [...pending.values()])if(old.tabId===sender.tab!.id&&!old.status&&Date.now()-old.timestamp>=REQUEST_TTL)await finish(old,undefined,new RpcError(4001,'Yêu cầu đã hết hạn'));
-  const existing=[...pending.values()].find(r=>r.tabId===sender.tab!.id);
+  for(const old of [...pending.values()])if(old.tabId===sender.tab!.id&&!old.status&&Date.now()-old.timestamp>=REQUEST_TTL)await finish(old,undefined,new RpcError(4001,'Yêu cầu đã hết hạn'));  const existing=[...pending.values()].find(r=>r.tabId===sender.tab!.id);
   if(existing){await openApproval(existing);throw new RpcError(-32002, 'Ứng dụng đã có yêu cầu đang chờ. Hãy xử lý yêu cầu đó trước.');}
   if (pending.size >= 8) throw new RpcError(-32002, 'Có quá nhiều yêu cầu đang chờ');
   const request: ApprovalRequest = {
@@ -469,6 +481,7 @@ async function handlePopup(message: Message): Promise<Response> {
   }
 }
 chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
+  if (sender.tab && !trustedPopup(sender, chrome.runtime.id, chrome.runtime.getURL('popup.html'))) openPanelEarly(message, sender);
   void (async () => {
     await ready;
     const lastActivity = Number(await storage.get(STORAGE_KEYS.LAST_ACTIVITY));
