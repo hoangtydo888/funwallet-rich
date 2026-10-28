@@ -3,7 +3,7 @@ import { WalletKit, type WalletKitTypes } from '@reown/walletkit';
 
 // Public relay identifier for Cha's existing Reown project (not a secret).
 export const WALLETCONNECT_PROJECT_ID = '438c4373fc7f4c3b5561f0d2d2b2aa0e';
-export { PROFILE_ORIGIN, isProfilePeer } from './profileOrigins';
+export { PROFILE_ORIGIN, isProfilePeer, profileOriginOf } from './profileOrigins';
 export const WC_METHODS = ['personal_sign', 'eth_sendTransaction', 'wallet_switchEthereumChain'];
 export type Proposal = {id:number;params:WalletKitTypes.SessionProposal['params'];verifyContext?:WalletKitTypes.SessionProposal['verifyContext']};
 export type Request = WalletKitTypes.SessionRequest;
