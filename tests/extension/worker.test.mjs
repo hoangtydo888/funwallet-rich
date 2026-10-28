@@ -29,7 +29,7 @@ async function setup({panelFails=false, sessionData={}, broadcastFails=false, rp
   const event=name=>({addListener(fn){events[name]=fn;}});
   const area=data=>({async setAccessLevel(){},async get(key){return key===null?{...data}:{[key]:data[key]};},async set(values){Object.assign(data,structuredClone(values));},async remove(key){delete data[key];}});
   globalThis.chrome={
-    runtime:{id:'wallet',getURL:path=>`chrome-extension://wallet/${path}`,getManifest:()=>({version:'1.1.0'}),onMessage:event('message')},
+    runtime:{id:'wallet',getURL:path=>`chrome-extension://wallet/${path}`,getManifest:()=>({version:'1.1.0'}),onMessage:event('message'),onInstalled:event('installed')},
     storage:{local:area(local),session:area(session),onChanged:event('storageChanged')},
     sidePanel:{async setPanelBehavior(){},async setOptions(options){panelOptions.push(options);},open(options){opens.push(options);return panelFails?Promise.reject(new Error('user gesture required')):Promise.resolve();}},
     scripting:{async getRegisteredContentScripts(){return [...registered];},async registerContentScripts(scripts){registered.push(...scripts);},async updateContentScripts(){}},
@@ -321,3 +321,11 @@ test('side panel opens synchronously with the dApp click, before any await, so C
   assert.equal(h.opens.length,1);
 });
 
+
+test('a fresh install opens the full-page welcome flow in a tab, but not when a wallet exists',async()=>{
+  const h=await setup();const opened=[];chrome.tabs.create=async options=>{opened.push(options.url);};
+  delete h.local.fun_wallet_list;h.events.installed({reason:'install'});await new Promise(r=>setTimeout(r,10));
+  assert.deepEqual(opened,['chrome-extension://wallet/popup.html?surface=onboarding']);
+  h.local.fun_wallet_list='[]';h.events.installed({reason:'install'});h.events.installed({reason:'update'});await new Promise(r=>setTimeout(r,10));
+  assert.equal(opened.length,1);
+});

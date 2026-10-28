@@ -1,4 +1,4 @@
-import { ExternalLink, Download, Wallet } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 
 interface OnboardingPageProps {
@@ -17,13 +17,13 @@ function OnboardingPage({ version, onImportWallet, onCreateWallet }: OnboardingP
       <img 
         src="/icons/icon-128.png" 
         alt="FUN Wallet" 
-        className="w-24 h-24 mb-6"
+        className="w-32 h-32 mb-6 drop-shadow-xl"
       />
       
       {/* Welcome Message */}
-      <h1 className="text-xl font-bold mb-2">Chào mừng đến FUN Wallet</h1>
+      <h1 className="text-2xl font-bold mb-2">Chào mừng đến FUN Wallet</h1>
       <p className="text-muted-foreground text-sm mb-8">
-        Tạo ví mới hoặc import ví có sẵn
+        Ví Web3 tự quản của bạn. Khóa riêng chỉ nằm trên máy này.
       </p>
       
       {/* Action Buttons */}
@@ -31,22 +31,20 @@ function OnboardingPage({ version, onImportWallet, onCreateWallet }: OnboardingP
         {/* Create Wallet Button - Primary */}
         <Button
           onClick={onCreateWallet}
-          className="w-full h-12 text-base font-medium"
+          className="w-full h-12 text-base font-semibold rounded-full"
           size="lg"
         >
-          <Wallet className="w-5 h-5 mr-2" />
-          Tạo Ví Mới
+          Tạo ví mới
         </Button>
         
         {/* Import Wallet Button - Secondary */}
         <Button
           onClick={onImportWallet}
           variant="outline"
-          className="w-full h-12 text-base font-medium"
+          className="w-full h-12 text-base font-semibold rounded-full"
           size="lg"
         >
-          <Download className="w-5 h-5 mr-2" />
-          Import Ví Có Sẵn
+          Tôi đã có ví
         </Button>
       </div>
       

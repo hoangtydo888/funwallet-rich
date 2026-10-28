@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Wallet, Shield, Zap } from "lucide-react";
+import { ArrowRight, Chrome, Wallet, Shield, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 const Hero = () => {
   return <section className="relative min-h-screen flex items-center justify-center overflow-hidden px-4 pt-20">
@@ -42,6 +42,12 @@ const Hero = () => {
             <Link to="/auth">
               Bắt đầu ngay
               <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="glass-card border-border/50 hover:bg-muted/50 px-8 py-6 text-lg rounded-xl">
+            <Link to="/extension">
+              <Chrome className="mr-2 h-5 w-5" />
+              Thêm vào Chrome
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="glass-card border-border/50 hover:bg-muted/50 px-8 py-6 text-lg rounded-xl">

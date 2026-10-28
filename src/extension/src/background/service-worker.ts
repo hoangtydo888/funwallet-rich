@@ -492,6 +492,13 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
   })().then(sendResponse).catch(error => sendResponse(fail(error)));
   return true;
 });
+// Like MetaMask, a fresh install opens the full-page welcome flow in a tab.
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason !== 'install') return;
+  void storage.get(STORAGE_KEYS.WALLETS).then(list => {
+    if (!list) void chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?surface=onboarding') });
+  });
+});
 chrome.alarms.onAlarm.addListener(() => {
   void ready.then(async () => {
     if (!signingSession.isUnlocked()) isLocked = true;

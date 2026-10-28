@@ -31,6 +31,7 @@ import PlatformDocs from "./pages/PlatformDocs";
 import ThemePreview from "./pages/ThemePreview";
 import TileDiagnostics from "./pages/TileDiagnostics";
 import ExtensionDownload from "./pages/ExtensionDownload";
+import Privacy from "./pages/Privacy";
 
 
 const queryClient = new QueryClient();
@@ -75,6 +76,7 @@ const App = () => (
                     <Route path="/theme-preview" element={<ThemePreview />} />
                     <Route path="/tile-diagnostics" element={<TileDiagnostics />} />
                     <Route path="/extension" element={<ExtensionDownload />} />
+                    <Route path="/privacy" element={<Privacy />} />
 
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
