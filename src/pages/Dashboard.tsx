@@ -59,6 +59,7 @@ import { TokenList } from "@/components/wallet/TokenList";
 import { NFTGallery } from "@/components/nft/NFTGallery";
 import { MintBadgeDialog } from "@/components/nft/MintBadgeDialog";
 import { SwapDialog } from "@/components/swap/SwapDialog";
+import { BitcoinCard } from "@/components/bitcoin/BitcoinCard";
 import { TransactionHistory } from "@/components/transactions/TransactionHistory";
 import { PortfolioCharts } from "@/components/portfolio/PortfolioCharts";
 import { ImportNFTDialog } from "@/components/nft/ImportNFTDialog";
@@ -133,6 +134,7 @@ const Dashboard = () => {
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [mintBadgeOpen, setMintBadgeOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
+  const [swapTab, setSwapTab] = useState("lifi-swap");
   const [importNFTOpen, setImportNFTOpen] = useState(false);
   const [stakingOpen, setStakingOpen] = useState(false);
   const [priceAlertsOpen, setPriceAlertsOpen] = useState(false);
@@ -444,7 +446,7 @@ const Dashboard = () => {
             <QuickAction 
               icon={<ArrowDownUp />} 
               label="Swap" 
-              onClick={() => setSwapOpen(true)}
+              onClick={() => { setSwapTab("lifi-swap"); setSwapOpen(true); }}
               disabled={!hasWallet}
               colorClass={TILE_STYLES.yellow}
             />
@@ -595,6 +597,12 @@ const Dashboard = () => {
                     </Button>
                   </div>
                 </div>
+                <BitcoinCard
+                  walletAddress={activeWallet.address}
+                  getPrivateKey={getPrivateKey}
+                  onUnlock={() => setUnlockDialogOpen(true)}
+                  onSwap={() => { setSwapTab("btc"); setSwapOpen(true); }}
+                />
                 <TokenList balances={balances} loading={balanceLoading} />
               </div>
             </TabsContent>
@@ -728,6 +736,7 @@ const Dashboard = () => {
             walletAddress={activeWallet.address}
             getPrivateKey={getPrivateKey}
             onSuccess={refreshBalances}
+            defaultTab={swapTab}
           />
 
           <ImportNFTDialog

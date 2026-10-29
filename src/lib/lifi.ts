@@ -47,6 +47,8 @@ export const getLifiStatus = (opts: {
     bridge: opts.bridge,
   });
 
+export const getLifiStepTransaction = (step: LiFiStep) => sdkGetStepTransaction(getClient(), step);
+
 export const getLifiTokens = (chainIds?: number[]) =>
   sdkGetTokens(getClient(), { chains: chainIds as any });
 

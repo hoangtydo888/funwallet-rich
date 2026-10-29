@@ -20,6 +20,7 @@ import { toast } from "@/hooks/use-toast";
 import { SWAP_TOKENS, getSwapQuote, executeSwap, getPancakeSwapUrl, type QuoteResult } from "@/lib/swap";
 import { BSC_MAINNET } from "@/lib/wallet";
 import { LifiPanel } from "./LifiPanel";
+import { BtcSwapPanel } from "./BtcSwapPanel";
 
 interface SwapDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface SwapDialogProps {
   walletAddress: string;
   getPrivateKey: (address: string) => string | null;
   onSuccess?: () => void;
+  defaultTab?: string;
 }
 
 export const SwapDialog = ({
@@ -35,6 +37,7 @@ export const SwapDialog = ({
   walletAddress,
   getPrivateKey,
   onSuccess,
+  defaultTab = "lifi-swap",
 }: SwapDialogProps) => {
   const [tokenIn, setTokenIn] = useState(SWAP_TOKENS[0]); // BNB
   const [tokenOut, setTokenOut] = useState(SWAP_TOKENS[1]); // USDT
@@ -221,12 +224,17 @@ export const SwapDialog = ({
           </div>
         )}
 
-        <Tabs defaultValue="lifi-swap" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="btc">BTC</TabsTrigger>
             <TabsTrigger value="lifi-swap">Swap</TabsTrigger>
             <TabsTrigger value="lifi-bridge">Bridge</TabsTrigger>
-            <TabsTrigger value="pancake">Pancake (BSC)</TabsTrigger>
+            <TabsTrigger value="pancake">Pancake</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="btc" className="mt-4">
+            <BtcSwapPanel walletAddress={walletAddress} getPrivateKey={getPrivateKey} onSuccess={onSuccess} />
+          </TabsContent>
 
           <TabsContent value="lifi-swap" className="mt-4">
             <LifiPanel
