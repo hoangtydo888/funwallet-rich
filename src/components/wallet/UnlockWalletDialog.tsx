@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Lock, Eye, EyeOff, AlertTriangle, Fingerprint } from 'lucide-react';
+import { FORGOT_WALLET_PASSWORD_EVENT } from './ForgotWalletPasswordDialog';
 
 interface UnlockWalletDialogProps {
   open: boolean;
@@ -206,11 +207,20 @@ export const UnlockWalletDialog = ({
               Sử dụng vân tay (sắp có)
             </Button>
 
-            <p className="text-xs text-center text-muted-foreground">
-              Quên mật khẩu? Bạn có thể khôi phục ví bằng seed phrase
-            </p>
           </form>
         )}
+
+        <Button
+          type="button"
+          variant="link"
+          className="w-full text-sm"
+          onClick={() => {
+            onOpenChange(false);
+            window.dispatchEvent(new Event(FORGOT_WALLET_PASSWORD_EVENT));
+          }}
+        >
+          Quên mật khẩu?
+        </Button>
       </DialogContent>
     </Dialog>
   );

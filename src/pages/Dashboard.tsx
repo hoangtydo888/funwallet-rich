@@ -1,6 +1,4 @@
-import {TokenApprovalsPanel} from '@/components/wallet/TokenApprovalsPanel';
 import { PendingTransactionsPanel } from "@/components/wallet/PendingTransactionsPanel";
-import { WalletSecurityPanel } from "@/components/wallet/WalletSecurityPanel";
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -415,8 +413,11 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <WalletSecurityPanel />
-        {activeWallet && <TokenApprovalsPanel account={activeWallet.address} chain={currentChain} />}
+        {hasOldStorageData() && (
+          <button onClick={() => navigate("/settings?tab=security")} className="mb-5 w-full rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-left text-sm text-destructive">
+            Thiết bị còn khóa ví cũ chưa được bảo vệ bằng mật khẩu. Bấm để mở Cài đặt → Bảo mật.
+          </button>
+        )}
         {activeWallet && <PendingTransactionsPanel account={activeWallet.address} chain={currentChain} />}
 
         {/* Quick actions grid - premium */}

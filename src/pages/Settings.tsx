@@ -1,7 +1,9 @@
 import { WalletSecurityPanel } from "@/components/wallet/WalletSecurityPanel";
 import { useWalletSecurity } from "@/contexts/WalletSecurityContext";
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { TokenApprovalsPanel } from "@/components/wallet/TokenApprovalsPanel";
+import { useWallet } from "@/hooks/useWallet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChain } from "@/contexts/ChainContext";
 import { useTheme, THEMES } from "@/contexts/ThemeContext";
@@ -99,6 +101,8 @@ const Settings = () => {
   const { currentChain, setCurrentChain, availableChains } = useChain();
   const { currentTheme, setTheme, themes } = useTheme();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { activeWallet } = useWallet();
 
   const [settings, setSettings] = useState<Settings>(() => {
     try {
@@ -177,7 +181,7 @@ const Settings = () => {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <Tabs defaultValue="appearance" className="space-y-6">
+        <Tabs defaultValue={searchParams.get("tab") === "security" ? "security" : "appearance"} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="appearance" className="gap-2">
               <Palette className="h-4 w-4 hidden sm:block" />
@@ -425,6 +429,8 @@ const Settings = () => {
                 </Select>
               </div>
             </div>
+
+            {activeWallet && <TokenApprovalsPanel account={activeWallet.address} chain={currentChain} />}
 
             {/* Security Tips */}
             <div className="glass-card rounded-2xl p-6 space-y-4">

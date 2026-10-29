@@ -32,6 +32,7 @@ import ThemePreview from "./pages/ThemePreview";
 import TileDiagnostics from "./pages/TileDiagnostics";
 import ExtensionDownload from "./pages/ExtensionDownload";
 import Privacy from "./pages/Privacy";
+import { ForgotWalletPasswordDialog } from "@/components/wallet/ForgotWalletPasswordDialog";
 
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ const App = () => (
               <RealtimeNotificationsProvider>
                 <Toaster />
                 <Sonner />
+                <ForgotWalletPasswordDialog />
                 <BrowserRouter>
                   <Routes>
                     <Route path="/" element={<Index />} />

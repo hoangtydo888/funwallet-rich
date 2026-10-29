@@ -11,6 +11,7 @@ interface WalletSecurityContextValue extends WalletSecurityState {
   unlock:(password:string)=>Promise<boolean>; lock:()=>void; resetSession:()=>void;
   updateActivity:()=>void; checkSession:()=>boolean; getCachedPassword:()=>string|null;
   getUnlockedKey:(address:string)=>string|null; setSessionTimeout:(minutes:number)=>void;
+  clearFailedAttempts:()=>void;
 }
 const WalletSecurityContext = createContext<WalletSecurityContextValue|null>(null);
 export const WalletSecurityProvider:React.FC<{children:React.ReactNode}> = ({children}) => {
@@ -41,6 +42,8 @@ export const WalletSecurityProvider:React.FC<{children:React.ReactNode}> = ({chi
       return valid;
     } finally { unlocking.current = false; }
   },[]);
+  /** Only after a password reset proven with the recovery phrase or private key. */
+  const clearFailedAttempts = useCallback(() => { attempts.current = {count:0,until:0}; setState(s=>({...s,failedAttempts:0,isLocked:false,lockoutEndTime:null})); },[]);
   const checkSession = useCallback(() => { const open = session.current.isOpen(); if (!open) setState(s=>s.isUnlocked ? {...s,isUnlocked:false} : s); return open; },[]);
   const getCachedPassword = useCallback(() => session.current.getPassword(),[]);
   const getUnlockedKey = useCallback((address:string) => session.current.getKey(address),[]);
@@ -66,7 +69,7 @@ export const WalletSecurityProvider:React.FC<{children:React.ReactNode}> = ({chi
     };
   },[checkSession,lock,checkPasswordSetup,updateActivity]);
   const lockAllTabs = useCallback(() => { lock(); try { localStorage.setItem('fun_wallet_lock_signal',String(Date.now())); } catch { /* local lock already applied */ } },[lock]);
-  return <WalletSecurityContext.Provider value={{...state,unlock,lock:lockAllTabs,resetSession:lockAllTabs,updateActivity,checkSession,getCachedPassword,getUnlockedKey,setSessionTimeout}}>{children}</WalletSecurityContext.Provider>;
+  return <WalletSecurityContext.Provider value={{...state,unlock,lock:lockAllTabs,resetSession:lockAllTabs,updateActivity,checkSession,getCachedPassword,getUnlockedKey,setSessionTimeout,clearFailedAttempts}}>{children}</WalletSecurityContext.Provider>;
 };
 export const useWalletSecurity = () => { const context = useContext(WalletSecurityContext); if (!context) throw Error('WalletSecurityProvider is required'); return context; };
 export default WalletSecurityContext;
