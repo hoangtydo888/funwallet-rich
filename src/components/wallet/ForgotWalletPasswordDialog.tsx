@@ -153,7 +153,7 @@ export const ForgotWalletPasswordDialog = () => {
 
         {step === "code" && (
           <div className="space-y-4">
-            <p className="text-sm">Đã gửi email tới <b>{maskEmail(email)}</b>. Nhập mã trong email, hoặc bấm nút đăng nhập trong email — ví sẽ tự mở lại bước tiếp theo.</p>
+            <p className="text-sm">Đã gửi email tới <b>{maskEmail(email)}</b>. Mở email "Your sign-in link" và bấm <b>Sign in</b> — ví sẽ tự mở bước tiếp theo. Nếu email có mã số, nhập mã vào ô dưới.</p>
             <div className="space-y-2">
               <Label htmlFor="reset-code">Mã xác nhận</Label>
               <Input id="reset-code" inputMode="numeric" autoComplete="one-time-code" maxLength={10} value={code}
