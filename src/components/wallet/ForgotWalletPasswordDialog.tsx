@@ -76,7 +76,7 @@ export const ForgotWalletPasswordDialog = () => {
   const start = useCallback(async () => {
     setCode(""); setSecret(""); setPassword(""); setConfirm(""); setError("");
     const pending = user ? readPending(user.id) : null;
-    setStep(pending && await emailVerifiedSince(pending.at) ? "reset" : pending ? "code" : "email");
+    setStep(await emailVerifiedSince(Date.now() - PENDING_TTL) ? "reset" : pending ? "code" : "email");
     setOpen(true);
   }, [user]);
 
@@ -101,7 +101,12 @@ export const ForgotWalletPasswordDialog = () => {
   const sendEmail = () => run(async () => {
     if (!user || !email) throw Error("Tài khoản chưa có email; đăng nhập lại rồi thử lại");
     const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/dashboard` } });
-    if (error) throw Error(/rate|seconds|security purposes/i.test(error.message) ? "Vừa gửi email; đợi 1 phút rồi thử lại" : `Không gửi được email: ${error.message}`);
+    if (error) {
+      const wait = /after (\d+) seconds?/i.exec(error.message)?.[1];
+      if (wait) throw Error(`Vừa gửi email; đợi ${wait} giây rồi gửi lại, hoặc dùng email đã nhận`);
+      if (/rate limit/i.test(error.message)) throw Error("Đã gửi quá nhiều email trong giờ này. Hãy mở email mới nhất đã nhận và bấm Sign in, hoặc thử lại sau 1 giờ");
+      throw Error(`Không gửi được email: ${error.message}`);
+    }
     localStorage.setItem(PENDING_KEY, JSON.stringify({ userId: user.id, at: Date.now() }));
     setStep("code");
   });
@@ -110,13 +115,13 @@ export const ForgotWalletPasswordDialog = () => {
     const pending = user ? readPending(user.id) : null;
     if (!pending) { setStep("email"); throw Error("Yêu cầu đã hết hạn; gửi lại email"); }
     const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
-    if (error || !await emailVerifiedSince(pending.at)) throw Error("Mã không đúng hoặc đã hết hạn");
+    if (error || !await emailVerifiedSince(Date.now() - PENDING_TTL)) throw Error("Mã không đúng hoặc đã hết hạn");
     setStep("reset");
   });
 
   const reset = () => run(async () => {
     const pending = user ? readPending(user.id) : null;
-    if (!pending || !await emailVerifiedSince(pending.at)) { setStep("email"); throw Error("Cần xác nhận email lại"); }
+    if (!await emailVerifiedSince(Date.now() - PENDING_TTL)) { setStep(pending ? "code" : "email"); throw Error("Cần xác nhận email lại"); }
     if (password.length < MIN_WALLET_PASSWORD_LENGTH) throw Error(`Mật khẩu mới cần ít nhất ${MIN_WALLET_PASSWORD_LENGTH} ký tự`);
     if (password !== confirm) throw Error("Mật khẩu nhập lại chưa khớp");
     const candidates = keysFromSecret(secret);
