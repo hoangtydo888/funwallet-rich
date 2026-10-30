@@ -32,17 +32,18 @@ async function restoreEncryptedVaultUnlocked(text:string,backupPassword:string,v
 export const restoreEncryptedVault=(text:string,backupPassword:string,vaultPassword:string)=>withVaultWriteLock(()=>restoreEncryptedVaultUnlocked(text,backupPassword,vaultPassword));
 
 /** Forgotten password: nobody can decrypt the old vault, so it is replaced by
- * the one key the user proved with its recovery phrase or private key. */
-async function resetVaultPasswordUnlocked(privateKey:string,newPassword:string):Promise<string> {
+ * the one key the user proved with its recovery phrase or private key. The key
+ * must belong to this device's vault or to the signed-in account's wallets. */
+async function resetVaultPasswordUnlocked(privateKey:string,newPassword:string,accountAddresses:string[]):Promise<string> {
   const before=localStorage.getItem(ENCRYPTED_WALLET_STORAGE_KEY);
   const current=getSecureStorage();
   const encrypted=await encryptPrivateKey(privateKey,newPassword);
   const address=encrypted.address!;
-  if(!current.wallets[address])throw Error('Khóa này không thuộc ví nào đã lưu trên thiết bị');
+  if(!current.wallets[address]&&!accountAddresses.some(a=>a.toLowerCase()===address))throw Error('Khóa này không thuộc ví nào của tài khoản');
   if(await decryptPrivateKey(encrypted,newPassword)!==new Wallet(privateKey).privateKey)throw Error('Không xác minh được bản mã');
   if(localStorage.getItem(ENCRYPTED_WALLET_STORAGE_KEY)!==before)throw Error('Kho khóa vừa thay đổi; thử lại');
   localStorage.setItem(ENCRYPTED_WALLET_STORAGE_KEY,JSON.stringify({version:2,wallets:{[address]:encrypted},lastAccess:Date.now()}));
   return address;
 }
 
-export const resetVaultPassword=(privateKey:string,newPassword:string)=>withVaultWriteLock(()=>resetVaultPasswordUnlocked(privateKey,newPassword));
+export const resetVaultPassword=(privateKey:string,newPassword:string,accountAddresses:string[]=[])=>withVaultWriteLock(()=>resetVaultPasswordUnlocked(privateKey,newPassword,accountAddresses));

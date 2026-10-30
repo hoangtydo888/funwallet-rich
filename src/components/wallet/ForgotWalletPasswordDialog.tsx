@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Wallet } from "ethers";
+import { HDNodeWallet, Wallet } from "ethers";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,15 +41,22 @@ async function emailVerifiedSince(since: number): Promise<boolean> {
   } catch { return false; }
 }
 
-/** Recovery phrase (first account, as the wallet creates it) or a raw private key. */
-function keyFromSecret(secret: string): string {
+const PHRASE_ACCOUNTS = 10;
+
+/** Keys a recovery phrase can open (first accounts on the standard path, as
+ * FUN Wallet and MetaMask derive them) or the one key a private key is. */
+function keysFromSecret(secret: string): string[] {
   const text = secret.trim().replace(/\s+/g, " ");
   if (text.includes(" ")) {
-    try { return Wallet.fromPhrase(text.toLowerCase()).privateKey; } catch { throw Error("Cụm từ khôi phục không hợp lệ; kiểm tra lại từng từ"); }
+    let root: HDNodeWallet;
+    try { root = HDNodeWallet.fromPhrase(text.toLowerCase(), undefined, "m/44'/60'/0'/0"); } catch { throw Error("Cụm từ khôi phục không hợp lệ; kiểm tra lại từng từ"); }
+    return Array.from({ length: PHRASE_ACCOUNTS }, (_, i) => root.deriveChild(i).privateKey);
   }
   if (!/^(0x)?[a-f0-9]{64}$/i.test(text)) throw Error("Nhập cụm từ khôi phục 12/24 từ hoặc khóa riêng 64 ký tự");
-  return new Wallet(`0x${text.replace(/^0x/i, "")}`).privateKey;
+  return [new Wallet(`0x${text.replace(/^0x/i, "")}`).privateKey];
 }
+
+const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
 const maskEmail = (email: string) => email.replace(/^(.{2})[^@]*(@.*)$/, "$1•••$2");
 
@@ -112,23 +119,27 @@ export const ForgotWalletPasswordDialog = () => {
     if (!pending || !await emailVerifiedSince(pending.at)) { setStep("email"); throw Error("Cần xác nhận email lại"); }
     if (password.length < MIN_WALLET_PASSWORD_LENGTH) throw Error(`Mật khẩu mới cần ít nhất ${MIN_WALLET_PASSWORD_LENGTH} ký tự`);
     if (password !== confirm) throw Error("Mật khẩu nhập lại chưa khớp");
-    const key = keyFromSecret(secret);
+    const candidates = keysFromSecret(secret);
     const stored = Object.keys(getSecureStorage().wallets);
-    if (!stored.includes(new Wallet(key).address.toLowerCase())) throw Error("Cụm từ/khóa này không thuộc ví nào đã lưu trên thiết bị");
+    const { data, error: walletsError } = await supabase.from("wallets").select("address").eq("user_id", user!.id);
+    if (walletsError) throw Error("Chưa tải được danh sách ví của tài khoản; kiểm tra mạng rồi thử lại");
+    const owned = new Set([...stored, ...(data ?? []).map(w => String(w.address).toLowerCase())]);
+    const key = candidates.find(k => owned.has(new Wallet(k).address.toLowerCase()));
+    if (!key) throw Error(`Cụm từ/khóa này mở ra ví ${short(new Wallet(candidates[0]).address)}, không trùng ví nào của tài khoản. Kiểm tra lại cụm từ của đúng ví.`);
     // Keep the other wallets' encrypted keys as a file: the old password can still restore them later.
-    if (stored.length > 1) {
+    if (stored.length > 0) {
       const url = URL.createObjectURL(new Blob([exportEncryptedVault()], { type: "application/json" }));
       const link = document.createElement("a");
       link.href = url; link.download = `fun-wallet-encrypted-old-password-${Date.now()}.json`; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    await resetVaultPassword(key, password);
+    await resetVaultPassword(key, password, [...owned]);
     security.clearFailedAttempts();
     if (!await security.unlock(password)) throw Error("Đã đặt mật khẩu mới; hãy mở khóa lại bằng mật khẩu mới");
     clearPending(); setOpen(false);
     toast({
       title: "Đã đặt mật khẩu ví mới",
-      description: stored.length > 1 ? `Ví đã mở khóa. ${stored.length - 1} ví khác cần thêm lại bằng cụm từ khôi phục, hoặc khôi phục tệp vừa tải về nếu nhớ ra mật khẩu cũ.` : "Ví đã mở khóa bằng mật khẩu mới.",
+      description: `Ví ${short(new Wallet(key).address)} đã mở khóa bằng mật khẩu mới.${stored.filter(a => a !== new Wallet(key).address.toLowerCase()).length ? " Ví khác trên máy cần thêm lại bằng cụm từ khôi phục, hoặc khôi phục tệp vừa tải về nếu nhớ ra mật khẩu cũ." : ""}`,
     });
   });
 
