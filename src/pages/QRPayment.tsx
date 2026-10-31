@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
 import { Html5Qrcode } from "html5-qrcode";
 import { QRCodeSVG } from "qrcode.react";
-import { AlertTriangle, ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, Loader2, QrCode, ScanLine, Share2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Camera, Check, CheckCircle2, Copy, ExternalLink, Image as ImageIcon, Loader2, QrCode, ScanLine, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -182,7 +182,7 @@ const ReceivePanel = ({ address, prices }: { address: string; prices: Record<str
 
       <div className="flex flex-col items-center">
         <div className="p-3 bg-white rounded-2xl shadow-lg">
-          <QRCodeSVG value={uri} size={232} level="M" includeMargin />
+          <QRCodeSVG value={uri} size={232} level="H" includeMargin imageSettings={{ src: "/logo-qr.png", width: 62, height: 57, excavate: true }} />
         </div>
         {order ? (
           <div className="mt-4 text-center space-y-1">
@@ -230,6 +230,7 @@ const PayPanel = ({ address, walletId, balances, prices, getKey, onLocked, onPai
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ hash: string; raw: bigint } | null>(null);
   const scanner = useRef<Html5Qrcode | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const stop = async () => {
     const s = scanner.current;
@@ -264,6 +265,19 @@ const PayPanel = ({ address, walletId, balances, prices, getKey, onLocked, onPai
     }
   };
 
+  // Read a QR from a photo or screenshot, for computers without a back camera
+  const fromImage = async (file: File | undefined) => {
+    if (!file) return;
+    await stop();
+    setError(null); setReq(null); setDone(null);
+    try {
+      const text = await new Html5Qrcode("pay-qr-file").scanFile(file, false);
+      read(text);
+    } catch {
+      setError("Không tìm thấy mã QR trong ảnh. Chọn ảnh rõ nét, chụp thẳng mã QR.");
+    }
+  };
+
   const raw = useMemo(() => {
     if (!req) return null;
     if (req.raw) return req.raw;
@@ -286,8 +300,13 @@ const PayPanel = ({ address, walletId, balances, prices, getKey, onLocked, onPai
         {scanning ? (
           <Button variant="outline" className="w-full" onClick={() => void stop()}>Dừng quét</Button>
         ) : (
-          <Button className="w-full h-14 text-base font-semibold" onClick={() => void start()}><ScanLine className="w-5 h-5 mr-2" />{done ? "Quét mã khác" : "Mở camera quét mã"}</Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button className="h-14 text-base font-semibold" onClick={() => void start()}><ScanLine className="w-5 h-5 mr-2" />{done ? "Quét mã khác" : "Quét bằng camera"}</Button>
+            <Button variant="outline" className="h-14 text-base" onClick={() => fileInput.current?.click()}><ImageIcon className="w-5 h-5 mr-2" />Chọn ảnh mã QR</Button>
+          </div>
         )}
+        <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={e => { void fromImage(e.target.files?.[0]); e.target.value = ""; }} />
+        <div id="pay-qr-file" className="hidden" />
         {error && <p className="flex gap-2 text-sm text-destructive"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />{error}</p>}
         <Card><CardContent className="p-4 space-y-2">
           <p className="text-sm text-muted-foreground">Hoặc dán mã thanh toán / địa chỉ ví</p>

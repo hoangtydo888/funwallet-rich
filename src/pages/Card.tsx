@@ -5,19 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWallet } from "@/hooks/useWallet";
+import { supabase } from "@/integrations/supabase/client";
 import { fetchTokenPrices, formatUsdValue, type TokenPrice } from "@/lib/priceTracker";
 import { formatBalance } from "@/lib/wallet";
 import BottomNav from "@/components/layout/BottomNav";
 
-// Preferred spending order and which coins may be spent; a per-device preference
+// Preferred spending order and which coins may be spent; saved on the account so
+// phone and computer agree, with a local copy for the first paint
 const PREFS_KEY = "fun_card_prefs_v1";
 interface CardPrefs { order: string[]; off: string[] }
 const STABLES = ["USDT", "USDC", "BUSD", "FDUSD", "DAI"];
 
+const isPrefs = (p: unknown): p is CardPrefs =>
+  !!p && Array.isArray((p as CardPrefs).order) && Array.isArray((p as CardPrefs).off);
 const loadPrefs = (): CardPrefs => {
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null");
-    if (Array.isArray(p?.order) && Array.isArray(p?.off)) return p;
+    if (isPrefs(p)) return p;
   } catch { /* no storage */ }
   return { order: [], off: [] };
 };
@@ -39,6 +43,12 @@ const FunCard = () => {
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
+
+  // The account's saved choice wins over this device's copy
+  const saved = user?.user_metadata?.fun_card_prefs;
+  useEffect(() => {
+    if (isPrefs(saved)) { setPrefs(saved); savePrefs(saved); }
+  }, [saved]);
 
   const symbolKey = balances.map(b => b.symbol).join(",");
   useEffect(() => {
@@ -67,7 +77,10 @@ const FunCard = () => {
 
   const spendable = coins.filter(c => !prefs.off.includes(c.symbol)).reduce((s, c) => s + c.usd, 0);
 
-  const update = (next: CardPrefs) => { setPrefs(next); savePrefs(next); };
+  const update = (next: CardPrefs) => {
+    setPrefs(next); savePrefs(next);
+    void supabase.auth.updateUser({ data: { fun_card_prefs: next } });
+  };
   const move = (i: number, dir: -1 | 1) => {
     const order = coins.map(c => c.symbol);
     [order[i], order[i + dir]] = [order[i + dir], order[i]];
@@ -121,7 +134,7 @@ const FunCard = () => {
           <h2 className="font-semibold text-lg">Thẻ của tôi</h2>
           <div className="relative overflow-hidden rounded-2xl shadow-xl ring-1 ring-yellow-400/60" style={{ aspectRatio: "1.6 / 1" }}>
             <img src="/cards/fun-card.webp" alt="Thẻ FUN" className="absolute inset-0 h-full w-full object-cover" />
-            <span className="absolute top-3 right-3 rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-semibold text-white backdrop-blur">Ảo · Chờ phát hành</span>
+            <span className="absolute top-3 right-3 rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-semibold text-white backdrop-blur">Chờ phát hành</span>
             <span className="absolute bottom-[9%] right-[6%] font-heading text-lg sm:text-2xl font-bold tracking-widest text-yellow-200 drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)]">FUN CARD</span>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -140,7 +153,7 @@ const FunCard = () => {
         <section className="rounded-2xl bg-muted/40 p-4 space-y-3">
           <div>
             <h2 className="font-semibold">Đồng tiền ưu tiên</h2>
-            <p className="text-xs text-muted-foreground">Khi thanh toán, thẻ trừ coin theo thứ tự từ trên xuống. Tắt coin nào thì thẻ không dùng coin đó.</p>
+            <p className="text-xs text-muted-foreground">Khi thanh toán, thẻ trừ coin theo thứ tự từ trên xuống. Tắt coin nào thì thẻ không dùng coin đó. Lựa chọn được lưu theo tài khoản, dùng chung trên điện thoại và máy tính.</p>
           </div>
           {coins.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">Ví chưa có coin có giá trị. Nạp hoặc đổi coin để có số dư cho thẻ.</p>
