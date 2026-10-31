@@ -8,6 +8,8 @@ import { toast } from "@/hooks/use-toast";
 import { fetchDexPrice, formatUsd, sumPendingRewards, type DexPrice } from "@/lib/funTokens";
 import { formatBalance } from "@/lib/wallet";
 import { formatPrice } from "@/lib/priceTracker";
+import { formatFun, getFunMoneyState, type FunMoneyState } from "@/lib/funMoney";
+import { FunMoneyDialog } from "@/components/wallet/FunMoneyDialog";
 
 export interface FunTokenDef {
   symbol: string;
@@ -17,7 +19,7 @@ export interface FunTokenDef {
 }
 
 export const FUN_TOKENS: FunTokenDef[] = [
-  { symbol: "FUN", name: "FUN MONEY", address: null, logo: "/tokens/default.svg" },
+  { symbol: "FUN", name: "FUN MONEY", address: null, logo: "/tokens/fun-money.png" },
   { symbol: "CAMLY", name: "CAMLY COIN", address: "0x0910320181889fefde0bb1ca63962b0a8882e413", logo: "/tokens/camly.png" },
 ];
 
@@ -28,11 +30,19 @@ interface Reward {
   status: string;
 }
 
-export const FunEcosystemCard = ({ balances }: { balances: { symbol: string; balance: string }[] }) => {
+export const FunEcosystemCard = ({ balances, address }: { balances: { symbol: string; balance: string }[]; address?: string }) => {
   const { user } = useAuth();
   const [prices, setPrices] = useState<Record<string, DexPrice | null>>({});
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [claiming, setClaiming] = useState(false);
+  const [fun, setFun] = useState<FunMoneyState | null>(null);
+  const [funOpen, setFunOpen] = useState(false);
+
+  // FUN Money is on BSC Testnet, so its balance comes from there, not the mainnet list
+  const loadFun = useCallback(() => {
+    if (address) getFunMoneyState(address).then(setFun).catch(() => setFun(null));
+  }, [address]);
+  useEffect(() => { loadFun(); }, [loadFun]);
 
   useEffect(() => {
     FUN_TOKENS.forEach(async (t) => {
@@ -77,6 +87,19 @@ export const FunEcosystemCard = ({ balances }: { balances: { symbol: string; bal
       <CardContent className="p-4 space-y-3">
         <h3 className="font-heading font-bold">Hệ sinh thái FUN</h3>
         {FUN_TOKENS.map((t) => {
+          if (t.symbol === "FUN") return (
+            <button key="FUN" type="button" disabled={!address} onClick={() => setFunOpen(true)} className="w-full flex items-center gap-3 text-left rounded-lg -mx-1 px-1 py-0.5 hover:bg-muted/50">
+              <img src={t.logo} alt={t.name} className="w-9 h-9 rounded-full" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">{t.name} <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">Testnet</span></p>
+                <p className="text-xs text-muted-foreground">{fun && (fun.locked > 0n || fun.activated > 0n) ? `Khóa ${formatFun(fun.locked)} · Kích hoạt ${formatFun(fun.activated)}` : "Gửi · Nhận · Kích hoạt"}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-sm">{fun ? formatFun(fun.balance) : "…"} FUN</p>
+                <p className="text-xs text-muted-foreground">BSC Testnet</p>
+              </div>
+            </button>
+          );
           const bal = parseFloat(balances.find((b) => b.symbol === t.symbol)?.balance || "0");
           const p = prices[t.symbol];
           const change = p?.change24h ?? 0;
@@ -114,6 +137,7 @@ export const FunEcosystemCard = ({ balances }: { balances: { symbol: string; bal
           </Button>
         </div>
       </CardContent>
+      {address && <FunMoneyDialog open={funOpen} onOpenChange={setFunOpen} address={address} onChanged={loadFun} />}
     </Card>
   );
 };
