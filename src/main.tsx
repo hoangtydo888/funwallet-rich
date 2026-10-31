@@ -1,4 +1,3 @@
-import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
@@ -17,7 +16,7 @@ if ("serviceWorker" in navigator) {
       title: "Đã có phiên bản mới của FUN Wallet",
       description: "Bấm Tải lại để dùng bản mới nhất.",
       duration: 1_000_000,
-      action: createElement(ToastAction, { altText: "Tải lại", onClick: () => window.location.reload() }, "Tải lại"),
+      action: <ToastAction altText="Tải lại" onClick={() => window.location.reload()}>Tải lại</ToastAction>,
     });
   });
   // Look for a new release every 15 minutes and when the tab comes back into view
