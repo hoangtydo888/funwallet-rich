@@ -8,7 +8,10 @@ import { fmtUnits, maxSpendable, quoteSummary, useMarketQuote } from "@/hooks/us
 import { AssetPicker } from "./AssetPicker";
 import { OrderBook, useTicker } from "./OrderBook";
 import { OrderPreviewDialog } from "./OrderPreviewDialog";
-import { SLIPPAGES, type TradeContext } from "./ConvertPanel";
+import { type TradeContext } from "./ConvertPanel";
+import { SlippagePicker } from "./SlippagePicker";
+import { MarketTradesPanel } from "./MarketTradesPanel";
+import { bscTradeToken } from "@/lib/marketTrades";
 import { formatChange, formatPrice } from "@/lib/priceTracker";
 
 const STEPS = [0, 25, 50, 75, 100];
@@ -86,11 +89,9 @@ export const SpotPanel = ({ ctx }: { ctx: TradeContext }) => {
             <div className="flex justify-between"><span className="text-muted-foreground">Khả dụng</span><span>{fmtUnits(balance, from.decimals, 8)} {from.symbol}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">{buy ? "Mua tối đa" : "Nhận tối đa"}</span><span>{maxOther !== null ? maxOther.toLocaleString("en-US", { maximumFractionDigits: 8 }) : "--"} {to.symbol}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Nhận ước tính</span><span>{loading ? "…" : s ? `${s.toAmount.toLocaleString("en-US", { maximumFractionDigits: 8 })} ${to.symbol}` : `-- ${to.symbol}`}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Phí dự kiến</span><span>{s ? `≈ $${s.feesUsd.toFixed(2)}` : "--"}</span></div>
-            <div className="flex justify-between items-center gap-2"><span className="text-muted-foreground whitespace-nowrap">Trượt giá</span>
-              <span className="flex gap-1">{SLIPPAGES.map(v => (
-                <button key={v} type="button" onClick={() => setSlippage(v)} className={`px-1.5 rounded border ${slippage === v ? "border-foreground font-semibold" : "border-border"}`}>{v}%</button>
-              ))}</span>
+            <div className="flex justify-between"><span className="text-muted-foreground">Phí dự kiến</span><span>{s ? (s.serviceUsd > 0 ? `≈ $${s.feesUsd.toFixed(3)}` : <><span className="text-green-600">0 phí dịch vụ</span> · gas ≈ ${s.gasUsd.toFixed(3)}</>) : "--"}</span></div>
+            <div className="space-y-1"><span className="text-muted-foreground">Trượt giá tối đa</span>
+              <SlippagePicker value={slippage} onChange={setSlippage} accent="neutral" />
             </div>
           </div>
 
@@ -111,9 +112,11 @@ export const SpotPanel = ({ ctx }: { ctx: TradeContext }) => {
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Sổ lệnh và giá tham khảo từ Binance. Lệnh Market khớp qua LI.FI (PancakeSwap, 1inch… trên BSC) theo giá báo trong hộp xác nhận; coin về thẳng ví của bạn.
+        Sổ lệnh và giá tham khảo từ Binance. Lệnh Mua bằng USDT khớp thẳng qua PancakeSwap, không mất phí dịch vụ (chỉ phí mạng vài xu). Lệnh Bán khớp qua LI.FI, phí dịch vụ 0.25%. Coin về thẳng ví của bạn.
         {base.key === "btc" && " BTC là Bitcoin thật trên mạng Bitcoin, thường mất 10–30 phút."}
       </p>
+
+      <MarketTradesPanel token={bscTradeToken(base)} symbol={base.symbol} myAddress={ctx.evmAddress} />
 
       <OrderPreviewDialog open={preview} onOpenChange={setPreview} quote={quote} order={order} onRefresh={() => void refresh()}
         getPrivateKey={ctx.getPrivateKey} onDone={() => { setAmount(""); setPct(0); ctx.onTraded(); }}

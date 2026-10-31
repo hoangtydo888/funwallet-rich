@@ -418,7 +418,6 @@ const Dashboard = () => {
             Thiết bị còn khóa ví cũ chưa được bảo vệ bằng mật khẩu. Bấm để mở Cài đặt → Bảo mật.
           </button>
         )}
-        {activeWallet && <PendingTransactionsPanel account={activeWallet.address} chain={currentChain} />}
 
         {/* Quick actions grid - premium */}
         <div className="mb-8 space-y-3">
@@ -604,7 +603,7 @@ const Dashboard = () => {
                   onUnlock={() => setUnlockDialogOpen(true)}
                   onSwap={() => { setSwapTab("btc"); setSwapOpen(true); }}
                 />
-                <TokenList balances={balances} loading={balanceLoading} />
+                <TokenList balances={balances} loading={balanceLoading} walletAddress={activeWallet.address} />
               </div>
             </TabsContent>
 
@@ -648,6 +647,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-heading font-semibold text-lg">Lịch sử giao dịch</h3>
                 </div>
+                <PendingTransactionsPanel account={activeWallet.address} chain={currentChain} />
                 <TransactionHistory walletAddress={activeWallet.address} />
               </div>
             </TabsContent>

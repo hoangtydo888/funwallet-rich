@@ -6,7 +6,7 @@ export function validateLifiIntent(step:any,intent:LifiIntent,now=Date.now()) {
  const a=step?.action;
  if(!a||now<intent.quotedAt||now-intent.quotedAt>60000)throw Error('Báo giá đã hết hạn; hãy lấy báo giá mới');
  if(a.fromChainId!==intent.fromChainId||a.toChainId!==intent.toChainId||address(a.fromAddress)!==address(intent.account)||address(a.toAddress??a.fromAddress)!==address(intent.account)||
- address(a.fromToken?.address)!==address(intent.fromToken)||address(a.toToken?.address)!==address(intent.toToken)||a.fromAmount!==intent.amount||a.slippage!==intent.slippage/100)throw Error('Báo giá không khớp yêu cầu chuyển đổi');
+ address(a.fromToken?.address)!==address(intent.fromToken)||address(a.toToken?.address)!==address(intent.toToken)||a.fromAmount!==intent.amount||!(Math.abs(Number(a.slippage)-intent.slippage/100)<1e-9))throw Error('Báo giá không khớp yêu cầu chuyển đổi');
  if(!/^[0-9]+$/.test(a.fromAmount)||BigInt(a.fromAmount)<=0n)throw Error('Số lượng không hợp lệ');
 }
 export function validateLifiRequest(req:any,intent:LifiIntent) {

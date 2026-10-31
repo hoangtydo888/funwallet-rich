@@ -5,6 +5,7 @@ import { BTC_ASSET, executeBtcBuy, executeBtcSell, quoteBtcSwap, type BtcSwapInt
 import { BTC_EXPLORER, isValidBtcAddress } from './bitcoin';
 import { createSessionSigner } from './guardedSigner';
 import { getChainById, getProviderForChain } from './chains';
+import { executePancake, isPancakeStep, quotePancake, type PancakeOrder } from './pancakeDirect';
 
 /** Market orders that settle in the user's own wallet: BEP20 ↔ BEP20 swaps on
  * BSC through LI.FI, and native Bitcoin through LI.FI's BTC routes. Order-book
@@ -97,15 +98,32 @@ export function checkOrder(o: MarketOrder) {
   if ((isBtc(o.from) || isBtc(o.to)) && !isValidBtcAddress(o.btcAddress ?? '')) throw Error('Mở khóa ví để dùng ví Bitcoin');
 }
 
+/** Buying with USDT on BSC: these orders may go straight to PancakeSwap with no service fee. */
+export const isFeeFreeBuy = (o: Pick<MarketOrder, 'from' | 'to'>) => o.from.key === QUOTE_ASSET.key && o.to.chainId === 56 && !isBtc(o.to);
+const pancakeOrder = (o: MarketOrder): PancakeOrder => ({
+  fromToken: o.from.token, toToken: o.to.token, amount: BigInt(o.amount), slippage: o.slippage, account: o.evmAddress,
+  fromDecimals: o.from.decimals, toDecimals: o.to.decimals, fromSymbol: o.from.symbol, toSymbol: o.to.symbol,
+});
+
 export async function quoteMarketOrder(o: MarketOrder): Promise<LiFiStep> {
   checkOrder(o);
   if (isBtc(o.from) || isBtc(o.to)) return quoteBtcSwap(btcIntent(o));
-  let step: LiFiStep;
-  try {
-    step = await getLifiQuote({ fromChain: o.from.chainId, toChain: o.to.chainId, fromToken: o.from.token, toToken: o.to.token, fromAmount: o.amount, fromAddress: o.evmAddress, toAddress: o.evmAddress, slippage: o.slippage / 100 });
-  } catch (e) { throw Error(quoteError(e)); }
-  validateLifiIntent(step, lifiIntent(o));
-  return step;
+  const lifi = (async () => {
+    let step: LiFiStep;
+    try {
+      step = await getLifiQuote({ fromChain: o.from.chainId, toChain: o.to.chainId, fromToken: o.from.token, toToken: o.to.token, fromAmount: o.amount, fromAddress: o.evmAddress, toAddress: o.evmAddress, slippage: o.slippage / 100 });
+    } catch (e) { throw Error(quoteError(e)); }
+    validateLifiIntent(step, lifiIntent(o));
+    return step;
+  })();
+  if (!isFeeFreeBuy(o)) return lifi;
+  // Buys: PancakeSwap direct (no service fee) unless the aggregator still delivers more coins after its fee
+  const pancake = getTickers(['BNBUSDT'])
+    .then(t => quotePancake(getProviderForChain(getChainById(56)!), pancakeOrder(o), t.BNBUSDT?.price ?? 0))
+    .catch(() => null);
+  const [p, l] = await Promise.all([pancake, lifi.catch((e: Error) => e)]);
+  if (l instanceof Error) { if (p) return p; throw l; }
+  return p && BigInt(p.estimate.toAmount) >= BigInt(l.estimate.toAmount) ? p : l;
 }
 
 /** Signs and sends the quoted order. Approvals are exact-amount and only to LI.FI. */
@@ -119,5 +137,9 @@ export async function executeMarketOrder(step: LiFiStep, o: MarketOrder, private
   if (!chain) throw Error('Mạng không được hỗ trợ');
   const signer = createSessionSigner(privateKey, getProviderForChain(chain), chain.chainId);
   if (isBtc(o.to)) return { hash: await executeBtcBuy(step, btcIntent(o), signer, onProgress), explorer: o.from.explorer, crossChain: true };
+  if (isPancakeStep(step)) {
+    if (!isFeeFreeBuy(o)) throw Error('Lệnh không hợp lệ');
+    return { hash: await executePancake(step, pancakeOrder(o), signer, onProgress), explorer: o.from.explorer, crossChain: false };
+  }
   return { hash: await executeLifiSwap(step, signer, lifiIntent(o), o.from.symbol, onProgress), explorer: o.from.explorer, crossChain: false };
 }

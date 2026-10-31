@@ -8,6 +8,9 @@ import { fmtUnits, maxSpendable, quoteSummary, rateLabel, useMarketQuote } from 
 import { AssetPicker } from "./AssetPicker";
 import { OrderPreviewDialog } from "./OrderPreviewDialog";
 import { useTicker } from "./OrderBook";
+import { SlippagePicker } from "./SlippagePicker";
+import { MarketTradesPanel } from "./MarketTradesPanel";
+import { bscTradeToken } from "@/lib/marketTrades";
 import { formatChange, formatPrice, formatUsdValue } from "@/lib/priceTracker";
 
 export interface TradeContext {
@@ -20,7 +23,6 @@ export interface TradeContext {
   onTraded: () => void;
 }
 
-export const SLIPPAGES = [0.5, 1, 2, 3];
 
 /** Binance "Mua/Bán → Tức thì": convert any coin to any other at market price. */
 export const ConvertPanel = ({ ctx }: { ctx: TradeContext }) => {
@@ -88,12 +90,10 @@ export const ConvertPanel = ({ ctx }: { ctx: TradeContext }) => {
           <span>{marketTicker ? <>1 {market.symbol} = <b>{formatPrice(marketTicker.price)}</b>{market.binance && <span className={`ml-1.5 ${marketTicker.changePct >= 0 ? "text-green-600" : "text-red-500"}`}>{formatChange(marketTicker.changePct)}</span>}</> : "…"}</span>
         </div>
         {s && <div className="flex justify-between"><span className="text-muted-foreground">Tỷ giá</span><span>{rateLabel(s.rate, from, to)}</span></div>}
-        {s && <div className="flex justify-between"><span className="text-muted-foreground">Phí</span><span>≈ ${s.feesUsd.toFixed(2)}</span></div>}
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Trượt giá</span>
-          <div className="flex gap-1">{SLIPPAGES.map(v => (
-            <button key={v} type="button" onClick={() => setSlippage(v)} className={`px-2 py-0.5 rounded text-xs border ${slippage === v ? "border-yellow-500 bg-yellow-400/20 font-semibold" : "border-border"}`}>{v}%</button>
-          ))}</div>
+        {s && <div className="flex justify-between"><span className="text-muted-foreground">Phí</span><span>{s.serviceUsd > 0 ? `≈ $${s.feesUsd.toFixed(3)}` : <><span className="text-green-600">0 phí dịch vụ</span> · gas ≈ ${s.gasUsd.toFixed(3)}</>}</span></div>}
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-muted-foreground pt-0.5">Trượt giá tối đa</span>
+          <SlippagePicker value={slippage} onChange={setSlippage} />
         </div>
         {overBalance && <p className="text-destructive text-xs">Số dư {from.symbol} không đủ</p>}
         {error && !overBalance && <p className="text-destructive text-xs">{error}</p>}
@@ -104,6 +104,8 @@ export const ConvertPanel = ({ ctx }: { ctx: TradeContext }) => {
       ) : (
         <Button className="w-full h-12 text-base" onClick={ctx.onUnlock}>Mở khóa ví để giao dịch</Button>
       )}
+
+      <div className="pt-3"><MarketTradesPanel token={bscTradeToken(market)} symbol={market.symbol} myAddress={ctx.evmAddress} /></div>
 
       <OrderPreviewDialog open={preview} onOpenChange={setPreview} quote={quote} order={order} onRefresh={() => void refresh()}
         getPrivateKey={ctx.getPrivateKey} onDone={() => { setAmount(""); ctx.onTraded(); }} action={{ label: "Chuyển đổi", className: "bg-yellow-400 hover:bg-yellow-500 text-black" }} />

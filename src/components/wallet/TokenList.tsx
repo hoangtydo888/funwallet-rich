@@ -16,11 +16,12 @@ interface TokenListProps {
   onSend?: () => void;
   onReceive?: () => void;
   onSwap?: () => void;
+  walletAddress?: string;
 }
 
 type FilterType = "all" | "balance" | "favorites";
 
-export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: TokenListProps) => {
+export const TokenList = ({ balances, loading, onSend, onReceive, onSwap, walletAddress }: TokenListProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -183,7 +184,7 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
               >
                 {/* Favorite button */}
                 <button
-                  onClick={() => toggleFavorite(token.symbol)}
+                  onClick={(e) => { e.stopPropagation(); toggleFavorite(token.symbol); }}
                   className="text-muted-foreground hover:text-yellow-500 transition-colors"
                 >
                   {isFavorite ? (
@@ -299,6 +300,7 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
         onSend={onSend}
         onReceive={onReceive}
         onSwap={onSwap}
+        walletAddress={walletAddress}
       />
     </div>
   );

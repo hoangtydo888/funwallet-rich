@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getLifiStatus, type LiFiStep } from "@/lib/lifi";
 import { executeMarketOrder, isBtc, type MarketOrder } from "@/lib/marketOrder";
+import { isPancakeStep } from "@/lib/pancakeDirect";
 import { fmtUnits, quoteSummary, rateLabel } from "@/hooks/useMarketTrade";
 import { AssetLogo } from "./AssetPicker";
 
@@ -88,7 +89,7 @@ export const OrderPreviewDialog = ({ open, onOpenChange, quote, order, onRefresh
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Xác nhận lệnh</DialogTitle>
-          <DialogDescription>Lệnh thị trường · khớp qua LI.FI · tiền về thẳng ví của bạn</DialogDescription>
+          <DialogDescription>Lệnh thị trường · coin về thẳng ví của bạn</DialogDescription>
         </DialogHeader>
         {s ? (
           <div className="space-y-4">
@@ -101,9 +102,10 @@ export const OrderPreviewDialog = ({ open, onOpenChange, quote, order, onRefresh
               {row("Tỷ giá", rateLabel(s.rate, from, to))}
               {row("Nhận tối thiểu", `${fmtUnits(s.toAmountMin, to.decimals, 8)} ${to.symbol}`)}
               {row("Trượt giá tối đa", `${order.slippage}%`)}
-              {row("Phí (mạng + dịch vụ)", `≈ $${s.feesUsd.toFixed(2)}`)}
+              {row("Phí dịch vụ", s.serviceUsd > 0 ? `≈ $${s.serviceUsd.toFixed(4)}` : <span className="text-green-600 font-semibold">0 · miễn phí</span>)}
+              {row("Phí mạng (gas)", `≈ $${s.gasUsd.toFixed(4)}`)}
               {row("Thời gian", isBtc(from) || isBtc(to) ? `~${s.minutes} phút` : "Vài giây")}
-              {row("Qua", `${s.route} · LI.FI`)}
+              {row("Qua", isPancakeStep(quote!) ? s.route : `${s.route} · LI.FI`)}
               {row("Ví nhận", <span className="font-mono text-xs">{receiver.slice(0, 8)}…{receiver.slice(-6)} ({to.chainName === "Bitcoin" ? "Bitcoin" : "BSC"})</span>)}
             </div>
             {progress && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{progress}</p>}

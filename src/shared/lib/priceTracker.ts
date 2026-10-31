@@ -61,7 +61,7 @@ const COINGECKO_IDS: Record<string, string | null> = {
 };
 
 // Binance spot pairs (vs USDT) — the same prices Binance shows
-const BINANCE_SYMBOLS: Record<string, string> = {
+export const BINANCE_SYMBOLS: Record<string, string> = {
   BNB: "BNBUSDT",
   WBNB: "BNBUSDT",
   BTC: "BTCUSDT",

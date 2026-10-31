@@ -84,9 +84,10 @@ export function quoteSummary(quote: LiFiStep | null, from: TradeAsset, to: Trade
   if (!est) return null;
   const fromAmount = Number(formatUnits(est.fromAmount, from.decimals));
   const toAmount = Number(formatUnits(est.toAmount, to.decimals));
-  const feesUsd = [...(est.feeCosts ?? []), ...(est.gasCosts ?? [])].reduce((sum, f) => sum + Number(f.amountUSD ?? 0), 0);
+  const sumUsd = (rows: { amountUSD?: string }[] | undefined) => (rows ?? []).reduce((sum, f) => sum + Number(f.amountUSD ?? 0), 0);
+  const serviceUsd = sumUsd(est.feeCosts), gasUsd = sumUsd(est.gasCosts);
   return {
-    fromAmount, toAmount, toAmountMin: est.toAmountMin, feesUsd,
+    fromAmount, toAmount, toAmountMin: est.toAmountMin, feesUsd: serviceUsd + gasUsd, serviceUsd, gasUsd,
     rate: fromAmount > 0 ? toAmount / fromAmount : 0,
     minutes: Math.max(1, Math.round((est.executionDuration ?? 0) / 60)),
     route: quote.toolDetails?.name ?? quote.tool,

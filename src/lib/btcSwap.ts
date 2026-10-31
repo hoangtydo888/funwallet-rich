@@ -65,7 +65,7 @@ export function validateBtcSwap(step: QuoteLike, intent: BtcSwapIntent, now = Da
   const a = step?.action, l = legs(intent);
   if (!a || now < intent.quotedAt || now - intent.quotedAt > 60_000) throw Error('Báo giá đã hết hạn; hãy lấy báo giá mới');
   if (a.fromChainId !== l.from.chainId || a.toChainId !== l.to.chainId || !sameToken(a.fromToken?.address, l.from.token) || !sameToken(a.toToken?.address, l.to.token)
-    || !sameAccount(a.fromAddress, l.fromAddress) || !sameAccount(a.toAddress, l.toAddress) || a.fromAmount !== intent.amount || a.slippage !== intent.slippage / 100) throw Error('Báo giá không khớp yêu cầu đổi');
+    || !sameAccount(a.fromAddress, l.fromAddress) || !sameAccount(a.toAddress, l.toAddress) || a.fromAmount !== intent.amount || !(Math.abs(Number(a.slippage) - intent.slippage / 100) < 1e-9)) throw Error('Báo giá không khớp yêu cầu đổi');
   if (!/^[0-9]+$/.test(step.estimate?.toAmountMin ?? '') || BigInt(step.estimate.toAmountMin) <= 0n) throw Error('Báo giá không có số nhận tối thiểu');
   if (intent.side === 'sell') {
     const tr = step.transactionRequest;

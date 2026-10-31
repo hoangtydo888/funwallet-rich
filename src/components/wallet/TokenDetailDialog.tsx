@@ -12,6 +12,9 @@ import { ArrowUpRight, ArrowDownRight, Send, Download, ArrowLeftRight, TrendingU
 import { formatPrice, formatChange, formatMarketCap, type TokenPrice } from "@/lib/priceTracker";
 import type { TokenBalance } from "@/hooks/useWallet";
 import { formatBalance } from "@/lib/wallet";
+import { useChain } from "@/contexts/ChainContext";
+import { getPriceHistory, WBNB, type PricePoint } from "@/lib/marketTrades";
+import { MarketTradesPanel } from "@/components/trading/MarketTradesPanel";
 import {
   LineChart,
   Line,
@@ -31,27 +34,9 @@ interface TokenDetailDialogProps {
   onSend?: () => void;
   onReceive?: () => void;
   onSwap?: () => void;
+  /** The user's wallet, highlighted in the trade history */
+  walletAddress?: string;
 }
-
-// Generate mock chart data for demo
-const generateChartData = (basePrice: number, days: number = 7) => {
-  const data = [];
-  const now = Date.now();
-  const dayMs = 24 * 60 * 60 * 1000;
-  
-  for (let i = days; i >= 0; i--) {
-    const variation = (Math.random() - 0.5) * 0.15;
-    const price = basePrice * (1 + variation);
-    const date = new Date(now - i * dayMs);
-    data.push({
-      date: date.toLocaleDateString("vi-VN", { weekday: "short" }),
-      price: price,
-      timestamp: date.getTime(),
-    });
-  }
-  
-  return data;
-};
 
 export const TokenDetailDialog = ({
   open,
@@ -61,16 +46,30 @@ export const TokenDetailDialog = ({
   onSend,
   onReceive,
   onSwap,
+  walletAddress,
 }: TokenDetailDialogProps) => {
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<(PricePoint & { date: string })[]>([]);
+  const [chartError, setChartError] = useState(false);
+  const { currentChain } = useChain();
+  // The BSC token whose pools hold this coin's market: WBNB for native BNB
+  const bscToken = currentChain.chainId === 56 && token ? (token.address && token.address !== "0x0000000000000000000000000000000000000000" ? token.address : token.symbol === "BNB" ? WBNB : null) : null;
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("7d");
 
+  // Real price history (Binance candles, or the token's BSC pool for coins like CAMLY)
   useEffect(() => {
-    if (price?.price) {
-      const days = timeRange === "24h" ? 1 : timeRange === "7d" ? 7 : 30;
-      setChartData(generateChartData(price.price, days));
-    }
-  }, [price?.price, timeRange]);
+    if (!open || !token) return;
+    let live = true;
+    setChartData([]); setChartError(false);
+    getPriceHistory(token.symbol, bscToken, timeRange)
+      .then(points => {
+        if (!live) return;
+        const label = (t: number) => new Date(t).toLocaleString("vi-VN", timeRange === "24h" ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit" });
+        setChartData(points.map(p => ({ ...p, date: label(p.timestamp) })));
+        if (!points.length) setChartError(true);
+      })
+      .catch(() => live && setChartError(true));
+    return () => { live = false; };
+  }, [open, token, bscToken, timeRange]);
 
   if (!token) return null;
 
@@ -203,7 +202,7 @@ export const TokenDetailDialog = ({
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center">
-                  <Skeleton className="h-full w-full" />
+                  {chartError ? <p className="text-sm text-muted-foreground">Chưa có dữ liệu giá cho {token.symbol}</p> : <Skeleton className="h-full w-full" />}
                 </div>
               )}
             </div>
@@ -279,6 +278,7 @@ export const TokenDetailDialog = ({
             </Button>
           </div>
         </div>
+        {bscToken && <div className="pt-2"><MarketTradesPanel token={bscToken} symbol={token.symbol} myAddress={walletAddress} /></div>}
       </DialogContent>
     </Dialog>
   );
