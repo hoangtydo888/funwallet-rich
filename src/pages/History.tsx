@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, ExternalLink, 
-  ArrowUpRight, ArrowDownLeft, RefreshCw, Layers, Palette, Coins, Search,
+  ArrowUpRight, ArrowDownLeft, RefreshCw, ShieldCheck, Layers, Palette, Coins, Search,
   Loader2, FileText, FileSpreadsheet, Globe, Database, Wallet
 } from "lucide-react";
 import jsPDF from "jspdf";
@@ -23,6 +23,7 @@ import { toast } from "@/hooks/use-toast";
 import { useWallet } from "@/hooks/useWallet";
 import { getAllTransactions, formatTxValue, getTxDirection, type Transaction as BlockchainTx } from "@/lib/bscscan";
 import { getProvider } from "@/lib/wallet";
+import { getTxDetails, type TokenMove, type TxDetails } from "@/lib/txDetails";
 
 interface Transaction {
   id: string;
@@ -47,6 +48,8 @@ const typeIcons: Record<string, any> = {
   send: ArrowUpRight,
   receive: ArrowDownLeft,
   swap: RefreshCw,
+  approve: ShieldCheck,
+  contract: FileText,
   stake: Layers,
   mint: Palette,
 };
@@ -112,25 +115,28 @@ const History = () => {
 
   const isLoading = blockchainLoading || dbLoading;
 
-  // Real on-chain status of in-app rows (receipts), so a finished swap never stays "Pending"
-  const [chainStatus, setChainStatus] = useState<Record<string, 'success' | 'failed'>>({});
+  // Each tx's receipt on BSC: real status, what was sent/received, approvals and contract calls
+  const [details, setDetails] = useState<Record<string, TxDetails>>({});
   useEffect(() => {
-    const todo = dbTransactions.filter(t => /^0x[0-9a-fA-F]{64}$/.test(t.tx_hash ?? '') && normalizeStatus(t.status) !== 'success').slice(0, 20);
-    if (!todo.length) return;
+    const wallet = activeWallet?.address;
+    if (!wallet) return;
+    const hashes = [...new Set([...dbTransactions.map(t => t.tx_hash), ...blockchainTxs.map((t: BlockchainTx) => t.hash)]
+      .filter(h => /^0x[0-9a-fA-F]{64}$/.test(h ?? '')).map(h => h.toLowerCase()))].slice(0, 60);
+    if (!hashes.length) return;
     let live = true;
     const provider = getProvider();
-    void Promise.all(todo.map(async t => {
-      const receipt = await provider.getTransactionReceipt(t.tx_hash).catch(() => null);
-      if (!receipt) return null;
-      const status = receipt.status === 1 ? 'success' as const : 'failed' as const;
-      if (status !== t.status) await supabase.from('transactions').update({ status }).eq('id', t.id);
-      return [t.tx_hash.toLowerCase(), status] as const;
-    })).then(results => {
-      const found = results.filter((r): r is NonNullable<typeof r> => r !== null);
-      if (live && found.length) setChainStatus(prev => ({ ...prev, ...Object.fromEntries(found) }));
+    void Promise.all(hashes.map(h => getTxDetails(provider, h, wallet).then(d => (d ? [h, d] as const : null)).catch(() => null))).then(results => {
+      const found = Object.fromEntries(results.filter((r): r is NonNullable<typeof r> => r !== null));
+      if (!live) return;
+      setDetails(found);
+      // Keep the saved in-app status in step with the chain
+      for (const t of dbTransactions) {
+        const d = found[(t.tx_hash ?? '').toLowerCase()];
+        if (d && normalizeStatus(t.status) !== d.status) void supabase.from('transactions').update({ status: d.status }).eq('id', t.id);
+      }
     });
     return () => { live = false; };
-  }, [dbTransactions]);
+  }, [dbTransactions, blockchainTxs, activeWallet?.address]);
 
   // Combine blockchain and database transactions; one row per tx hash
   const allTransactions = useMemo(() => {
@@ -163,6 +169,19 @@ const History = () => {
     });
     const receivedOf = (rows: Transaction[], sent: string) =>
       rows.filter(r => r.tx_type === 'receive' && r.token_symbol !== sent).map(r => `${r.amount} ${r.token_symbol}`).join(', ') || undefined;
+    const moves = (m: TokenMove[]) => m.map(x => `${x.amount} ${x.symbol}`).join(', ');
+
+    // Rewrites a row from its receipt, e.g. a "0 BNB" contract call becomes "Gửi 9,999 CAMLY" or "Cấp quyền USDT"
+    const withDetails = (tx: Transaction, d?: TxDetails): Transaction => {
+      if (!d) return tx;
+      const row = { ...tx, status: d.status };
+      if (tx.source === 'database') return { ...row, received: d.received.length ? moves(d.received) : tx.received };
+      const [sent] = d.sent;
+      if (sent && d.received.length) return { ...row, tx_type: 'swap', token_symbol: sent.symbol, amount: sent.amount, to_address: d.contract, received: moves(d.received) };
+      if (sent) return { ...row, tx_type: 'send', token_symbol: sent.symbol, amount: sent.amount, to_address: sent.counterparty };
+      if (d.received.length) return { ...row, tx_type: 'receive', token_symbol: d.received[0].symbol, amount: d.received[0].amount, from_address: d.received[0].counterparty };
+      return { ...row, tx_type: d.kind === 'approve' ? 'approve' : 'contract', token_symbol: d.contractName ?? '', amount: '', to_address: d.contract };
+    };
 
     // In-app rows win (they know it was a swap); on-chain data adds what was received and the real status
     const merged: Transaction[] = [];
@@ -172,11 +191,12 @@ const History = () => {
       if (used.has(key)) continue;
       used.add(key);
       const rows = byHash.get(key) ?? [];
-      const status = chainStatus[key] ?? (rows.length ? 'success' : normalizeStatus(tx.status));
-      merged.push({ ...tx, status, received: receivedOf(rows, tx.token_symbol), source: 'database' });
+      const base: Transaction = { ...tx, status: rows.length ? 'success' : normalizeStatus(tx.status), received: receivedOf(rows, tx.token_symbol), source: 'database' };
+      merged.push(withDetails(base, details[key]));
     }
     for (const [key, rows] of byHash) {
       if (used.has(key)) continue;
+      if (details[key]) { merged.push(withDetails(rows[0], details[key])); continue; }
       const sent = rows.find(r => r.tx_type === 'send');
       const received = sent && receivedOf(rows, sent.token_symbol);
       // Sent one token and got another back in the same tx: a swap made outside this app
@@ -185,7 +205,7 @@ const History = () => {
     }
     
     return merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [blockchainTxs, dbTransactions, activeWallet?.address, chainStatus]);
+  }, [blockchainTxs, dbTransactions, activeWallet?.address, details]);
 
   const refetch = () => {
     refetchBlockchain();
@@ -291,6 +311,7 @@ const History = () => {
   };
 
   const getDisplayAmount = (tx: Transaction) => {
+    if (!tx.amount) return "";
     if (tx.tx_type === "send") return `-${tx.amount}`;
     if (tx.tx_type === "receive") return `+${tx.amount}`;
     return tx.amount;
@@ -467,6 +488,8 @@ const History = () => {
                               {tx.tx_type === "send" ? "Gửi" : 
                                tx.tx_type === "receive" ? "Nhận" :
                                tx.tx_type === "swap" ? "Swap" :
+                               tx.tx_type === "approve" ? "Cấp quyền" :
+                               tx.tx_type === "contract" ? "Gọi hợp đồng" :
                                tx.tx_type === "stake" ? "Stake" : "Mint"} {tx.token_symbol}{tx.received ? ` → ${tx.received.split(" ").pop()}` : ""}
                             </p>
                             <p className="text-sm text-muted-foreground truncate">
@@ -483,7 +506,7 @@ const History = () => {
                               tx.tx_type === "send" ? "text-destructive" : 
                               tx.tx_type === "receive" ? "text-success" : ""
                             }`}>
-                              {getDisplayAmount(tx)} {tx.token_symbol}
+                              {tx.amount && `${getDisplayAmount(tx)} ${tx.token_symbol}`}
                             </p>
                             {tx.received && <p className="text-sm font-medium text-success">+{tx.received}</p>}
                           </div>
@@ -508,7 +531,7 @@ const History = () => {
                           <Badge className={`text-xs ${statusColors[tx.status]}`}>
                             {tx.status === "success" ? "✅ Success" :
                              tx.status === "pending" ? "⏳ Pending" :
-                             tx.status === "active" ? "🔄 Active" : tx.status === "unknown" ? "Chưa xác minh" : "❌ Failed"}
+                             tx.status === "active" ? "🔄 Active" : tx.status === "unknown" ? "Đang kiểm tra…" : "❌ Failed"}
                           </Badge>
                         </div>
                         
