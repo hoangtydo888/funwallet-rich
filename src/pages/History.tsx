@@ -22,6 +22,7 @@ import BottomNav from "@/components/layout/BottomNav";
 import { toast } from "@/hooks/use-toast";
 import { useWallet } from "@/hooks/useWallet";
 import { getAllTransactions, formatTxValue, getTxDirection, type Transaction as BlockchainTx } from "@/lib/bscscan";
+import { getProvider } from "@/lib/wallet";
 
 interface Transaction {
   id: string;
@@ -35,7 +36,12 @@ interface Transaction {
   created_at: string;
   tx_timestamp: string | null;
   source: 'blockchain' | 'database';
+  /** Tokens that came back in the same tx, e.g. "603,170 CAMLY" for a swap. */
+  received?: string;
 }
+
+// Older in-app rows used "completed" / "confirmed" for finished trades
+const normalizeStatus = (status: string) => (status === 'completed' || status === 'confirmed' ? 'success' : status);
 
 const typeIcons: Record<string, any> = {
   send: ArrowUpRight,
@@ -106,49 +112,80 @@ const History = () => {
 
   const isLoading = blockchainLoading || dbLoading;
 
-  // Combine blockchain and database transactions
+  // Real on-chain status of in-app rows (receipts), so a finished swap never stays "Pending"
+  const [chainStatus, setChainStatus] = useState<Record<string, 'success' | 'failed'>>({});
+  useEffect(() => {
+    const todo = dbTransactions.filter(t => /^0x[0-9a-fA-F]{64}$/.test(t.tx_hash ?? '') && normalizeStatus(t.status) !== 'success').slice(0, 20);
+    if (!todo.length) return;
+    let live = true;
+    const provider = getProvider();
+    void Promise.all(todo.map(async t => {
+      const receipt = await provider.getTransactionReceipt(t.tx_hash).catch(() => null);
+      if (!receipt) return null;
+      const status = receipt.status === 1 ? 'success' as const : 'failed' as const;
+      if (status !== t.status) await supabase.from('transactions').update({ status }).eq('id', t.id);
+      return [t.tx_hash.toLowerCase(), status] as const;
+    })).then(results => {
+      const found = results.filter((r): r is NonNullable<typeof r> => r !== null);
+      if (live && found.length) setChainStatus(prev => ({ ...prev, ...Object.fromEntries(found) }));
+    });
+    return () => { live = false; };
+  }, [dbTransactions]);
+
+  // Combine blockchain and database transactions; one row per tx hash
   const allTransactions = useMemo(() => {
     const walletAddress = activeWallet?.address?.toLowerCase() || '';
     
     // Format blockchain transactions
-    const blockchainFormatted: Transaction[] = blockchainTxs.map((tx: BlockchainTx) => {
+    const blockchainFormatted: Transaction[] = blockchainTxs.map((tx: BlockchainTx, i: number) => {
       const direction = getTxDirection(tx, walletAddress);
       const decimals = tx.tokenDecimal ? parseInt(tx.tokenDecimal) : 18;
       
       return {
-        id: tx.hash,
+        id: `${tx.hash}-${i}`,
         tx_type: direction === 'in' ? 'receive' : 'send',
         token_symbol: tx.tokenSymbol || 'BNB',
         amount: formatTxValue(tx.value, decimals),
         from_address: tx.from,
         to_address: tx.to,
-        status: tx.isError === '0' ? 'success' : tx.isError === '1' ? 'failed' : 'unknown',
+        // Token transfers are only emitted by successful transactions
+        status: tx.isError === '0' || tx.type === 'token' ? 'success' : tx.isError === '1' ? 'failed' : 'unknown',
         tx_hash: tx.hash,
         created_at: new Date(parseInt(tx.timeStamp) * 1000).toISOString(),
         tx_timestamp: new Date(parseInt(tx.timeStamp) * 1000).toISOString(),
         source: 'blockchain' as const,
       };
     });
-    
-    // Format database transactions
-    const dbFormatted: Transaction[] = dbTransactions.map((tx: any) => ({
-      ...tx,
-      source: 'database' as const,
-    }));
-    
-    // Merge and sort by date (newest first)
-    // Remove duplicates by tx_hash
-    const txMap = new Map<string, Transaction>();
-    
-    [...blockchainFormatted, ...dbFormatted].forEach(tx => {
-      if (!txMap.has(tx.tx_hash)) {
-        txMap.set(tx.tx_hash, tx);
-      }
+    const byHash = new Map<string, Transaction[]>();
+    blockchainFormatted.forEach(tx => {
+      const key = tx.tx_hash.toLowerCase();
+      byHash.set(key, [...(byHash.get(key) ?? []), tx]);
     });
+    const receivedOf = (rows: Transaction[], sent: string) =>
+      rows.filter(r => r.tx_type === 'receive' && r.token_symbol !== sent).map(r => `${r.amount} ${r.token_symbol}`).join(', ') || undefined;
+
+    // In-app rows win (they know it was a swap); on-chain data adds what was received and the real status
+    const merged: Transaction[] = [];
+    const used = new Set<string>();
+    for (const tx of dbTransactions as any[]) {
+      const key = (tx.tx_hash || tx.id).toLowerCase();
+      if (used.has(key)) continue;
+      used.add(key);
+      const rows = byHash.get(key) ?? [];
+      const status = chainStatus[key] ?? (rows.length ? 'success' : normalizeStatus(tx.status));
+      merged.push({ ...tx, status, received: receivedOf(rows, tx.token_symbol), source: 'database' });
+    }
+    for (const [key, rows] of byHash) {
+      if (used.has(key)) continue;
+      const sent = rows.find(r => r.tx_type === 'send');
+      const received = sent && receivedOf(rows, sent.token_symbol);
+      // Sent one token and got another back in the same tx: a swap made outside this app
+      if (sent && received) merged.push({ ...sent, tx_type: 'swap', received });
+      else merged.push(...rows);
+    }
     
-    return Array.from(txMap.values())
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [blockchainTxs, dbTransactions, activeWallet?.address]);
+    return merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [blockchainTxs, dbTransactions, activeWallet?.address, chainStatus]);
 
   const refetch = () => {
     refetchBlockchain();
@@ -183,7 +220,7 @@ const History = () => {
           }, 3000);
           
           // Refetch to get updated list
-          queryClient.invalidateQueries({ queryKey: ['transactions', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['db-transactions', user.id] });
           
           toast({
             title: "📬 Giao dịch mới",
@@ -200,7 +237,7 @@ const History = () => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['transactions', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['db-transactions', user.id] });
         }
       )
       .subscribe();
@@ -430,7 +467,7 @@ const History = () => {
                               {tx.tx_type === "send" ? "Gửi" : 
                                tx.tx_type === "receive" ? "Nhận" :
                                tx.tx_type === "swap" ? "Swap" :
-                               tx.tx_type === "stake" ? "Stake" : "Mint"} {tx.token_symbol}
+                               tx.tx_type === "stake" ? "Stake" : "Mint"} {tx.token_symbol}{tx.received ? ` → ${tx.received.split(" ").pop()}` : ""}
                             </p>
                             <p className="text-sm text-muted-foreground truncate">
                               {tx.tx_type === "send" 
@@ -448,6 +485,7 @@ const History = () => {
                             }`}>
                               {getDisplayAmount(tx)} {tx.token_symbol}
                             </p>
+                            {tx.received && <p className="text-sm font-medium text-success">+{tx.received}</p>}
                           </div>
                         </div>
                         

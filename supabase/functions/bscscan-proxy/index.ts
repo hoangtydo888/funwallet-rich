@@ -110,10 +110,13 @@ serve(async (req) => {
         return blockB - blockA;
       });
 
-      const seenHashes = new Set<string>();
+      // A swap moves several tokens in one tx (USDT out, CAMLY in): keep each transfer,
+      // dropping only the copy seen in both the "sent" and "received" lists.
+      const seenTransfers = new Set<string>();
       const uniqueTransfers = allTransfers.filter((tx: any) => {
-        if (seenHashes.has(tx.hash)) return false;
-        seenHashes.add(tx.hash);
+        const key = `${tx.hash}:${tx.from}:${tx.to}:${tx.rawContract?.address ?? tx.asset}:${tx.value ?? tx.rawContract?.value}`.toLowerCase();
+        if (seenTransfers.has(key)) return false;
+        seenTransfers.add(key);
         return true;
       });
 

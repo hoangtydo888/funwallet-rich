@@ -70,8 +70,20 @@ export async function getTokenTrades(token: string, limit = 40): Promise<MarketT
       valueUsd: Number(a.volume_in_usd) || 0, wallet: a.tx_from_address,
     });
   }
+  // One order split across several pools (common with aggregators) shows as one row, like Bitget
   const seen = new Set<string>();
-  return trades.sort((x, y) => y.time - x.time).filter(x => { const k = `${x.hash}:${x.side}:${x.amount}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, limit);
+  const orders = new Map<string, MarketTrade>();
+  for (const x of trades) {
+    const fill = `${x.hash}:${x.side}:${x.amount}:${x.valueUsd}`;
+    if (seen.has(fill)) continue;
+    seen.add(fill);
+    const k = `${x.hash}:${x.side}:${x.wallet}`.toLowerCase();
+    const o = orders.get(k);
+    if (!o) { orders.set(k, { ...x }); continue; }
+    o.amount += x.amount; o.valueUsd += x.valueUsd; o.time = Math.max(o.time, x.time);
+    o.priceUsd = o.amount ? o.valueUsd / o.amount : o.priceUsd;
+  }
+  return [...orders.values()].sort((x, y) => y.time - x.time).slice(0, limit);
 }
 
 export const compactAmount = (n: number) => n.toLocaleString('en-US', { notation: n >= 10_000 ? 'compact' : 'standard', maximumFractionDigits: n >= 10_000 ? 2 : n >= 1 ? 4 : 8 });

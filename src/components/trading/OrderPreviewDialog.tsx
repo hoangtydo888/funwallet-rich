@@ -55,7 +55,7 @@ export const OrderPreviewDialog = ({ open, onOpenChange, quote, order, onRefresh
       const result = await executeMarketOrder(quote, order, key, setProgress);
       if (user) await supabase.from("transactions").insert({
         user_id: user.id, tx_hash: result.hash, from_address: isBtc(from) ? order.btcAddress ?? "" : order.evmAddress, to_address: receiver,
-        amount: fmtUnits(BigInt(order.amount), from.decimals, 8).replace(/,/g, ""), token_symbol: from.symbol, status: result.crossChain ? "pending" : "completed", tx_type: "swap",
+        amount: fmtUnits(BigInt(order.amount), from.decimals, 8).replace(/,/g, ""), token_symbol: from.symbol, status: result.crossChain ? "pending" : "success", tx_type: "swap",
       });
       toast({
         title: result.crossChain ? "Đã gửi lệnh" : `Đã đổi sang ${to.symbol} ✅`,
