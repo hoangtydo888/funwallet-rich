@@ -201,6 +201,14 @@ function HomePage() {
               Nhận
             </button>
           </div>
+          {/* Trading, the FUN Card and QR payments live in the full web wallet */}
+          <button
+            onClick={() => chrome.tabs.create({ url: 'https://wallet.fun.rich/dashboard' })}
+            className="w-full mt-2 flex items-center justify-center gap-2 py-2 text-sm rounded-xl border border-border btn-hover-scale"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Mở FUN Wallet đầy đủ (Giao dịch · Thẻ · Thanh toán QR)
+          </button>
         </div>
       </div>
       

@@ -47,7 +47,8 @@ function ReceivePage() {
           <QRCodeSVG 
             value={address || 'loading'} 
             size={180}
-            level="M"
+            level="H"
+            imageSettings={{ src: '/icons/logo-qr.png', width: 48, height: 44, excavate: true }}
           />
         </div>
         

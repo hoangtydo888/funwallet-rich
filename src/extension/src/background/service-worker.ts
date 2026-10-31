@@ -28,13 +28,17 @@ const SWITCH_METHODS = ['wallet_switchEthereumChain', 'wallet_addEthereumChain']
 
 // MAIN world + document_start: the provider exists before dApp scripts run,
 // so FUN Profile detects window.funWallet instead of falling back to the web wallet.
+// The bridge (content.js) is registered here too, as a plain file: a manifest content
+// script goes through crxjs's dynamic-import loader, which sites like YouTube block.
 async function registerInpage() {
-  const script: chrome.scripting.RegisteredContentScript = {
-    id: 'fun-wallet-inpage', js: ['inpage.js'], matches: ['http://*/*', 'https://*/*'],
-    runAt: 'document_start', world: 'MAIN', allFrames: false,
-  };
-  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [script.id] });
-  await (existing.length ? chrome.scripting.updateContentScripts([script]) : chrome.scripting.registerContentScripts([script]));
+  const scripts: chrome.scripting.RegisteredContentScript[] = [
+    { id: 'fun-wallet-inpage', js: ['inpage.js'], matches: ['http://*/*', 'https://*/*'], runAt: 'document_start', world: 'MAIN', allFrames: false },
+    { id: 'fun-wallet-content', js: ['content.js'], matches: ['http://*/*', 'https://*/*'], runAt: 'document_start', world: 'ISOLATED', allFrames: false },
+  ];
+  const existing = new Set((await chrome.scripting.getRegisteredContentScripts({ ids: scripts.map(s => s.id) })).map(s => s.id));
+  const update = scripts.filter(s => existing.has(s.id)), add = scripts.filter(s => !existing.has(s.id));
+  if (update.length) await chrome.scripting.updateContentScripts(update);
+  if (add.length) await chrome.scripting.registerContentScripts(add);
 }
 
 async function initialize() {

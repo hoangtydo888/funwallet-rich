@@ -23,13 +23,14 @@ export default defineConfig({
     rollupOptions: {
       input: {
         inpage: path.resolve(__dirname, 'src/extension/src/content/inpage.ts'),
+        content: path.resolve(__dirname, 'src/extension/src/content/inject.ts'),
       },
       output: {
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: (chunkInfo) => {
-          // Output inpage.js to root for easy access
-          if (chunkInfo.name === 'inpage') {
-            return 'inpage.js';
+          // Page scripts live at the root under fixed names; the worker registers them
+          if (chunkInfo.name === 'inpage' || chunkInfo.name === 'content') {
+            return `${chunkInfo.name}.js`;
           }
           return 'assets/[name]-[hash].js';
         },

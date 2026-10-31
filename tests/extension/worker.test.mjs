@@ -266,8 +266,10 @@ test('retry brings the original approval forward without authorizing a second re
 test('provider is registered in the MAIN world at document_start so dApps detect it before boot',async()=>{
   const h=await setup();
   await h.send({type:'IS_UNLOCKED'});
-  assert.equal(h.registered.length,1);
+  assert.equal(h.registered.length,2);
   assert.deepEqual([h.registered[0].world,h.registered[0].runAt,h.registered[0].js[0]],['MAIN','document_start','inpage.js']);
+  // The bridge is a plain registered file, not a crxjs dynamic-import loader that sites can block
+  assert.deepEqual([h.registered[1].world,h.registered[1].runAt,h.registered[1].js[0]],['ISOLATED','document_start','content.js']);
 });
 test('read-only RPC used by wagmi is forwarded without approval and keeps revert data',async()=>{
   const h=await setup();
