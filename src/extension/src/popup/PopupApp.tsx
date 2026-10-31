@@ -6,6 +6,7 @@ import UnlockPage from './pages/UnlockPage';
 import HomePage from './pages/HomePage';
 import SendPage from './pages/SendPage';
 import ReceivePage from './pages/ReceivePage';
+import FunMoneyPage from './pages/FunMoneyPage';
 import SettingsPage from './pages/SettingsPage';
 import ConnectPage from './pages/ConnectPage';
 import ApproveTxPage from './pages/ApproveTxPage';
@@ -261,6 +262,14 @@ function PopupApp() {
           element={
             isUnlocked 
               ? <ReceivePage /> 
+              : <Navigate to="/unlock" replace />
+          } 
+        />
+        <Route 
+          path="/fun-money" 
+          element={
+            isUnlocked 
+              ? <FunMoneyPage /> 
               : <Navigate to="/unlock" replace />
           } 
         />

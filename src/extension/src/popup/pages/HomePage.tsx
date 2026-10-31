@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { formatAddress } from '@shared/lib/wallet';
 import { COMMON_TOKENS } from '@shared/constants/tokens';
+import { formatFun, getFunMoneyState } from '@shared/lib/funMoney';
 import { STORAGE_KEYS } from '@shared/storage/types';
 import { useTokenPrices } from '@shared/hooks/useTokenPrices';
 import { useBalance } from '@shared/hooks/useBalance';
@@ -23,6 +24,7 @@ import { ConnectedSiteBar } from '../components/ConnectedSiteBar';
 
 function HomePage() {
   const navigate = useNavigate();
+  const [funBalance, setFunBalance] = useState<string | null>(null);
   const [address, setAddress] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
@@ -84,6 +86,12 @@ function HomePage() {
   const handleRefresh = async () => {
     await Promise.all([refetchPrices(), refreshBalances()]);
   };
+
+  // FUN Money lives on BSC Testnet, outside the mainnet token list
+  useEffect(() => {
+    if (!address) return;
+    getFunMoneyState(address).then(st => setFunBalance(formatFun(st.balance))).catch(() => setFunBalance(null));
+  }, [address]);
 
   const copyAddress = async () => {
     await navigator.clipboard.writeText(address);
@@ -217,6 +225,17 @@ function HomePage() {
       {/* Token List */}
       <div className="flex-1 overflow-y-auto p-4 pt-0">
         <RecentActivity account={address} onConfirmed={refreshBalances} />
+        <button
+          onClick={() => navigate('/fun-money')}
+          className="w-full mb-3 flex items-center gap-3 p-3 rounded-xl border border-amber-400/50 bg-amber-500/5 text-left btn-hover-scale"
+        >
+          <img src="/tokens/fun-money.png" alt="" className="w-9 h-9 rounded-full" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">FUN MONEY <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">Testnet</span></p>
+            <p className="text-xs text-muted-foreground">Gửi · Nhận · Kích hoạt</p>
+          </div>
+          <p className="font-semibold text-sm">{funBalance ?? '…'} FUN</p>
+        </button>
         <h3 className="text-sm font-medium text-muted-foreground mb-2">Tokens</h3>
         <TokenList 
           tokens={tokenListData} 
