@@ -88,8 +88,11 @@ export const fetchTokenFromDexScreener = async (
     }
     
     const data = await response.json();
-    const pairs: DexScreenerPair[] = data.pairs || [];
-    
+    // priceUsd is the price of a pair's base token, so only pairs where this token is the base count
+    const pairs: DexScreenerPair[] = (data.pairs || []).filter((pair: DexScreenerPair) =>
+      pair.baseToken?.address?.toLowerCase() === tokenAddress.toLowerCase() && Number(pair.priceUsd) > 0
+    );
+
     if (pairs.length === 0) {
       return null;
     }

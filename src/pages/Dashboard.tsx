@@ -738,6 +738,7 @@ const Dashboard = () => {
             getPrivateKey={getPrivateKey}
             onSuccess={refreshBalances}
             defaultTab={swapTab}
+            onRequestUnlock={() => setUnlockDialogOpen(true)}
           />
 
           <ImportNFTDialog

@@ -19,6 +19,7 @@ import { ERC20_ABI } from "@/lib/wallet";
 interface BtcSwapPanelProps {
   walletAddress: string;
   getPrivateKey: (address: string) => string | null;
+  onRequestUnlock?: () => void;
   onSuccess?: () => void;
 }
 
@@ -27,7 +28,7 @@ const fmt = (raw: string, decimals: number, digits = 8) => Number(formatUnits(ra
 
 /** Market-price BTC ↔ USDT/BNB/ETH, like an "instant buy/sell" screen. Quotes
  * refresh every 30 s; nothing is signed until the user confirms the shown quote. */
-export const BtcSwapPanel = ({ walletAddress, getPrivateKey, onSuccess }: BtcSwapPanelProps) => {
+export const BtcSwapPanel = ({ walletAddress, getPrivateKey, onSuccess, onRequestUnlock }: BtcSwapPanelProps) => {
   const { user } = useAuth();
   const btc = useBitcoin(walletAddress, getPrivateKey);
   const [side, setSide] = useState<"sell" | "buy">("sell");
@@ -103,7 +104,7 @@ export const BtcSwapPanel = ({ walletAddress, getPrivateKey, onSuccess }: BtcSwa
     const intent = intentRef.current;
     if (!quote || !intent || !confirmed) return;
     const key = getPrivateKey(walletAddress);
-    if (!key) { toast({ title: "Ví bị khóa", description: "Mở khóa ví trước khi đổi", variant: "destructive" }); return; }
+    if (!key) { toast({ title: "Ví đang khóa", description: "Nhập mật khẩu ví, rồi bấm đổi lại" }); onRequestUnlock?.(); return; }
     setExecuting(true);
     try {
       let hash: string;

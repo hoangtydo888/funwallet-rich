@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Star, StarOff, ChevronRight, BookmarkPlus } from "lucide-react";
-import { fetchTokenPrices, formatPrice, formatChange, saveFavorites, loadFavorites, type TokenPrice } from "@/lib/priceTracker";
+import { fetchTokenPrices, formatPrice, formatUsdValue, formatChange, saveFavorites, loadFavorites, type TokenPrice } from "@/lib/priceTracker";
 import { TokenDetailDialog } from "./TokenDetailDialog";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useChain } from "@/contexts/ChainContext";
@@ -117,7 +117,7 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
       {/* Total USD Value */}
       <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20">
         <p className="text-sm text-muted-foreground">Tổng giá trị USD</p>
-        <p className="text-2xl font-bold">{formatPrice(totalUsdValue)}</p>
+        <p className="text-2xl font-bold">{formatUsdValue(totalUsdValue)}</p>
       </div>
 
       {/* Search and Filter */}
@@ -216,7 +216,7 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">{token.symbol}</p>
-                    {price && !pricesLoading && (
+                    {price && (
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
                         price.change24h >= 0 
                           ? "bg-green-500/20 text-green-500" 
@@ -226,20 +226,15 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground truncate">{token.name}</p>
-                </div>
-
-                {/* Price */}
-                <div className="text-right hidden sm:block">
-                  {pricesLoading ? (
-                    <Skeleton className="h-4 w-16" />
-                  ) : price ? (
-                    <p className="text-sm text-muted-foreground">
-                      {formatPrice(price.price)}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">-</p>
-                  )}
+                  {/* Current price, always visible like Binance's asset list */}
+                  <p className="text-sm truncate">
+                    {pricesLoading && !price ? (
+                      <Skeleton className="h-4 w-20 inline-block align-middle" />
+                    ) : (
+                      <span className="font-semibold text-foreground">{price ? formatPrice(price.price) : "--"}</span>
+                    )}
+                    <span className="text-muted-foreground hidden sm:inline"> · {token.name}</span>
+                  </p>
                 </div>
 
                 {/* Balance */}
@@ -249,7 +244,7 @@ export const TokenList = ({ balances, loading, onSend, onReceive, onSwap }: Toke
                   </p>
                   {hasBalance && (
                     <p className="text-xs text-muted-foreground">
-                      ≈ {formatPrice(usdValue)}
+                      ≈ {formatUsdValue(usdValue)}
                     </p>
                   )}
                 </div>

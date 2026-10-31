@@ -25,6 +25,8 @@ interface LifiPanelProps {
   mode: "swap" | "bridge";
   onSuccess?: () => void;
   onClose?: () => void;
+  /** Opens the unlock dialog when the wallet is locked at signing time. */
+  onRequestUnlock?: () => void;
 }
 
 const NATIVE = "0x0000000000000000000000000000000000000000";
@@ -35,6 +37,7 @@ export const LifiPanel = ({
   mode,
   onSuccess,
   onClose,
+  onRequestUnlock,
 }: LifiPanelProps) => {
   const { user } = useAuth();
   const [fromChainId, setFromChainId] = useState<number>(56);
@@ -97,11 +100,8 @@ export const LifiPanel = ({
     if (!quote || !fromChain || !confirmed) return;
     const pk = getPrivateKey(walletAddress);
     if (!pk) {
-      toast({
-        title: "Ví bị khóa",
-        description: "Vui lòng mở khóa ví trước khi swap",
-        variant: "destructive",
-      });
+      toast({ title: "Ví đang khóa", description: "Nhập mật khẩu ví, rồi bấm Swap lại" });
+      onRequestUnlock?.();
       return;
     }
     setExecuting(true);
@@ -191,7 +191,7 @@ export const LifiPanel = ({
           Number(quote.estimate.toAmount) /
           10 ** quote.action.toToken.decimals /
           (Number(quote.estimate.fromAmount) / 10 ** quote.action.fromToken.decimals)
-        ).toFixed(6)} ${quote.action.toToken.symbol}`
+        ).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${quote.action.toToken.symbol}`
       : null;
 
   return (
@@ -288,7 +288,7 @@ export const LifiPanel = ({
             placeholder="0.0"
             value={
               quote?.estimate
-                ? ethers.formatUnits(quote.estimate.toAmount,quote.action.toToken.decimals)
+                ? Number(ethers.formatUnits(quote.estimate.toAmount,quote.action.toToken.decimals)).toLocaleString("en-US", { maximumFractionDigits: 8 })
                 : ""
             }
             className="text-lg font-semibold border-0 bg-transparent p-0 focus-visible:ring-0"
@@ -352,7 +352,7 @@ export const LifiPanel = ({
           <div className="flex justify-between">
             <span className="text-muted-foreground">Nhận tối thiểu</span>
             <span>
-              {(Number(quote.estimate?.toAmountMin ?? 0) / 10 ** quote.action.toToken.decimals).toFixed(6)}{" "}
+              {(Number(quote.estimate?.toAmountMin ?? 0) / 10 ** quote.action.toToken.decimals).toLocaleString("en-US", { maximumFractionDigits: 8 })}{" "}
               {quote.action.toToken.symbol}
             </span>
           </div>

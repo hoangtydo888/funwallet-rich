@@ -236,7 +236,9 @@ export const formatAddress = (address: string, chars: number = 6): string => {
 // Format balance
 export const formatBalance = (balance: string, decimals: number = 4): string => {
   const num = parseFloat(balance);
-  if (num === 0) return "0";
-  if (num < 0.0001) return "<0.0001";
-  return num.toFixed(decimals);
+  if (!num) return "0";
+  if (num < 0.00000001) return "<0.00000001";
+  // Like Binance: thousands separators, fewer decimals for large amounts, up to 8 for small ones
+  const digits = num >= 1000 ? Math.min(decimals, 2) : num >= 1 ? decimals : 8;
+  return num.toLocaleString("en-US", { maximumFractionDigits: digits });
 };

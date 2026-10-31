@@ -9,6 +9,7 @@ import { AssetPicker } from "./AssetPicker";
 import { OrderBook, useTicker } from "./OrderBook";
 import { OrderPreviewDialog } from "./OrderPreviewDialog";
 import { SLIPPAGES, type TradeContext } from "./ConvertPanel";
+import { formatChange, formatPrice } from "@/lib/priceTracker";
 
 const STEPS = [0, 25, 50, 75, 100];
 
@@ -44,7 +45,12 @@ export const SpotPanel = ({ ctx }: { ctx: TradeContext }) => {
       <div className="flex items-center gap-3">
         <AssetPicker value={base} onChange={a => { setBase(a); setAmount(""); setPct(0); }} balances={ctx.balances} exclude={[QUOTE_ASSET.key]}
           label={`${base.symbol}/USDT`} className="text-xl" />
-        {ticker && <span className={`text-sm font-medium ${ticker.changePct >= 0 ? "text-green-600" : "text-red-500"}`}>{ticker.changePct >= 0 ? "+" : ""}{ticker.changePct.toFixed(2)}%</span>}
+        {ticker && (
+          <div className="ml-auto text-right leading-tight">
+            <div className={`text-lg font-bold ${ticker.changePct >= 0 ? "text-green-600" : "text-red-500"}`}>{formatPrice(ticker.price)}</div>
+            {base.binance && <div className={`text-xs font-medium ${ticker.changePct >= 0 ? "text-green-600" : "text-red-500"}`}>{formatChange(ticker.changePct)} · 24h</div>}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-[1fr_minmax(0,0.85fr)] gap-4">

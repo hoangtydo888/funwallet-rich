@@ -29,6 +29,7 @@ interface SwapDialogProps {
   getPrivateKey: (address: string) => string | null;
   onSuccess?: () => void;
   defaultTab?: string;
+  onRequestUnlock?: () => void;
 }
 
 export const SwapDialog = ({
@@ -38,6 +39,7 @@ export const SwapDialog = ({
   getPrivateKey,
   onSuccess,
   defaultTab = "lifi-swap",
+  onRequestUnlock,
 }: SwapDialogProps) => {
   const [tokenIn, setTokenIn] = useState(SWAP_TOKENS[0]); // BNB
   const [tokenOut, setTokenOut] = useState(SWAP_TOKENS[1]); // USDT
@@ -106,23 +108,8 @@ export const SwapDialog = ({
 
     const privateKey = getPrivateKey(walletAddress);
     if (!privateKey) {
-      toast({
-        title: "Không tìm thấy Private Key",
-        description: (
-          <div className="space-y-2">
-            <p>Vui lòng import lại ví để sử dụng tính năng Swap.</p>
-            <a
-              href={getPancakeSwapUrl(tokenIn, tokenOut)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-primary underline"
-            >
-              Hoặc swap trên PancakeSwap <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
-        ),
-        variant: "destructive",
-      });
+      toast({ title: "Ví đang khóa", description: "Nhập mật khẩu ví, rồi bấm Swap lại" });
+      onRequestUnlock?.();
       return;
     }
 
@@ -233,7 +220,7 @@ export const SwapDialog = ({
           </TabsList>
 
           <TabsContent value="btc" className="mt-4">
-            <BtcSwapPanel walletAddress={walletAddress} getPrivateKey={getPrivateKey} onSuccess={onSuccess} />
+            <BtcSwapPanel walletAddress={walletAddress} getPrivateKey={getPrivateKey} onSuccess={onSuccess} onRequestUnlock={onRequestUnlock} />
           </TabsContent>
 
           <TabsContent value="lifi-swap" className="mt-4">
@@ -243,6 +230,7 @@ export const SwapDialog = ({
               mode="swap"
               onSuccess={onSuccess}
               onClose={() => onOpenChange(false)}
+              onRequestUnlock={onRequestUnlock}
             />
           </TabsContent>
 
@@ -253,6 +241,7 @@ export const SwapDialog = ({
               mode="bridge"
               onSuccess={onSuccess}
               onClose={() => onOpenChange(false)}
+              onRequestUnlock={onRequestUnlock}
             />
           </TabsContent>
 

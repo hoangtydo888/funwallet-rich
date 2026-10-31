@@ -7,6 +7,8 @@ import { TRADE_ASSETS, QUOTE_ASSET, type TradeAsset } from "@/lib/marketOrder";
 import { fmtUnits, maxSpendable, quoteSummary, rateLabel, useMarketQuote } from "@/hooks/useMarketTrade";
 import { AssetPicker } from "./AssetPicker";
 import { OrderPreviewDialog } from "./OrderPreviewDialog";
+import { useTicker } from "./OrderBook";
+import { formatChange, formatPrice, formatUsdValue } from "@/lib/priceTracker";
 
 export interface TradeContext {
   evmAddress: string;
@@ -29,6 +31,12 @@ export const ConvertPanel = ({ ctx }: { ctx: TradeContext }) => {
   const [preview, setPreview] = useState(false);
   const { quote, order, error, loading, refresh } = useMarketQuote({ from, to, amount, slippage, evmAddress: ctx.evmAddress, btcAddress: ctx.btcAddress });
   const s = quoteSummary(quote, from, to);
+  const fromTicker = useTicker(from);
+  const toTicker = useTicker(to);
+  // Market price of the coin being traded (the non-USDT side), as on Binance
+  const [market, marketTicker] = from.key === QUOTE_ASSET.key ? [to, toTicker] : [from, fromTicker];
+  const fromUsd = fromTicker && Number(amount) > 0 ? Number(amount) * fromTicker.price : null;
+  const toUsd = toTicker && s ? s.toAmount * toTicker.price : null;
   const balance = ctx.balances[from.key];
   const overBalance = (() => { try { return balance !== undefined && Number(amount) > Number(formatUnits(balance, from.decimals)); } catch { return false; } })();
 
@@ -53,7 +61,8 @@ export const ConvertPanel = ({ ctx }: { ctx: TradeContext }) => {
           <Input inputMode="decimal" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value.replace(",", "."))}
             className="text-right text-2xl font-semibold border-0 bg-transparent p-0 h-auto focus-visible:ring-0 shadow-none" />
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-muted-foreground">{fromUsd !== null ? `≈ ${formatUsdValue(fromUsd)}` : ""}</span>
           <button type="button" className="text-sm font-medium text-yellow-600" onClick={async () => setAmount(formatUnits(await maxSpendable(from, balance), from.decimals))}>Tối đa</button>
         </div>
       </div>
@@ -71,9 +80,13 @@ export const ConvertPanel = ({ ctx }: { ctx: TradeContext }) => {
             {loading ? <Loader2 className="h-5 w-5 animate-spin ml-auto" /> : s ? s.toAmount.toLocaleString("en-US", { maximumFractionDigits: 8 }) : "0.00"}
           </div>
         </div>
+        {toUsd !== null && <p className="text-sm text-muted-foreground text-right">≈ {formatUsdValue(toUsd)}</p>}
       </div>
 
       <div className="text-sm space-y-2 px-1">
+        <div className="flex justify-between"><span className="text-muted-foreground">Giá thị trường</span>
+          <span>{marketTicker ? <>1 {market.symbol} = <b>{formatPrice(marketTicker.price)}</b>{market.binance && <span className={`ml-1.5 ${marketTicker.changePct >= 0 ? "text-green-600" : "text-red-500"}`}>{formatChange(marketTicker.changePct)}</span>}</> : "…"}</span>
+        </div>
         {s && <div className="flex justify-between"><span className="text-muted-foreground">Tỷ giá</span><span>{rateLabel(s.rate, from, to)}</span></div>}
         {s && <div className="flex justify-between"><span className="text-muted-foreground">Phí</span><span>≈ ${s.feesUsd.toFixed(2)}</span></div>}
         <div className="flex items-center justify-between">

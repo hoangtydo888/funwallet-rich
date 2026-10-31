@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { fetchDexPrice, formatUsd, sumPendingRewards, type DexPrice } from "@/lib/funTokens";
+import { formatBalance } from "@/lib/wallet";
+import { formatPrice } from "@/lib/priceTracker";
 
 export interface FunTokenDef {
   symbol: string;
@@ -84,7 +86,7 @@ export const FunEcosystemCard = ({ balances }: { balances: { symbol: string; bal
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm">{t.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {t.address ? (p ? `$${p.priceUsd.toPrecision(4)}` : "Đang tải giá…") : "Sắp ra mắt"}
+                  {t.address ? (p ? <span className="font-semibold text-foreground">{formatPrice(p.priceUsd)}</span> : "Đang tải giá…") : "Sắp ra mắt"}
                   {p && (
                     <span className={change >= 0 ? "text-primary ml-2" : "text-destructive ml-2"}>
                       {change >= 0 ? "+" : ""}{change.toFixed(2)}%
@@ -93,7 +95,7 @@ export const FunEcosystemCard = ({ balances }: { balances: { symbol: string; bal
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-semibold text-sm">{bal.toLocaleString("vi-VN")} {t.symbol}</p>
+                <p className="font-semibold text-sm">{formatBalance(String(bal))} {t.symbol}</p>
                 <p className="text-xs text-muted-foreground">{p ? formatUsd(bal * p.priceUsd) : "—"}</p>
               </div>
             </div>
@@ -101,7 +103,7 @@ export const FunEcosystemCard = ({ balances }: { balances: { symbol: string; bal
         })}
         <div className="flex items-center justify-between pt-2 border-t border-border">
           <p className="text-sm">
-            Thưởng chờ nhận: <b>{sumPendingRewards(rewards).toLocaleString("vi-VN")}</b>
+            Thưởng chờ nhận: <b>{sumPendingRewards(rewards).toLocaleString("en-US")}</b>
             {rewards.some((r) => r.status === "claim_requested") && (
               <span className="text-xs text-muted-foreground ml-1">(có yêu cầu đang xử lý)</span>
             )}

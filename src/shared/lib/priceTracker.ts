@@ -60,47 +60,60 @@ const COINGECKO_IDS: Record<string, string | null> = {
   BTT: "bittorrent",
 };
 
-// Generate mock prices when API is unavailable
-const generateMockPrices = (symbols: string[]): TokenPrice[] => {
-  const basePrices: Record<string, number> = {
-    BNB: 615.42,
-    USDT: 1.0,
-    USDC: 1.0,
-    CAMLY: 0.00002318,
-    BTCB: 97234.56,
-    ETH: 3456.78,
-    CAKE: 2.45,
-    LINK: 14.56,
-    UNI: 6.78,
-    SHIB: 0.000024,
-    DOGE: 0.32,
-    BABYDOGE: 0.0000000021,
-    ADA: 0.89,
-    MATIC: 0.52,
-    AVAX: 35.67,
-    SOL: 178.45,
-    XRP: 2.34,
-    MANA: 0.45,
-    BTT: 0.00000089,
-  };
+// Binance spot pairs (vs USDT) — the same prices Binance shows
+const BINANCE_SYMBOLS: Record<string, string> = {
+  BNB: "BNBUSDT",
+  WBNB: "BNBUSDT",
+  BTC: "BTCUSDT",
+  BTCB: "BTCUSDT",
+  ETH: "ETHUSDT",
+  CAKE: "CAKEUSDT",
+  LINK: "LINKUSDT",
+  UNI: "UNIUSDT",
+  SHIB: "SHIBUSDT",
+  DOGE: "DOGEUSDT",
+  ADA: "ADAUSDT",
+  AVAX: "AVAXUSDT",
+  SOL: "SOLUSDT",
+  XRP: "XRPUSDT",
+  MANA: "MANAUSDT",
+  DOT: "DOTUSDT",
+  LTC: "LTCUSDT",
+  TRX: "TRXUSDT",
+};
 
-  return symbols.map(symbol => {
-    const basePrice = basePrices[symbol.toUpperCase()] || Math.random() * 100;
-    const variation = (Math.random() - 0.5) * 0.1;
-    const price = basePrice * (1 + variation);
-    
-    return {
-      symbol: symbol.toUpperCase(),
-      name: symbol,
-      price,
-      change24h: (Math.random() - 0.5) * 10,
-      high24h: price * 1.05,
-      low24h: price * 0.95,
-      volume24h: Math.random() * 1000000000,
-      marketCap: Math.random() * 10000000000,
-      lastUpdated: Date.now(),
-    };
-  });
+const BINANCE_API = "https://data-api.binance.vision/api/v3";
+
+// Fetch 24h tickers from Binance public market data
+export const fetchBinancePrices = async (symbols: string[]): Promise<TokenPrice[]> => {
+  const wanted = symbols.map(s => s.toUpperCase()).filter(s => BINANCE_SYMBOLS[s]);
+  const pairs = [...new Set(wanted.map(s => BINANCE_SYMBOLS[s]))];
+  if (pairs.length === 0) return [];
+  try {
+    const response = await fetch(`${BINANCE_API}/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(pairs))}`);
+    if (!response.ok) return [];
+    const data: { symbol: string; lastPrice: string; priceChangePercent: string; highPrice: string; lowPrice: string; quoteVolume: string }[] = await response.json();
+    const byPair = new Map(data.map(t => [t.symbol, t]));
+    return wanted.flatMap(symbol => {
+      const t = byPair.get(BINANCE_SYMBOLS[symbol]);
+      const price = Number(t?.lastPrice);
+      if (!t || !(price > 0)) return [];
+      return [{
+        symbol,
+        name: symbol,
+        price,
+        change24h: Number(t.priceChangePercent) || 0,
+        high24h: Number(t.highPrice) || price,
+        low24h: Number(t.lowPrice) || price,
+        volume24h: Number(t.quoteVolume) || 0,
+        marketCap: 0,
+        lastUpdated: Date.now(),
+      }];
+    });
+  } catch (error) {
+    console.error("Binance price fetch error:", error);
+    return [];
+  }
 };
 
 // Fetch price from DexScreener API
@@ -117,8 +130,8 @@ export const fetchDEXPrice = async (symbol: string): Promise<TokenPrice | null> 
       name: tokenInfo.name,
       price: tokenInfo.priceUsd,
       change24h: tokenInfo.priceChange24h,
-      high24h: tokenInfo.priceUsd * 1.05,
-      low24h: tokenInfo.priceUsd * 0.95,
+      high24h: tokenInfo.priceUsd,
+      low24h: tokenInfo.priceUsd,
       volume24h: tokenInfo.volume24h,
       marketCap: tokenInfo.marketCap,
       lastUpdated: Date.now(),
@@ -129,107 +142,53 @@ export const fetchDEXPrice = async (symbol: string): Promise<TokenPrice | null> 
   }
 };
 
-// Fetch real-time prices from DexScreener (priority) and CoinGecko (fallback)
+// Real market prices: Binance first, then DexScreener (CAMLY and other BSC tokens),
+// then CoinGecko. Stablecoins are $1. A token with no market price is left out
+// rather than given a made-up one.
 export const fetchTokenPrices = async (
   symbols: string[]
 ): Promise<TokenPrice[]> => {
-  try {
-    const results: TokenPrice[] = [];
-    const remainingSymbols: string[] = [];
+  const unique = [...new Set(symbols.map(s => s.toUpperCase()))];
+  const results: TokenPrice[] = unique.filter(s => STABLECOINS.includes(s)).map(symbol => ({
+    symbol, name: symbol, price: 1, change24h: 0, high24h: 1, low24h: 1, volume24h: 0, marketCap: 0, lastUpdated: Date.now(),
+  }));
+  const missing = () => unique.filter(s => !results.some(r => r.symbol === s));
 
-    // 1. First try DexScreener for all tokens with addresses (realtime, no rate limit)
-    await Promise.all(
-      symbols.map(async (symbol) => {
-        const upperSymbol = symbol.toUpperCase();
-        if (TOKEN_ADDRESSES[upperSymbol]) {
-          const dexPrice = await fetchDEXPrice(symbol);
-          if (dexPrice) {
-            results.push(dexPrice);
-            return;
-          }
-        }
-        remainingSymbols.push(symbol);
-      })
-    );
+  results.push(...await fetchBinancePrices(missing()));
 
-    // 2. Try CoinGecko for remaining tokens
-    const tokensForCoinGecko = remainingSymbols.filter(
-      (s) => COINGECKO_IDS[s.toUpperCase()] !== null && COINGECKO_IDS[s.toUpperCase()] !== undefined
-    );
+  const dex = await Promise.all(missing().filter(s => TOKEN_ADDRESSES[s]).map(fetchDEXPrice));
+  results.push(...dex.filter((p): p is TokenPrice => p !== null && p.price > 0));
 
-    if (tokensForCoinGecko.length > 0) {
-      const ids = tokensForCoinGecko.map((s) => COINGECKO_IDS[s.toUpperCase()]).filter(Boolean);
-
-      if (ids.length > 0) {
-        try {
-          const response = await fetch(
-            `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-
-            for (const coin of data) {
-              const symbol =
-                Object.keys(COINGECKO_IDS).find((key) => COINGECKO_IDS[key] === coin.id) ||
-                coin.symbol.toUpperCase();
-              
-              // Skip if already fetched from DexScreener
-              if (results.some((r) => r.symbol === symbol)) continue;
-
-              results.push({
-                symbol,
-                name: coin.name,
-                price: coin.current_price ?? 0,
-                change24h: coin.price_change_percentage_24h ?? 0,
-                high24h: coin.high_24h ?? 0,
-                low24h: coin.low_24h ?? 0,
-                volume24h: coin.total_volume ?? 0,
-                marketCap: coin.market_cap ?? 0,
-                lastUpdated: Date.now(),
-              });
-            }
-          }
-        } catch (error) {
-          console.error("CoinGecko fetch error:", error);
+  const ids = missing().map(s => COINGECKO_IDS[s]).filter((id): id is string => !!id);
+  if (ids.length > 0) {
+    try {
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        for (const coin of data) {
+          const symbol = missing().find(s => COINGECKO_IDS[s] === coin.id);
+          if (!symbol || !(coin.current_price > 0)) continue;
+          results.push({
+            symbol,
+            name: coin.name,
+            price: coin.current_price,
+            change24h: coin.price_change_percentage_24h ?? 0,
+            high24h: coin.high_24h ?? 0,
+            low24h: coin.low_24h ?? 0,
+            volume24h: coin.total_volume ?? 0,
+            marketCap: coin.market_cap ?? 0,
+            lastUpdated: Date.now(),
+          });
         }
       }
+    } catch (error) {
+      console.error("CoinGecko fetch error:", error);
     }
-
-    // 3. For symbols that didn't get prices, use mock prices
-    const fetchedSymbols = results.map((p) => p.symbol.toUpperCase());
-    const missingSymbols = symbols.filter((s) => !fetchedSymbols.includes(s.toUpperCase()));
-
-    if (missingSymbols.length > 0) {
-      const mockPrices = generateMockPrices(missingSymbols);
-      results.push(...mockPrices);
-    }
-
-    // Fallback if no results
-    if (results.length === 0) {
-      return generateMockPrices(symbols);
-    }
-
-    // Fix stablecoin prices if they deviate more than 5% from $1.00
-    const fixedResults = results.map(token => {
-      if (STABLECOINS.includes(token.symbol.toUpperCase())) {
-        if (token.price < 0.95 || token.price > 1.05) {
-          console.warn(`Stablecoin ${token.symbol} price ${token.price} is off, forcing to $1.00`);
-          return {
-            ...token,
-            price: 1.0,
-            change24h: 0,
-          };
-        }
-      }
-      return token;
-    });
-
-    return fixedResults;
-  } catch (error) {
-    console.error("Error fetching prices:", error);
-    return generateMockPrices(symbols);
   }
+
+  return results;
 };
 
 // Fetch with cache support (for extension/PWA)
@@ -322,14 +281,24 @@ export const formatPrice = (price: number | null | undefined): string => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 4,
     });
+  } else if (price === 0) {
+    return "$0.00";
   } else {
+    // Like Binance: four significant digits for small prices, e.g. $0.6512 or $0.000003328
     return price.toLocaleString("en-US", {
       style: "currency",
       currency: "USD",
-      minimumFractionDigits: 4,
-      maximumFractionDigits: 8,
+      minimumSignificantDigits: 4,
+      maximumSignificantDigits: 4,
     });
   }
+};
+
+// Format what a holding is worth, like Binance's "≈ $493.09"
+export const formatUsdValue = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || isNaN(value)) return "$0.00";
+  if (value > 0 && value < 0.01) return "<$0.01";
+  return value.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // Format percentage change

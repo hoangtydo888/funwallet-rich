@@ -14,6 +14,7 @@ import { useChain } from "@/contexts/ChainContext";
 import { useTokenScanner } from "@/hooks/useTokenScanner";
 import { WatchlistPanel } from "@/components/wallet/WatchlistPanel";
 import { FunEcosystemCard } from "@/components/wallet/FunEcosystemCard";
+import { fetchTokenPrices, formatPrice, formatUsdValue, formatChange, type TokenPrice } from "@/lib/priceTracker";
 
 const Wallet = () => {
   const navigate = useNavigate();
@@ -22,6 +23,21 @@ const Wallet = () => {
   const { currentChain } = useChain();
   const { scan, scanning } = useTokenScanner();
   const [activeTab, setActiveTab] = useState("spot");
+  const [prices, setPrices] = useState<Record<string, TokenPrice>>({});
+
+  // Live market prices, refreshed every 30 seconds
+  const symbolKey = balances.map(b => b.symbol).join(",");
+  useEffect(() => {
+    if (!symbolKey) return;
+    let cancelled = false;
+    const load = async () => {
+      const data = await fetchTokenPrices(symbolKey.split(","));
+      if (!cancelled) setPrices(Object.fromEntries(data.map(p => [p.symbol.toUpperCase(), p])));
+    };
+    void load();
+    const timer = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [symbolKey]);
 
   const handleScan = () => {
     if (activeWallet?.address) {
@@ -36,14 +52,18 @@ const Wallet = () => {
   }, [user, authLoading, navigate]);
 
   // Transform balances for display
-  const tokens = balances.map(b => ({
-    symbol: b.symbol,
-    name: b.name,
-    address: b.address,
-    balance: b.balance,
-    icon: b.logo,
-    usdValue: "$0.00", // Would need price data
-  }));
+  const tokens = balances.map(b => {
+    const price = prices[b.symbol.toUpperCase()];
+    return {
+      symbol: b.symbol,
+      name: b.name,
+      address: b.address,
+      balance: b.balance,
+      icon: b.logo,
+      price,
+      usd: price ? (parseFloat(b.balance) || 0) * price.price : null,
+    };
+  });
 
   if (authLoading) {
     return (
@@ -53,10 +73,10 @@ const Wallet = () => {
     );
   }
 
-  const totalSpotValue = tokens.reduce((acc, token) => {
-    const value = parseFloat(token.usdValue?.replace(/[^0-9.-]/g, "") || "0");
-    return acc + value;
-  }, 0);
+  const totalSpotValue = tokens.reduce((acc, token) => acc + (token.usd ?? 0), 0);
+  // Portfolio change over 24h, weighted by what each holding is worth now
+  const valueYesterday = tokens.reduce((acc, t) => acc + (t.usd && t.price ? t.usd / (1 + t.price.change24h / 100) : 0), 0);
+  const totalChangePct = valueYesterday > 0 ? (totalSpotValue / valueYesterday - 1) * 100 : 0;
 
   // Mock earn data
   const earnPositions = [
@@ -133,12 +153,14 @@ const Wallet = () => {
             <CardContent className="p-6">
               <p className="text-sm text-muted-foreground mb-1">Tổng giá trị Spot</p>
               <h2 className="text-3xl font-heading font-bold rainbow-text">
-                ${totalSpotValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                ${totalSpotValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h2>
-              <div className="flex items-center gap-1 mt-2">
-                <TrendingUp className="w-4 h-4 text-success" />
-                <span className="text-sm text-success font-medium">+5.2% hôm nay</span>
-              </div>
+              {valueYesterday > 0 && (
+                <div className="flex items-center gap-1 mt-2">
+                  {totalChangePct >= 0 ? <TrendingUp className="w-4 h-4 text-success" /> : <TrendingDown className="w-4 h-4 text-destructive" />}
+                  <span className={`text-sm font-medium ${totalChangePct >= 0 ? "text-success" : "text-destructive"}`}>{formatChange(totalChangePct)} trong 24 giờ</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -168,12 +190,17 @@ const Wallet = () => {
                       />
                       <div>
                         <p className="font-semibold">{token.symbol}</p>
-                        <p className="text-xs text-muted-foreground">{token.name}</p>
+                        <p className="text-sm">
+                          <span className="font-semibold">{token.price ? formatPrice(token.price.price) : "--"}</span>
+                          {token.price && (
+                            <span className={`ml-2 text-xs ${token.price.change24h >= 0 ? "text-success" : "text-destructive"}`}>{formatChange(token.price.change24h)}</span>
+                          )}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">{formatBalance(token.balance, 4)}</p>
-                      <p className="text-sm text-muted-foreground">{token.usdValue}</p>
+                      <p className="text-sm text-muted-foreground">{token.usd !== null ? `≈ ${formatUsdValue(token.usd)}` : "--"}</p>
                     </div>
                   </CardContent>
                 </Card>
