@@ -15,7 +15,7 @@ import { ArrowDownUp, Loader2, ExternalLink, Info } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { ethers } from "ethers";
 import { SUPPORTED_CHAINS, CHAIN_TOKENS, getChainById, getProviderForChain } from "@/lib/chains";
-import { getLifiQuote, executeLifiStep, getLifiStatus, type LiFiStep } from "@/lib/lifi";
+import { getLifiQuote, executeLifiSwap, getLifiStatus, type LiFiStep } from "@/lib/lifi";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -111,7 +111,7 @@ export const LifiPanel = ({
       const signer = createSessionSigner(pk, provider, fromChainId);
       const intent=quotedIntent.current;
       if(!intent||intent.account.toLowerCase()!==walletAddress.toLowerCase()||intent.fromChainId!==fromChainId||intent.toChainId!==toChainId||intent.fromToken!==fromToken||intent.toToken!==toToken||intent.slippage!==slippage||intent.amount!==exactTokenUnits(amount,quote.action.fromToken.decimals).toString())throw Error("Lựa chọn đã thay đổi; lấy báo giá mới");
-      const hash = await executeLifiStep(quote, signer,intent);
+      const hash = await executeLifiSwap(quote, signer, intent, quote.action.fromToken.symbol, setProgressMsg);
       setProgressMsg("Đã gửi. Đang xác nhận...");
 
       // Persist to transactions table

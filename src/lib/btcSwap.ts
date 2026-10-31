@@ -1,13 +1,12 @@
-import { Contract, isAddress, type Signer } from 'ethers';
-import { getLifiQuote, getLifiStepTransaction, type LiFiStep } from './lifi';
+import { isAddress, type Signer } from 'ethers';
+import { approveLifiExact, getLifiQuote, getLifiStepTransaction, LIFI_DIAMOND, type LiFiStep } from './lifi';
 import { validateLifiRequest, type LifiIntent } from './lifiValidation';
 import { btcAccount, broadcastBtcTx, getBtcFeeRates, isValidBtcAddress, signProviderPsbt } from './bitcoin';
-import { ERC20_ABI } from './wallet';
 
 /** Market-price swaps between native Bitcoin and EVM assets through LI.FI. Money
  * only moves between this wallet's own BTC address and its own EVM address. */
 export const BTC_CHAIN_ID = 20000000000001;
-export const LIFI_DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE';
+export { LIFI_DIAMOND };
 const NATIVE = '0x0000000000000000000000000000000000000000';
 
 export interface SwapAsset { key: string; symbol: string; name: string; chainId: number; chainName: string; token: string; decimals: number; logo: string; explorer: string }
@@ -95,19 +94,7 @@ export async function executeBtcBuy(step: LiFiStep, intent: BtcSwapIntent, signe
   const lifiIntent: LifiIntent = { account: intent.evmAddress, fromChainId: intent.asset.chainId, toChainId: BTC_CHAIN_ID, fromToken: intent.asset.token, toToken: 'bitcoin', amount: intent.amount, slippage: intent.slippage, quotedAt: intent.quotedAt };
   const request = validateLifiRequest(fresh.transactionRequest, lifiIntent);
   if (request.to.toLowerCase() !== LIFI_DIAMOND.toLowerCase()) throw Error('Hợp đồng swap không phải LI.FI; đã dừng');
-  if (intent.asset.token !== NATIVE) {
-    const spender = fresh.estimate?.approvalAddress;
-    if (typeof spender !== 'string' || spender.toLowerCase() !== LIFI_DIAMOND.toLowerCase()) throw Error('Địa chỉ cấp quyền token không phải LI.FI; đã dừng');
-    const token = new Contract(intent.asset.token, ERC20_ABI, signer);
-    const amount = BigInt(intent.amount);
-    const allowance: bigint = await token.allowance(intent.evmAddress, LIFI_DIAMOND);
-    if (allowance < amount) {
-      // USDT on Ethereum refuses to change a non-zero allowance directly.
-      if (allowance > 0n) { onProgress('Đang đặt lại quyền token...'); await (await token.approve(LIFI_DIAMOND, 0n)).wait(); }
-      onProgress(`Đang cấp quyền đúng ${intent.asset.symbol} cần đổi...`);
-      await (await token.approve(LIFI_DIAMOND, amount)).wait();
-    }
-  }
+  await approveLifiExact(fresh, signer, intent.asset.token, intent.evmAddress, BigInt(intent.amount), intent.asset.symbol, onProgress);
   onProgress('Đang gửi giao dịch đổi...');
   await provider.call(request);
   const gasLimit = await provider.estimateGas(request);

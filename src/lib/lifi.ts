@@ -16,8 +16,13 @@ import {
   type LiFiStep,
   type SDKClient,
 } from '@lifi/sdk';
-import { ethers } from 'ethers';
+import { ethers, Contract } from 'ethers';
 import {validateLifiIntent,validateLifiRequest,type LifiIntent} from './lifiValidation';
+import { ERC20_ABI } from './wallet';
+
+/** LI.FI's contract (same address on every supported EVM chain). Token approvals go only here. */
+export const LIFI_DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE';
+const NATIVE = '0x0000000000000000000000000000000000000000';
 
 let client: SDKClient | null = null;
 
@@ -76,6 +81,29 @@ export async function executeLifiStep(
   const tx=await signer.sendTransaction({...request,gasLimit:gasLimit*120n/100n});
   await tx.wait();
   return tx.hash;
+}
+
+/** Approve exactly `amount` of an ERC20 to the LI.FI contract, and only when the
+ * quote names that contract as the spender. Native coins need no approval. */
+export async function approveLifiExact(step: LiFiStep, signer: ethers.Signer, token: string, owner: string, amount: bigint, symbol: string, onProgress: (msg: string) => void = () => {}) {
+  if (token.toLowerCase() === NATIVE) return;
+  const spender = step.estimate?.approvalAddress;
+  if (typeof spender !== 'string' || spender.toLowerCase() !== LIFI_DIAMOND.toLowerCase()) throw Error('Địa chỉ cấp quyền token không phải LI.FI; đã dừng');
+  const contract = new Contract(token, ERC20_ABI, signer);
+  const allowance: bigint = await contract.allowance(owner, LIFI_DIAMOND);
+  if (allowance >= amount) return;
+  // USDT on Ethereum refuses to change a non-zero allowance directly.
+  if (allowance > 0n) { onProgress('Đang đặt lại quyền token...'); await (await contract.approve(LIFI_DIAMOND, 0n)).wait(); }
+  onProgress(`Đang cấp quyền đúng số ${symbol} cần đổi...`);
+  await (await contract.approve(LIFI_DIAMOND, amount)).wait();
+}
+
+/** Approval (when needed) followed by the swap itself. */
+export async function executeLifiSwap(step: LiFiStep, signer: ethers.Signer, intent: LifiIntent, symbol: string, onProgress: (msg: string) => void = () => {}): Promise<string> {
+  validateLifiIntent(step, intent);
+  await approveLifiExact(step, signer, intent.fromToken, intent.account, BigInt(intent.amount), symbol, onProgress);
+  onProgress('Đang gửi giao dịch đổi...');
+  return executeLifiStep(step, signer, intent);
 }
 
 export type { Route, LiFiStep, QuoteRequest, RoutesRequest };
