@@ -16,18 +16,20 @@ Mỗi lần cập nhật: tăng `version` trong `src/extension/public/manifest.j
 ## Thẻ Store listing
 
 - **Tên:** FUN Wallet - Web3 Crypto Wallet
-- **Mô tả ngắn (tối đa 132 ký tự):** Ví Web3 tự quản trên BNB Chain và các mạng EVM. Kết nối fun.rich và các dApp, mọi giao dịch đều do bạn duyệt.
+- **Mô tả ngắn (tối đa 132 ký tự):** Ví tiền điện tử tự quản của FUN.RICH. Kết nối fun.rich và các trang Web3, mọi giao dịch đều do bạn duyệt.
 - **Mô tả chi tiết:**
 
   FUN Wallet là ví tiền điện tử tự quản cho hệ sinh thái FUN.RICH.
 
   • Tạo ví mới hoặc nhập ví bằng cụm từ khôi phục.
   • Khóa riêng được mã hóa bằng mật khẩu và chỉ lưu trên máy của bạn.
-  • Kết nối fun.rich và các dApp giống MetaMask: bấm FUN Wallet, ví mở ở bảng bên để bạn mở khóa, chọn tài khoản và duyệt quyền.
+  • Xem tổng tài sản, số dư từng token và lịch sử giao dịch; gửi và nhận bằng mã QR.
+  • Kết nối fun.rich và các trang Web3: ví mở ở bảng bên để bạn mở khóa, chọn tài khoản và duyệt quyền.
   • Mỗi giao dịch, chữ ký hoặc đổi mạng đều hiện người nhận, số tiền, phí và trang yêu cầu trước khi bạn xác nhận.
-  • Hỗ trợ BNB Smart Chain, Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche và Fantom.
 
   FUN Wallet không bao giờ hỏi cụm từ khôi phục qua tin nhắn hay email. Không chia sẻ cụm từ này với bất kỳ ai.
+
+  Lần 1 (1.2.0) bị từ chối vì "từ khóa spam" (Yellow Argon): mô tả cũ liệt kê tên 8 mạng blockchain. Không thêm lại danh sách tên mạng, tên coin hay tên ví khác vào mô tả.
 - **Danh mục:** Công cụ (Tools) hoặc Tài chính (Finance) nếu có.
 - **Ngôn ngữ:** Tiếng Việt.
 - **Biểu tượng 128×128:** `icon-128.png`
