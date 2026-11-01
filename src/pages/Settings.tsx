@@ -46,7 +46,10 @@ import {
   AlertTriangle,
   Lock,
   Sparkles,
+  LogOut,
+  Plus,
 } from "lucide-react";
+import { CreateWalletDialog } from "@/components/wallet/CreateWalletDialog";
 import { toast } from "@/hooks/use-toast";
 import { SUPPORTED_CHAINS } from "@/lib/chains";
 import { ThemeCard } from "@/components/settings/ThemeCard";
@@ -102,7 +105,24 @@ const Settings = () => {
   const { currentTheme, setTheme, themes } = useTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { activeWallet } = useWallet();
+  const { wallets, activeWallet, setActiveWallet, setPrimaryWallet, createWallet, importFromMnemonic, importFromPrivateKey } = useWallet();
+  const [addWalletOpen, setAddWalletOpen] = useState(false);
+
+  // The primary wallet is the one every page opens with, so switching makes it primary
+  const switchWallet = async (id: string) => {
+    const wallet = wallets.find((w) => w.id === id);
+    if (!wallet || wallet.id === activeWallet?.id) return;
+    if (await setPrimaryWallet(id)) {
+      setActiveWallet(wallet);
+      toast({ title: "Đã chuyển ví", description: `Đang dùng ${wallet.name}` });
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast({ title: "Đã đăng xuất", description: "Hẹn gặp lại bạn!" });
+    navigate("/");
+  };
 
   const [settings, setSettings] = useState<Settings>(() => {
     try {
@@ -181,7 +201,7 @@ const Settings = () => {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <Tabs defaultValue={searchParams.get("tab") === "security" ? "security" : "appearance"} className="space-y-6">
+        <Tabs defaultValue={["security", "wallet"].includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "appearance"} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="appearance" className="gap-2">
               <Palette className="h-4 w-4 hidden sm:block" />
@@ -256,6 +276,40 @@ const Settings = () => {
 
           {/* Wallet Settings */}
           <TabsContent value="wallet" className="space-y-6">
+            <div className="glass-card rounded-2xl p-6 space-y-4">
+              <div>
+                <h2 className="font-heading font-semibold text-lg">Ví của bạn</h2>
+                <p className="text-sm text-muted-foreground">Bấm vào một ví để chuyển sang dùng ví đó.</p>
+              </div>
+              <div className="space-y-2">
+                {wallets.map((w) => {
+                  const active = w.id === activeWallet?.id;
+                  return (
+                    <button
+                      key={w.id}
+                      onClick={() => switchWallet(w.id)}
+                      className={`w-full flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${active ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50"}`}
+                    >
+                      <Wallet className="h-5 w-5 shrink-0 text-primary" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{w.name}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{w.address.slice(0, 8)}…{w.address.slice(-6)}</p>
+                      </div>
+                      {active && <span className="flex items-center gap-1 text-xs font-semibold text-primary"><Check className="h-4 w-4" />Đang dùng</span>}
+                    </button>
+                  );
+                })}
+                {wallets.length === 0 && <p className="text-sm text-muted-foreground">Chưa có ví nào.</p>}
+              </div>
+              <Button className="w-full gap-2" onClick={() => setAddWalletOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Thêm ví mới hoặc nhập ví cũ (12 / 24 cụm từ)
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Chỉ nhập cụm từ khôi phục trên trang wallet.fun.rich của bạn. Không gửi cụm từ cho bất kỳ ai, kể cả đội ngũ FUN.
+              </p>
+            </div>
+
             <div className="glass-card rounded-2xl p-6 space-y-6">
               <h2 className="font-heading font-semibold text-lg">Cài đặt ví</h2>
 
@@ -510,8 +564,26 @@ const Settings = () => {
             </div>
           </TabsContent>
         </Tabs>
+
+        <div className="glass-card rounded-2xl p-6 mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <h2 className="font-heading font-semibold text-lg">Tài khoản</h2>
+            <p className="text-sm text-muted-foreground">Đang đăng nhập: {user.email}</p>
+          </div>
+          <Button variant="destructive" className="gap-2" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4" />
+            Đăng xuất
+          </Button>
+        </div>
       </main>
 
+      <CreateWalletDialog
+        open={addWalletOpen}
+        onOpenChange={setAddWalletOpen}
+        onCreateWallet={createWallet}
+        onImportMnemonic={importFromMnemonic}
+        onImportPrivateKey={importFromPrivateKey}
+      />
 
     </div>
   );
