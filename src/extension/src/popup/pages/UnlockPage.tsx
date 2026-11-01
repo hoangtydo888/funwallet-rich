@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { deriveBtcAddress } from '../../lib/btcAddress';
 import { popupRpc } from '../popupRpc';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -34,6 +35,8 @@ function UnlockPage({ onUnlock,origin,onCancel }: UnlockPageProps) {
 
     try {
       const result=await popupRpc<{autoApproved?:string[]}>('UNLOCK_WALLET',{password});
+      // Remember the wallet's public Bitcoin address for the home screen (best effort)
+      void deriveBtcAddress(password).catch(()=>{});
       setPassword('');onUnlock(result);
       if(redirectPath&&/^(request|connect|approve-tx|approve-sign)\?/.test(redirectPath))navigate(`/${redirectPath}`,{replace:true});
     } catch (err) {
