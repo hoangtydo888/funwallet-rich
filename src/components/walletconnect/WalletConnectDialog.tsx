@@ -160,6 +160,17 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWal
   });
   const readiness=dappKeyReadiness(walletAddress,security.isUnlocked&&Boolean(security.getUnlockedKey(walletAddress)));
   const pendingCount=kit?.getPendingSessionRequests().length??0;
+  // Like the extension's approval panel: open the next request as soon as it arrives. Only
+  // when the wallet can sign; a locked wallet asks to unlock first instead of rejecting.
+  useEffect(() => {
+    if (!kit || pendingCount === 0 || review || proposal || busy || !readiness.canPair) return;
+    // A request for another account is left for the user rather than rejected automatically.
+    const next = kit.getPendingSessionRequests()[0];
+    const accounts = next && kit.getActiveSessions()[next.topic]?.namespaces.eip155?.accounts;
+    if (accounts?.includes(`eip155:56:${walletAddress.toLowerCase()}`)) void prepare();
+    // prepare is recreated every render; the request count and readiness decide when to run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCount, review, proposal, busy, readiness.canPair]);
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
     <DialogHeader><DialogTitle>Kết nối FUN Profile</DialogTitle><DialogDescription>Giữ trang FUN Wallet mở để nhận yêu cầu. Mỗi lần ký và gửi tiền đều cần Cha duyệt.</DialogDescription></DialogHeader>
     <p className="break-all text-sm">Ví: {walletAddress.toLowerCase()} · BSC</p>

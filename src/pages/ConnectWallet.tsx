@@ -18,7 +18,10 @@ export default function ConnectWallet() {
     const query = new URLSearchParams(window.location.search);
     const uri = fragment.get('wc_uri') ?? query.get('wc_uri') ?? '';
     const waiting = fragment.get('waiting') === '1';
-    return { uri, valid: validPairingUri(uri) || validPairingUri(sessionStorage.getItem('fun_wallet_pending_wc') ?? ''), waiting };
+    // review=1: FUN Profile sent a sign or send request to an existing connection; show it.
+    // A phone may reload this tab in the background; keep showing the connection after that.
+    const review = fragment.get('review') === '1' || sessionStorage.getItem('fun_wallet_connect_open') === '1';
+    return { uri, valid: review || validPairingUri(uri) || validPairingUri(sessionStorage.getItem('fun_wallet_pending_wc') ?? ''), waiting };
   });
   const [accounts, setAccounts] = useState(() => {
     try { return Object.keys(getSecureStorage().wallets).filter(address => /^0x[a-f0-9]{40}$/.test(address)); }
@@ -60,6 +63,7 @@ export default function ConnectWallet() {
   useEffect(() => {
     window.history.replaceState(null, '', '/connect');
     if (validPairingUri(incoming.uri)) sessionStorage.setItem('fun_wallet_pending_wc', incoming.uri);
+    if (incoming.valid) sessionStorage.setItem('fun_wallet_connect_open', '1');
   }, [incoming.uri]);
   const [open, setOpen] = useState(true);
   const [expired, setExpired] = useState(false);
