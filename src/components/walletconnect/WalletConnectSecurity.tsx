@@ -2,6 +2,7 @@ import {useWalletSecurity} from '@/contexts/WalletSecurityContext';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { SetupPasswordDialog } from '@/components/wallet/SetupPasswordDialog';
+import { WalletSecurityPanel } from '@/components/wallet/WalletSecurityPanel';
 import { UnlockWalletDialog } from '@/components/wallet/UnlockWalletDialog';
 import { useSecureWallet } from '@/hooks/useSecureWallet';
 import { dappKeyReadiness, protectDappKey } from '@/lib/dappKeyProtection';
@@ -27,7 +28,7 @@ export function WalletConnectSecurity({address,onImportWallet,onChooseWallet,aut
   };
   return <section className="rounded border p-3 space-y-2 text-sm">
     <p role="status">{readiness.message}</p>
-    {readiness.state==='missing'&&<><p>Đăng nhập tài khoản chỉ tải danh sách địa chỉ. Khóa của ví web được lưu riêng theo trình duyệt và tên miền; bản xem trước Lovable và tiện ích Chrome có kho khóa riêng.</p><div className="flex flex-wrap gap-2">{onImportWallet&&<Button variant="outline" onClick={onImportWallet}>Thêm / import ví có khóa</Button>}{onChooseWallet&&<Button variant="outline" onClick={onChooseWallet}>Chọn tài khoản khác</Button>}</div><p>Để khôi phục tệp JSON mã hóa: đóng cửa sổ này → Bảo vệ khóa ví → Khôi phục tệp mã hóa. Tự thao tác với bản sao lưu của Cha; không gửi mật khẩu, seed hoặc khóa vào chat.</p></>}
+    {readiness.state==='missing'&&<><p>Đăng nhập tài khoản chỉ tải danh sách địa chỉ. Khóa của ví web được lưu riêng theo trình duyệt và tên miền; bản xem trước Lovable và tiện ích Chrome có kho khóa riêng.</p><div className="flex flex-wrap gap-2">{onImportWallet&&<Button variant="outline" onClick={onImportWallet}>Thêm / import ví có khóa</Button>}{onChooseWallet&&<Button variant="outline" onClick={onChooseWallet}>Chọn tài khoản khác</Button>}</div><p>Có tệp sao lưu .json của ví này? Khôi phục ngay bên dưới rồi bấm Kết nối. Tự thao tác với bản sao lưu của Cha; không gửi mật khẩu, seed hoặc khóa vào chat.</p><WalletSecurityPanel /></>}
 
     {error&&<p role="alert" className="text-destructive">{error}</p>}
     {local&&!security.isUnlocked&&security.isPasswordSet&&<Button variant="outline" onClick={()=>setUnlock(true)}>Mở khóa ví để kết nối</Button>}

@@ -6,6 +6,8 @@ import { validPairingUri } from '@/lib/walletconnect';
 import { getSecureStorage } from '@/lib/keyEncryption';
 import { WalletConnectDialog } from '@/components/walletconnect/WalletConnectDialog';
 import { Button } from '@/components/ui/button';
+import { CreateWalletDialog } from '@/components/wallet/CreateWalletDialog';
+import { useWallet } from '@/hooks/useWallet';
 
 // Public route: local signing keys stay on wallet.fun.rich, never on the dApp.
 export default function ConnectWallet() {
@@ -23,6 +25,17 @@ export default function ConnectWallet() {
     catch { return []; }
   });
   const [address, setAddress] = useState(accounts[0] ?? '');
+  // Importing here keeps the pending FUN Profile request; leaving for the dashboard would drop it.
+  const { createWallet, importFromMnemonic, importFromPrivateKey } = useWallet();
+  const [importOpen, setImportOpen] = useState(false);
+  const selectImported = <T extends { address: string } | null>(result: T): T => {
+    if (result) {
+      const imported = result.address.toLowerCase();
+      setAccounts(previous => [imported, ...previous.filter(account => account !== imported)]);
+      setAddress(imported);
+    }
+    return result;
+  };
   const [defaultReady, setDefaultReady] = useState(false);
   useEffect(() => {
     if (authLoading) return;
@@ -60,6 +73,10 @@ export default function ConnectWallet() {
     <p>Kết nối với FUN Profile</p>
     <p className="text-sm">Ví được chọn sẵn. Kiểm tra website và bấm Kết nối một lần để dùng với FUN Profile. Nếu ví đang khóa, mở khóa bằng mật khẩu ví trước.</p>
     {incoming.waiting ? <p role="status">{expired ? 'Chưa nhận được yêu cầu. Quay lại FUN Profile để kiểm tra kết nối hoặc bấm Mở FUN Wallet trong hướng dẫn.' : 'Đang chuẩn bị yêu cầu từ FUN Profile…'}</p> : !incoming.valid ? <p role="alert">Liên kết hết hạn hoặc không hợp lệ. Hãy tạo kết nối mới từ FUN Profile.</p> : !defaultReady ? <p role="status">Đang chọn ví mặc định…</p> : accounts.length === 0 ? <section className="space-y-3"><p>Thiết bị này chưa có ví được mã hóa để ký. Đăng nhập rồi khôi phục bản sao lưu của chính Cha trong mục Bảo vệ khóa ví.</p><Button onClick={() => navigate('/auth')}>Mở tài khoản FUN Wallet</Button></section> : <section className="space-y-4"><label htmlFor="connection-account">Tài khoản chia sẻ với FUN Profile</label><select id="connection-account" className="w-full rounded border bg-background p-3 text-foreground" value={address} onChange={event => setAddress(event.target.value)}>{accounts.map(account => <option key={account} value={account}>{account}</option>)}</select><p className="text-sm">Kết nối chỉ chia sẻ địa chỉ. Mỗi lần ký hoặc gửi tiền đều cần duyệt riêng.</p>{!open && <Button onClick={() => setOpen(true)}>Xem yêu cầu kết nối</Button>}</section>}
-    {incoming.valid && !incoming.waiting && defaultReady && address && <WalletConnectDialog key={address} open={open} onOpenChange={setOpen} walletAddress={address} automaticPairing onChooseWallet={() => setOpen(false)} onImportWallet={() => navigate('/dashboard')} />}
+    {incoming.valid && !incoming.waiting && defaultReady && address && <WalletConnectDialog key={address} open={open} onOpenChange={setOpen} walletAddress={address} automaticPairing onChooseWallet={() => setOpen(false)} onImportWallet={() => setImportOpen(true)} />}
+    <CreateWalletDialog open={importOpen} onOpenChange={setImportOpen}
+      onCreateWallet={async (name, password) => selectImported(await createWallet(name, password))}
+      onImportMnemonic={async (mnemonic, name, password) => selectImported(await importFromMnemonic(mnemonic, name, password))}
+      onImportPrivateKey={async (key, name, password) => selectImported(await importFromPrivateKey(key, name, password))} />
   </main>;
 }

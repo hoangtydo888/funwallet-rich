@@ -142,10 +142,59 @@ export const fetchDEXPrice = async (symbol: string): Promise<TokenPrice | null> 
   }
 };
 
+// Every token list, card and popup asks for prices on its own timer; share recent answers
+// so DexScreener's rate limit is not hit, and keep the last real price through a short outage
+// instead of showing a $1B CAMLY balance as $0.
+const FRESH_MS = 20_000;
+const LAST_GOOD_MS = 30 * 60_000;
+const LAST_GOOD_KEY = "fun_wallet_last_prices_v1";
+const recent = new Map<string, TokenPrice>();
+
+const readLastGood = (): Record<string, TokenPrice> => {
+  try { return JSON.parse(globalThis.localStorage?.getItem(LAST_GOOD_KEY) ?? "{}"); } catch { return {}; }
+};
+const saveLastGood = (prices: TokenPrice[]) => {
+  try {
+    const saved = readLastGood();
+    for (const p of prices) saved[p.symbol] = p;
+    globalThis.localStorage?.setItem(LAST_GOOD_KEY, JSON.stringify(saved));
+  } catch { /* storage unavailable */ }
+};
+
+// LI.FI quotes BSC tokens that DexScreener did not answer for (price only, no 24h change).
+const fetchLifiPrice = async (symbol: string): Promise<TokenPrice | null> => {
+  const address = TOKEN_ADDRESSES[symbol];
+  if (!address) return null;
+  try {
+    const r = await fetch(`https://li.quest/v1/token?chain=56&token=${address}`);
+    const price = Number((await r.json())?.priceUSD);
+    if (!(price > 0)) return null;
+    return { symbol, name: symbol, price, change24h: 0, high24h: price, low24h: price, volume24h: 0, marketCap: 0, lastUpdated: Date.now() };
+  } catch { return null; }
+};
+
 // Real market prices: Binance first, then DexScreener (CAMLY and other BSC tokens),
-// then CoinGecko. Stablecoins are $1. A token with no market price is left out
-// rather than given a made-up one.
+// then LI.FI, then CoinGecko. Stablecoins are $1. A token with no market price now or in
+// the last 30 minutes is left out rather than given a made-up one.
 export const fetchTokenPrices = async (
+  symbols: string[]
+): Promise<TokenPrice[]> => {
+  const wanted = [...new Set(symbols.map(s => s.toUpperCase()))];
+  const now = Date.now();
+  const cached = wanted.map(s => recent.get(s)).filter((p): p is TokenPrice => !!p && now - p.lastUpdated < FRESH_MS);
+  const toFetch = wanted.filter(s => !cached.some(p => p.symbol === s));
+  const fetched = toFetch.length ? await fetchTokenPricesFromMarkets(toFetch) : [];
+  for (const p of fetched) recent.set(p.symbol, p);
+  saveLastGood(fetched);
+  const lastGood = readLastGood();
+  const stale = toFetch
+    .filter(s => !fetched.some(p => p.symbol === s))
+    .map(s => lastGood[s])
+    .filter((p): p is TokenPrice => !!p && p.price > 0 && now - p.lastUpdated < LAST_GOOD_MS);
+  return [...cached, ...fetched, ...stale];
+};
+
+const fetchTokenPricesFromMarkets = async (
   symbols: string[]
 ): Promise<TokenPrice[]> => {
   const unique = [...new Set(symbols.map(s => s.toUpperCase()))];
@@ -158,6 +207,9 @@ export const fetchTokenPrices = async (
 
   const dex = await Promise.all(missing().filter(s => TOKEN_ADDRESSES[s]).map(fetchDEXPrice));
   results.push(...dex.filter((p): p is TokenPrice => p !== null && p.price > 0));
+
+  const lifi = await Promise.all(missing().filter(s => TOKEN_ADDRESSES[s]).map(fetchLifiPrice));
+  results.push(...lifi.filter((p): p is TokenPrice => p !== null));
 
   const ids = missing().map(s => COINGECKO_IDS[s]).filter((id): id is string => !!id);
   if (ids.length > 0) {
