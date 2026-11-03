@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Copy, EyeOff, Pencil, ShieldCheck, ShieldAlert, Wallet } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Copy, EyeOff, Pencil, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -185,7 +185,7 @@ export function WalletManageSheet({ open, onOpenChange, wallets, activeWalletId,
               <div className="space-y-1">
                 {ordered.map((w, i) => (
                   <div key={w.id} className={`flex items-center gap-3 rounded-xl p-3 ${w.id === activeWalletId ? "bg-primary/10" : ""}`}>
-                    <Wallet className="h-6 w-6 shrink-0 text-primary" />
+                    <img src="/fun-wallet-icon-128.png" alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{w.name}</p>
                       <p className="font-mono text-xs text-muted-foreground">{shortAddress(w.address)}</p>
@@ -205,7 +205,7 @@ export function WalletManageSheet({ open, onOpenChange, wallets, activeWalletId,
             <>
               {header("", () => setView({ name: "list" }))}
               <div className="flex flex-col items-center gap-1 pb-4 text-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/15"><Wallet className="h-9 w-9 text-primary" /></div>
+                <img src="/fun-wallet-icon-128.png" alt="" className="h-20 w-20 object-contain" />
                 <p className="mt-2 text-lg font-semibold">{current.name}</p>
                 <button onClick={() => copy(current.address)} className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
                   {shortAddress(current.address)} <Copy className="h-3 w-3" />

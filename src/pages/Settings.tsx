@@ -51,6 +51,8 @@ import {
   Pencil,
 } from "lucide-react";
 import { WalletManageSheet } from "@/components/settings/WalletManageSheet";
+import { useWalletTotals } from "@/hooks/useWalletTotals";
+import { formatUsdValue } from "@/lib/priceTracker";
 import { CreateWalletDialog } from "@/components/wallet/CreateWalletDialog";
 import { toast } from "@/hooks/use-toast";
 import { SUPPORTED_CHAINS } from "@/lib/chains";
@@ -110,6 +112,7 @@ const Settings = () => {
   const { wallets, activeWallet, setActiveWallet, setPrimaryWallet, createWallet, importFromMnemonic, importFromPrivateKey, renameWallet, deleteWallet, saveWalletOrder } = useWallet();
   const [addWalletOpen, setAddWalletOpen] = useState(false);
   const [manageWalletsOpen, setManageWalletsOpen] = useState(false);
+  const walletTotals = useWalletTotals(wallets.map((w) => w.address));
 
   // The primary wallet is the one every page opens with, so switching makes it primary
   const switchWallet = async (id: string) => {
@@ -294,18 +297,24 @@ const Settings = () => {
               <div className="space-y-2">
                 {wallets.map((w) => {
                   const active = w.id === activeWallet?.id;
+                  const usd = walletTotals[w.address.toLowerCase()];
                   return (
                     <button
                       key={w.id}
                       onClick={() => switchWallet(w.id)}
                       className={`w-full flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${active ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50"}`}
                     >
-                      <Wallet className="h-5 w-5 shrink-0 text-primary" />
+                      <img src="/fun-wallet-icon-128.png" alt="" className="h-10 w-10 shrink-0 rounded-lg object-contain" />
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate">{w.name}</p>
                         <p className="font-mono text-xs text-muted-foreground">{w.address.slice(0, 8)}…{w.address.slice(-6)}</p>
                       </div>
-                      {active && <span className="flex items-center gap-1 text-xs font-semibold text-primary"><Check className="h-4 w-4" />Đang dùng</span>}
+                      <div className="shrink-0 text-right">
+                        <p className="font-semibold tabular-nums">
+                          {settings.hideBalance ? "****" : usd === undefined ? <span className="inline-block h-4 w-14 animate-pulse rounded bg-muted align-middle" /> : formatUsdValue(usd)}
+                        </p>
+                        {active && <span className="flex items-center justify-end gap-1 text-xs font-semibold text-primary"><Check className="h-3.5 w-3.5" />Đang dùng</span>}
+                      </div>
                     </button>
                   );
                 })}
