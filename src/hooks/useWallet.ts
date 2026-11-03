@@ -4,6 +4,7 @@ import { useWalletSecurity } from "@/contexts/WalletSecurityContext";
 import { encryptPrivateKey, saveEncryptedKey, getSecureStorage, decryptVaultKeys, storePrivateKey } from "@/lib/keyEncryption";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { storeRecoveryPhrase } from "@/lib/recoveryPhraseStore";
 import {
   createNewWallet,
   importWalletFromMnemonic,
@@ -35,6 +36,14 @@ export interface TokenBalance {
 }
 
 const PRIVATE_KEY_STORAGE_KEY = "fun_wallet_pk";
+const WALLET_ORDER_KEY = "fun_wallet_order_v1";
+
+// Display order chosen in Settings → Quản lý ví; wallets not in the list keep creation order at the end.
+const sortByOrder = (list: WalletData[], order: string[]) => {
+  if (order.length === 0) return list;
+  const rank = (id: string) => { const i = order.indexOf(id); return i === -1 ? order.length : i; };
+  return [...list].sort((a, b) => rank(a.id) - rank(b.id));
+};
 
 export const useWallet = () => {
   const { user } = useAuth();
@@ -51,7 +60,9 @@ export const useWallet = () => {
   walletRequests.current.setContext(user?.id??null);
   const balanceScope=user?.id&&activeWallet?`${user.id}:${activeWallet.address.toLowerCase()}`:null;
   balanceRequests.current.setContext(balanceScope);
-  const ownedWallets=loadedOwner.current===user?.id?wallets:[];
+  const [walletOrder,setWalletOrder]=useState<string[]>([]);
+  useEffect(()=>{try{setWalletOrder(user?JSON.parse(localStorage.getItem(`${WALLET_ORDER_KEY}:${user.id}`)||'[]'):[]);}catch{setWalletOrder([]);}},[user?.id]);
+  const ownedWallets=sortByOrder(loadedOwner.current===user?.id?wallets:[],walletOrder);
   const ownedActiveWallet=loadedOwner.current===user?.id?activeWallet:null;
   const visibleBalances=loadedOwner.current===user?.id&&loadedBalances.current===balanceScope?balances:[];
   const assertCurrentUser=()=>{if(!user||currentUser.current!==user.id)throw Error('Tài khoản đã thay đổi; mở lại thao tác ví');};
@@ -141,6 +152,7 @@ export const useWallet = () => {
       if(!vaultPassword)throw Error('Cần mật khẩu bảo vệ trước khi tạo ví');
       assertCurrentUser();
       await storePrivateKey(address.toLowerCase(),privateKey,vaultPassword);
+      await storeRecoveryPhrase(address,mnemonic,vaultPassword).catch(()=>{});
       assertCurrentUser();
       if(!await security.unlock(vaultPassword))throw Error('Chưa mở khóa được kho khóa mới');
       assertCurrentUser();
@@ -197,6 +209,7 @@ export const useWallet = () => {
       if(!vaultPassword)throw Error('Cần mật khẩu bảo vệ trước khi import ví');
       assertCurrentUser();
       await storePrivateKey(wallet.address.toLowerCase(),wallet.privateKey,vaultPassword);
+      await storeRecoveryPhrase(wallet.address,mnemonic,vaultPassword).catch(()=>{});
       assertCurrentUser();
       if(!await security.unlock(vaultPassword))throw Error('Chưa mở khóa được kho khóa mới');
       assertCurrentUser();
@@ -370,6 +383,12 @@ export const useWallet = () => {
     }
   };
 
+  const saveWalletOrder = (ids: string[]) => {
+    if (!user) return;
+    setWalletOrder(ids);
+    try { localStorage.setItem(`${WALLET_ORDER_KEY}:${user.id}`, JSON.stringify(ids)); } catch { /* quota */ }
+  };
+
   // Rename wallet
   const renameWallet = async (walletId: string, newName: string): Promise<boolean> => {
     if (!user) return false;
@@ -479,6 +498,7 @@ export const useWallet = () => {
     deleteWallet,
     setPrimaryWallet,
     renameWallet,
+    saveWalletOrder,
     getTotalBalance,
     refreshBalances: fetchBalances,
   };

@@ -48,7 +48,9 @@ import {
   Sparkles,
   LogOut,
   Plus,
+  Pencil,
 } from "lucide-react";
+import { WalletManageSheet } from "@/components/settings/WalletManageSheet";
 import { CreateWalletDialog } from "@/components/wallet/CreateWalletDialog";
 import { toast } from "@/hooks/use-toast";
 import { SUPPORTED_CHAINS } from "@/lib/chains";
@@ -105,8 +107,9 @@ const Settings = () => {
   const { currentTheme, setTheme, themes } = useTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { wallets, activeWallet, setActiveWallet, setPrimaryWallet, createWallet, importFromMnemonic, importFromPrivateKey } = useWallet();
+  const { wallets, activeWallet, setActiveWallet, setPrimaryWallet, createWallet, importFromMnemonic, importFromPrivateKey, renameWallet, deleteWallet, saveWalletOrder } = useWallet();
   const [addWalletOpen, setAddWalletOpen] = useState(false);
+  const [manageWalletsOpen, setManageWalletsOpen] = useState(false);
 
   // The primary wallet is the one every page opens with, so switching makes it primary
   const switchWallet = async (id: string) => {
@@ -277,9 +280,16 @@ const Settings = () => {
           {/* Wallet Settings */}
           <TabsContent value="wallet" className="space-y-6">
             <div className="glass-card rounded-2xl p-6 space-y-4">
-              <div>
-                <h2 className="font-heading font-semibold text-lg">Ví của bạn</h2>
-                <p className="text-sm text-muted-foreground">Bấm vào một ví để chuyển sang dùng ví đó.</p>
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <h2 className="font-heading font-semibold text-lg">Ví của bạn</h2>
+                  <p className="text-sm text-muted-foreground">Bấm vào một ví để chuyển sang dùng ví đó.</p>
+                </div>
+                {wallets.length > 0 && (
+                  <Button variant="ghost" size="icon" onClick={() => setManageWalletsOpen(true)} aria-label="Quản lý ví">
+                    <Pencil className="h-5 w-5" />
+                  </Button>
+                )}
               </div>
               <div className="space-y-2">
                 {wallets.map((w) => {
@@ -585,6 +595,15 @@ const Settings = () => {
         onImportPrivateKey={importFromPrivateKey}
       />
 
+      <WalletManageSheet
+        open={manageWalletsOpen}
+        onOpenChange={setManageWalletsOpen}
+        wallets={wallets}
+        activeWalletId={activeWallet?.id}
+        onRename={renameWallet}
+        onDelete={deleteWallet}
+        onSaveOrder={saveWalletOrder}
+      />
     </div>
   );
 };
