@@ -694,6 +694,24 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_scan_budgets: {
+        Row: {
+          bucket: string
+          hits: number
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          hits: number
+          window_start: string
+        }
+        Update: {
+          bucket?: string
+          hits?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           address: string
@@ -733,6 +751,10 @@ export type Database = {
     }
     Functions: {
       claim_reward: { Args: { p_reward_id: string }; Returns: string }
+      consume_wallet_scan_budget: {
+        Args: { p_scope: string; p_user: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
