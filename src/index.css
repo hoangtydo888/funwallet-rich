@@ -601,3 +601,9 @@
     }
   }
 }
+
+/* iPhone (viewport-fit=cover): keep sticky headers, like the logo bar, below the clock and notch.
+   A transparent top border adds the space without changing each header's own padding. */
+header.sticky {
+  border-top: env(safe-area-inset-top) solid transparent;
+}

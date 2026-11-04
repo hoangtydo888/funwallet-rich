@@ -28,6 +28,7 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWal
   const [sessions,setSessions] = useState<ReturnType<Kit['getActiveSessions']>>({});
   const [error,setError] = useState('');
   const [busy,setBusy] = useState(false);
+  const [done,setDone] = useState(false);
   const inFlight = useRef(false);
   const pairOnce = useRef(createPopupPairingGate());
   const provider = useRef(new JsonRpcProvider(getChainById(56)!.rpcUrl,56));
@@ -89,6 +90,7 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWal
   const rejectProposal = () => run(async()=>{if(kit&&proposal){await kit.rejectSession({id:proposal.id,reason:rejected});setProposal(undefined);}});
   const prepare = () => run(async()=>{
     if (!kit) return;
+    setDone(false);
     const request=kit.getPendingSessionRequests()[0];
     if (!request) throw Error('Không còn yêu cầu chờ duyệt.');
     const session=kit.getActiveSessions()[request.topic];
@@ -123,7 +125,7 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWal
   const respond = (approve:boolean) => run(async()=>{
     if(!kit||!review) return;
     const {request,account}=review;
-    if(!approve) {await kit.respondSessionRequest({topic:request.topic,response:{id:request.id,jsonrpc:'2.0',error:reason('Người dùng từ chối')}});setReview(undefined);return;}
+    if(!approve) {await kit.respondSessionRequest({topic:request.topic,response:{id:request.id,jsonrpc:'2.0',error:reason('Người dùng từ chối')}});setReview(undefined);returnToProfile();return;}
     if(!navigator.locks) throw Error('Trình duyệt chưa hỗ trợ khóa chống gửi trùng.');
     await navigator.locks.request(`fun-wallet-sign-${account}`,{ifAvailable:true},async lock=>{
       if(!lock) throw Error('Một cửa sổ khác đang xử lý ví.');
@@ -157,7 +159,14 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWal
       setReview(undefined);
       await kit.respondSessionRequest({topic:request.topic,response:{id:request.id,jsonrpc:'2.0',result}});
     });
+    returnToProfile();
   });
+  // A tab FUN Profile opened for this approval closes itself, so the phone lands back on FUN
+  // Profile and its receipt. A tab the user opened stays (browsers ignore close() there).
+  const returnToProfile = () => {
+    setDone(true);
+    window.setTimeout(() => { if (kit && kit.getPendingSessionRequests().length === 0) window.close(); }, 1200);
+  };
   const readiness=dappKeyReadiness(walletAddress,security.isUnlocked&&Boolean(security.getUnlockedKey(walletAddress)));
   const pendingCount=kit?.getPendingSessionRequests().length??0;
   // Like the extension's approval panel: open the next request as soon as it arrives. Only
@@ -171,11 +180,12 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWal
     // prepare is recreated every render; the request count and readiness decide when to run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCount, review, proposal, busy, readiness.canPair]);
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden [&>*]:min-w-0">
     <DialogHeader><DialogTitle>Kết nối FUN Profile</DialogTitle><DialogDescription>Giữ trang FUN Wallet mở để nhận yêu cầu. Mỗi lần ký và gửi tiền đều cần Cha duyệt.</DialogDescription></DialogHeader>
     <p className="break-all text-sm">Ví: {walletAddress.toLowerCase()} · BSC</p>
     <WalletConnectSecurity address={walletAddress.toLowerCase()} onImportWallet={onImportWallet} onChooseWallet={onChooseWallet} autoUnlock={automaticPairing} />
-    {error&&<p role="alert" className="text-destructive break-words">{error}</p>}
+    {error&&<p role="alert" className="text-destructive break-all">{error}</p>}
+    {done&&!review&&<p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700">✅ Đã xong. Đang quay lại FUN Profile… Nếu chưa tự chuyển, bấm dấu X ở góc trên hoặc chọn tab FUN Profile.</p>}
     {proposal ? <div className="space-y-3"><p>Ứng dụng xin kết nối: {proposal.params.proposer.metadata.name}</p><p className="break-all">{proposal.params.proposer.metadata.url}</p><p>Trạng thái xác minh nguồn: {proposal.verifyContext?.verified?.validation??'UNKNOWN'}</p><p>Chia sẻ địa chỉ ví trên BSC. Ký đăng nhập và chuyển tiền chỉ thực hiện sau khi duyệt từng yêu cầu.</p><Button disabled={busy||!readiness.canPair} onClick={approveSession}>Kết nối</Button><Button variant="outline" disabled={busy} onClick={rejectProposal}>Từ chối</Button></div> : review ? <div className="space-y-3"><pre className="whitespace-pre-wrap break-all text-sm">{review.text}</pre><Button disabled={busy||!readiness.canPair} onClick={()=>respond(true)}>{review.tx?'Xác nhận gửi tiền':'Đồng ý ký / xác nhận'}</Button><Button variant="outline" disabled={busy} onClick={()=>respond(false)}>Từ chối</Button></div> : <div className="space-y-3">{automaticPairing ? <p role="status">{busy?'Đang nhận yêu cầu kết nối từ FUN Profile…':error?'Chưa nhận được đề nghị. Hãy tạo kết nối mới từ FUN Profile.':'Đang chờ đề nghị kết nối. Không cần dán mã thủ công.'}</p> : <><Input aria-label="WalletConnect URI" placeholder="Dán wc:… từ FUN Profile" value={uri} onChange={e=>setUri(e.target.value)} /><Button disabled={busy||!kit||!readiness.canPair} onClick={()=>run(async()=>{checkUnlocked();if(!validPairingUri(uri.trim()))throw Error('WalletConnect URI không hợp lệ');await kit!.pair({uri:uri.trim()});sessionStorage.removeItem('fun_wallet_pending_wc');setUri('');})}>Kết nối WalletConnect</Button></>}{pendingCount>0&&<Button disabled={busy} onClick={prepare}>Kiểm tra yêu cầu chờ duyệt ({pendingCount})</Button>}</div>}
     <div className="space-y-2">{Object.keys(sessions).length > 0 && <div className="space-y-2"><p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700">✅ Kết nối xong. Quay lại tab FUN Profile để tiếp tục. Giữ tab ví này mở: khi FUN Profile xin ký hoặc gửi tiền, quay lại đây để duyệt.</p><Button asChild variant="outline"><a href={`${profileOriginOf(Object.values(sessions)[0]?.peer.metadata.url)}/auth`} target="_blank" rel="noopener noreferrer">Không thấy tab FUN Profile? Mở lại</a></Button></div>}<p className="font-medium">Kết nối hiện có</p>{Object.values(sessions).map(session=><div key={session.topic} className="rounded border p-3 text-sm"><p>{session.peer.metadata.name}</p><p className="break-all">{session.peer.metadata.url}</p><Button variant="outline" disabled={busy} onClick={()=>run(async()=>{await kit!.disconnectSession({topic:session.topic,reason:rejected});refresh(kit!);setReview(undefined);})}>Ngắt kết nối</Button></div>)}</div>
   </DialogContent></Dialog>;
