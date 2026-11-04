@@ -52,7 +52,14 @@ export const WalletConnectDialog = ({open,onOpenChange,walletAddress,onImportWal
       client.on('session_delete',show); client.on('proposal_expire',show);
       client.on('session_request_expire',show);
       const interval = window.setInterval(show,2000);
-      cleanup = () => { clearInterval(interval); client.off('session_proposal',incomingProposal);client.off('session_request',show);client.off('session_delete',show);client.off('proposal_expire',show);client.off('session_request_expire',show); };
+      // iOS and Android pause this tab while FUN Profile is in front; the relay socket can come
+      // back dead. Reconnect when the tab is shown so a waiting request appears at once.
+      const wake = () => {
+        if (document.visibilityState !== 'visible') return;
+        client.core.relayer.restartTransport().then(show).catch(() => {});
+      };
+      document.addEventListener('visibilitychange',wake); window.addEventListener('pageshow',wake);
+      cleanup = () => { clearInterval(interval); document.removeEventListener('visibilitychange',wake); window.removeEventListener('pageshow',wake); client.off('session_proposal',incomingProposal);client.off('session_request',show);client.off('session_delete',show);client.off('proposal_expire',show);client.off('session_request_expire',show); };
       show();
       const pending = sessionStorage.getItem('fun_wallet_pending_wc');
       if (pending && validPairingUri(pending)) { setUri(pending); current.current.onOpenChange(true); }
