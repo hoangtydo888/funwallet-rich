@@ -132,8 +132,10 @@ function permissions(origin: string, accounts: string[]) {
     caveats: [{ type: 'restrictReturnedAccounts', value: accounts }],
   }] : [];
 }
+// A site keeps its connection while the wallet is locked (it already knows the address), so
+// FUN Profile does not ask to connect again after every auto-lock or worker restart. Signing
+// and sending still open the panel, which asks for the password first.
 async function connectedAccounts(origin: string) {
-  if (isLocked) return [];
   const active = await storage.get(STORAGE_KEYS.ACTIVE_WALLET);
   return (connections.get(origin)?.accounts || []).filter(a => a.toLowerCase() === active?.toLowerCase());
 }
@@ -445,7 +447,6 @@ async function handlePopup(message: Message): Promise<Response> {
     case 'LOCK_WALLET':
       securityRevision++;signingSession.lock();
       isLocked = true;
-      for (const origin of connections.keys()) await notifyOrigin(origin, 'accountsChanged', { accounts: [] });
       return { success: true };
     case 'GET_ACCOUNTS': return { success: true, data: isLocked ? [] : [await activeAccount()] };
     case 'GET_CURRENT_CHAIN': return { success: true, data: ethers.toQuantity(currentChainId) };

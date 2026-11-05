@@ -282,10 +282,13 @@ test('read-only RPC used by wagmi is forwarded without approval and keeps revert
   assert.equal((await h.send({type:'net_version',requestId:'net'},h.page())).data,'56');
   assert.equal(h.windows.length+(await h.next()===null?0:1),0);
 });
-test('unlocking reconnects a site that already holds permission, like MetaMask',async()=>{
+test('a connected site stays connected while locked; unlocking approves its reconnect',async()=>{
   const h=await setup();await h.connect();
+  const before=h.sent.length;
   await h.send({type:'LOCK_WALLET'});
-  assert.deepEqual((await h.send({type:'eth_accounts',requestId:'locked'},h.page())).data,[]);
+  // No disconnect for the site, and it still sees its account: the next gift needs no reconnect.
+  assert.equal(h.sent.slice(before).some(x=>x.message.type==='accountsChanged'),false);
+  assert.deepEqual((await h.send({type:'eth_accounts',requestId:'locked'},h.page())).data,[active.address]);
   await h.send({type:'eth_requestAccounts',requestId:'reconnect'},h.page());
   const request=await h.next();
   const unlocked=await h.unlock();
