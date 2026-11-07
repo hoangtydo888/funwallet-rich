@@ -30,6 +30,8 @@ Mỗi lần cập nhật: tăng `version` trong `src/extension/public/manifest.j
   FUN Wallet không bao giờ hỏi cụm từ khôi phục qua tin nhắn hay email. Không chia sẻ cụm từ này với bất kỳ ai.
 
   Lần 1 (1.2.0) bị từ chối vì "từ khóa spam" (Yellow Argon): mô tả cũ liệt kê tên 8 mạng blockchain. Không thêm lại danh sách tên mạng, tên coin hay tên ví khác vào mô tả.
+
+  Lần 2 (thư ngày 05/11/2026) bị từ chối đúng lỗi đó: gói tiện ích đã sạch, nhưng ô mô tả trên trang quản lý vẫn giữ câu cũ "BNB Smart Chain, Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche và Fantom". Trước khi gửi lại, xóa sạch ô mô tả rồi dán bản trên, và kiểm tra mọi ngôn ngữ trong ô chọn ngôn ngữ của thẻ Store listing.
 - **Danh mục:** Công cụ (Tools) hoặc Tài chính (Finance) nếu có.
 - **Ngôn ngữ:** Tiếng Việt.
 - **Biểu tượng 128×128:** `icon-128.png`
