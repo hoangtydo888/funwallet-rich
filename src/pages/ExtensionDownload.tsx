@@ -69,27 +69,10 @@ const ExtensionDownload = () => {
           </Card>
         )}
 
-        {!installed && downloaded && (
+        {!installed && (
           <section className="mt-8">
-            <h2 className="text-xl font-heading font-semibold">Đang tải FUN Wallet. Làm tiếp 4 bước sau:</h2>
-            <ol className="mt-4 grid gap-3 md:grid-cols-2">
-              {steps.map((step, index) => (
-                <li key={step.title} className="flex gap-3 rounded-2xl border border-border p-4">
-                  <span className="w-8 h-8 shrink-0 rounded-full bg-primary text-primary-foreground grid place-items-center font-semibold">{index + 1}</span>
-                  <div className="min-w-0">
-                    <p className="font-semibold">{step.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{step.detail}</p>
-                    {index === 1 && (
-                      <Button variant="outline" size="sm" className="mt-2" onClick={copyExtensionsPage}>
-                        <Copy className="w-4 h-4 mr-1.5" /> {copied ? "Đã chép" : "Chép chrome://extensions"}
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Sau khi cài, FUN Wallet mở trang chào: chọn <b>Tạo ví mới</b> hoặc <b>Tôi đã có ví</b> để nhập cụm từ khôi phục. Tải lại trang này để thấy trạng thái "Đã thêm vào Chrome".
+            <p className="text-sm text-muted-foreground">
+              Bấm <b>Thêm vào Chrome</b> để mở trang FUN Wallet trên Chrome Web Store, rồi bấm <b>Thêm vào Chrome</b> trên cửa hàng để cài. Sau khi cài, FUN Wallet mở trang chào: chọn <b>Tạo ví mới</b> hoặc <b>Tôi đã có ví</b> để nhập cụm từ khôi phục. Tải lại trang này để thấy trạng thái "Đã thêm vào Chrome".
             </p>
           </section>
         )}
