@@ -21,29 +21,12 @@ const useExtensionInstalled = () => {
   return installed;
 };
 
-const steps = [
-  { title: "Giải nén file vừa tải", detail: "Bấm đúp vào fun-wallet-extension.zip trong thư mục Tải về (Downloads)." },
-  { title: "Mở trang Tiện ích của Chrome", detail: "Dán địa chỉ chrome://extensions vào thanh địa chỉ rồi bấm Enter." },
-  { title: "Bật Chế độ nhà phát triển", detail: "Gạt nút Developer mode (Chế độ dành cho nhà phát triển) ở góc trên bên phải." },
-  { title: "Bấm Load unpacked (Tải tiện ích đã giải nén)", detail: "Chọn thư mục fun-wallet-extension vừa giải nén. FUN Wallet sẽ tự mở trang chào." },
-];
-
 const ExtensionDownload = () => {
   const navigate = useNavigate();
   const installed = useExtensionInstalled();
-  const [downloaded, setDownloaded] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const addToChrome = () => {
-    if (CHROME_WEB_STORE_URL) {
-      window.location.href = CHROME_WEB_STORE_URL;
-      return;
-    }
-    download();
-    setDownloaded(true);
-  };
-  const copyExtensionsPage = () => {
-    void navigator.clipboard.writeText(EXTENSIONS_PAGE).then(() => setCopied(true));
+    window.open(CHROME_WEB_STORE_URL, "_blank", "noopener,noreferrer");
   };
 
   return (
