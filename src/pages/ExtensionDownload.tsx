@@ -1,29 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Copy, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-// Paste the Chrome Web Store link here once the listing is approved; the button
-// then opens the store's real "Thêm vào Chrome" dialog instead of the .zip guide.
-const CHROME_WEB_STORE_URL = "";
-const EXTENSIONS_PAGE = "chrome://extensions";
-
-const download = () => {
-  fetch("/fun-wallet-extension.zip")
-    .then((res) => {
-      if (!res.ok) throw new Error(`Tải thất bại: ${res.status}`);
-      return res.blob();
-    })
-    .then((blob) => {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "fun-wallet-extension.zip";
-      a.click();
-      URL.revokeObjectURL(a.href);
-    })
-    .catch((err) => alert(err.message));
-};
+// FUN Wallet listing on the Chrome Web Store; the button opens this page.
+const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/nnonifhnfpaopgjamekobkigbenepnnp";
 
 // The extension announces itself through EIP-6963, so the page knows it is installed.
 const useExtensionInstalled = () => {
